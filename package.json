@@ -1,0 +1,9 @@
+{
+  "name": "raspisanie-app",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "node dev-server.js",
+    "dev:vercel": "npx --yes vercel dev --listen 0.0.0.0:3000"
+  }
+}

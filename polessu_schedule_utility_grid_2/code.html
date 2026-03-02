@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html class="dark" lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Polessu Schedule - Ледовая арена</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#3b82f6",
+                        "dark-base": "#000000",
+                        "dark-card": "#1c1c1e",
+                        "dark-card-lighter": "#2c2c2e",
+                        "neon-blue": "#00f0ff",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: 'Lexend', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            background-color: #000000;
+            color: #ffffff;
+        }
+        .ios-blur {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+        .dock-blur {
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            background-color: rgba(28, 28, 30, 0.9);
+        }
+        .ice-card {
+            background: #1c1c1e;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .break-line {
+            position: relative;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.08);
+            width: 100%;
+            margin: 24px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .break-badge {
+            background: #000000;
+            color: #8e8e93;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-dark-base min-h-screen flex flex-col antialiased pb-36">
+<header class="sticky top-0 z-50 ios-blur px-5 pt-14 pb-5 border-b border-white/10">
+<div class="flex flex-col gap-6">
+<div class="flex items-center justify-between">
+<div>
+<span class="text-[11px] font-black uppercase tracking-[0.25em] text-blue-500 mb-1 block">Ледовая арена</span>
+<h1 class="text-3xl font-extrabold tracking-tight text-white leading-none">Сеансы</h1>
+</div>
+<div class="flex items-center gap-2.5">
+<button class="size-11 flex items-center justify-center rounded-2xl bg-dark-card border border-white/5 active:bg-dark-card-lighter transition-colors text-white">
+<span class="material-symbols-outlined text-[24px]">refresh</span>
+</button>
+<button class="size-11 flex items-center justify-center rounded-2xl bg-dark-card border border-white/5 active:bg-dark-card-lighter transition-colors text-white">
+<span class="material-symbols-outlined text-[24px]">settings</span>
+</button>
+</div>
+</div>
+<div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+<button class="h-10 px-5 rounded-xl bg-white text-black font-bold text-sm whitespace-nowrap">Сегодня</button>
+<button class="h-10 px-5 rounded-xl bg-dark-card text-gray-400 font-semibold text-sm whitespace-nowrap border border-white/5">Завтра</button>
+<button class="h-10 px-5 rounded-xl bg-dark-card text-gray-400 font-semibold text-sm whitespace-nowrap border border-white/5">26 Окт</button>
+<button class="h-10 px-5 rounded-xl bg-dark-card text-gray-400 font-semibold text-sm whitespace-nowrap border border-white/5">27 Окт</button>
+</div>
+</div>
+</header>
+<main class="flex-1 px-5 pt-8">
+<div class="flex items-center justify-between mb-8">
+<h2 class="text-[11px] font-black text-gray-500 uppercase tracking-[0.15em]">Расписание Ice Arena</h2>
+<div class="flex items-center gap-1.5 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20">
+<div class="size-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
+<span class="text-[10px] font-black text-blue-400 uppercase tracking-wider">Live</span>
+</div>
+</div>
+<div class="flex flex-col">
+<div class="ice-card rounded-3xl p-6 flex items-center justify-between">
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center gap-2">
+<span class="text-2xl font-black text-white tracking-tight">08:00</span>
+<span class="text-gray-700 font-bold">—</span>
+<span class="text-lg font-bold text-gray-500 tracking-tight">08:45</span>
+</div>
+<p class="text-base font-bold text-white">Хоккей (СДЮШОР)</p>
+<div class="mt-1">
+<span class="px-2 py-0.5 rounded text-[9px] font-black bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-[0.05em]">Тренировка</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-gray-700">chevron_right</span>
+</div>
+<div class="break-line">
+<div class="break-badge">45м перерыв</div>
+</div>
+<div class="ice-card rounded-3xl p-6 flex items-center justify-between relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center gap-2">
+<span class="text-2xl font-black text-white tracking-tight">09:30</span>
+<span class="text-gray-700 font-bold">—</span>
+<span class="text-lg font-bold text-gray-500 tracking-tight">10:15</span>
+</div>
+<p class="text-base font-bold text-white">Массовое катание</p>
+<div class="mt-1">
+<span class="px-2 py-0.5 rounded text-[9px] font-black bg-green-500/10 text-green-400 border border-green-500/20 uppercase tracking-[0.05em]">Доступно</span>
+</div>
+</div>
+<div class="flex flex-col items-end gap-2">
+<span class="text-[11px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">7.00 BYN</span>
+<span class="material-symbols-outlined text-gray-700">chevron_right</span>
+</div>
+</div>
+<div class="break-line">
+<div class="break-badge">1ч 15м заливка льда</div>
+</div>
+<div class="ice-card rounded-3xl p-6 flex items-center justify-between">
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center gap-2">
+<span class="text-2xl font-black text-white tracking-tight">11:30</span>
+<span class="text-gray-700 font-bold">—</span>
+<span class="text-lg font-bold text-gray-500 tracking-tight">12:15</span>
+</div>
+<p class="text-base font-bold text-white">Хоккей (Взрослые)</p>
+<div class="mt-1">
+<span class="px-2 py-0.5 rounded text-[9px] font-black bg-orange-500/10 text-orange-400 border border-orange-500/20 uppercase tracking-[0.05em]">Аренда</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-gray-700">chevron_right</span>
+</div>
+<div class="break-line">
+<div class="break-badge">30м перерыв</div>
+</div>
+<div class="ice-card rounded-3xl p-6 flex items-center justify-between opacity-50">
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center gap-2">
+<span class="text-2xl font-black text-white tracking-tight">12:45</span>
+<span class="text-gray-700 font-bold">—</span>
+<span class="text-lg font-bold text-gray-500 tracking-tight">13:30</span>
+</div>
+<p class="text-base font-bold text-white">Технический перерыв</p>
+</div>
+<span class="material-symbols-outlined text-gray-800">lock</span>
+</div>
+</div>
+</main>
+<div class="fixed bottom-0 left-0 right-0 z-50 px-6 pb-10 pt-4">
+<nav class="dock-blur rounded-[2.5rem] border border-white/10 p-2 flex items-center justify-between shadow-2xl">
+<button class="flex-1 flex flex-col items-center justify-center gap-1 py-3.5 px-1 rounded-[2.2rem] bg-white text-black">
+<span class="material-symbols-outlined text-[24px] fill-1">ac_unit</span>
+<span class="text-[9px] font-black uppercase tracking-tighter">Ледовая</span>
+</button>
+<button class="flex-1 flex flex-col items-center justify-center gap-1 py-3.5 px-1 rounded-[2.2rem] group">
+<span class="material-symbols-outlined text-gray-500 text-[24px] group-active:text-white transition-colors">pool</span>
+<span class="text-[9px] font-bold text-gray-500 group-active:text-white transition-colors uppercase tracking-tighter">Бассейн</span>
+</button>
+<button class="flex-1 flex flex-col items-center justify-center gap-1 py-3.5 px-1 rounded-[2.2rem] group">
+<span class="material-symbols-outlined text-gray-500 text-[24px] group-active:text-white transition-colors">fitness_center</span>
+<span class="text-[9px] font-bold text-gray-500 group-active:text-white transition-colors uppercase tracking-tighter">Зал</span>
+</button>
+<button class="flex-1 flex flex-col items-center justify-center gap-1 py-3.5 px-1 rounded-[2.2rem] group">
+<span class="material-symbols-outlined text-gray-500 text-[24px] group-active:text-white transition-colors">waves</span>
+<span class="text-[9px] font-bold text-gray-500 group-active:text-white transition-colors uppercase tracking-tighter">Малый</span>
+</button>
+</nav>
+</div>
+
+</body></html>

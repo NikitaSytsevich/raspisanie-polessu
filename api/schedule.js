@@ -1,0 +1,618 @@
+const TIMEZONE = "Europe/Minsk";
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_DAYS_WINDOW = 8;
+
+const FACILITIES = [
+  {
+    id: "ice_arena",
+    name: "Ледовая арена",
+    emoji: "❄️",
+    mode: "dated",
+    sourceUrl:
+      "https://www.polessu.by/%D0%BB%D0%B5%D0%B4%D0%BE%D0%B2%D0%B0%D1%8F-%D0%B0%D1%80%D0%B5%D0%BD%D0%B0-%D0%BF%D0%BE%D0%BB%D0%B5%D1%81%D0%B3%D1%83",
+    defaults: {
+      activity: "Массовое катание",
+    },
+  },
+  {
+    id: "sports_pool",
+    name: "Большой бассейн",
+    emoji: "🏊",
+    mode: "dated",
+    sourceUrl:
+      "https://www.polessu.by/%D0%B1%D0%BE%D0%BB%D1%8C%D1%88%D0%BE%D0%B9-%D0%B1%D0%B0%D1%81%D1%81%D0%B5%D0%B9%D0%BD",
+    defaults: {
+      activity: "Свободное плавание",
+    },
+  },
+  {
+    id: "small_pool",
+    name: "Малый бассейн",
+    emoji: "🌊",
+    mode: "dated",
+    sourceUrl:
+      "https://www.polessu.by/%D0%BC%D0%B0%D0%BB%D1%8B%D0%B9-%D0%B1%D0%B0%D1%81%D1%81%D0%B5%D0%B9%D0%BD",
+    defaults: {
+      activity: "Сеанс",
+    },
+  },
+  {
+    id: "rowing_base",
+    name: "Гребная база",
+    emoji: "🚣",
+    mode: "dailyTemplate",
+    sourceUrl:
+      "https://www.polessu.by/%D1%80%D0%B0%D1%81%D0%BF%D0%B8%D1%81%D0%B0%D0%BD%D0%B8%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B-%D1%82%D1%80%D0%B5%D0%BD%D0%B0%D0%B6%D0%B5%D1%80%D0%BD%D0%BE%D0%B3%D0%BE-%D0%B7%D0%B0%D0%BB%D0%B0-%D0%B8-%D0%B7%D0%B0%D0%BB%D0%B0-%D1%88%D1%82%D0%B0%D0%BD%D0%B3%D0%B8-%D0%B3%D1%80%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F-%D0%B1%D0%B0%D0%B7%D0%B0-%E2%84%961",
+    defaults: {
+      activity: "Тренажерный зал",
+    },
+  },
+];
+
+let memoryCache = {
+  at: 0,
+  payload: null,
+};
+
+module.exports = async function handler(req, res) {
+  try {
+    const force = String(req.query?.refresh || req.query?.force || "").trim() === "1";
+
+    if (!force && memoryCache.payload && Date.now() - memoryCache.at < CACHE_TTL_MS) {
+      return respond(res, 200, memoryCache.payload, true);
+    }
+
+    const facilityResults = await Promise.all(
+      FACILITIES.map(async (facility) => {
+        try {
+          const html = await fetchHtml(facility.sourceUrl);
+          const lines = htmlToLines(extractFieldContent(html));
+          const parsed =
+            facility.mode === "dated"
+              ? parseDated(lines, facility)
+              : parseDailyTemplate(lines, facility, DEFAULT_DAYS_WINDOW);
+
+          return {
+            id: facility.id,
+            name: facility.name,
+            emoji: facility.emoji,
+            sourceUrl: facility.sourceUrl,
+            mode: facility.mode,
+            updatedAt: new Date().toISOString(),
+            ...parsed,
+            error: null,
+          };
+        } catch (error) {
+          return {
+            id: facility.id,
+            name: facility.name,
+            emoji: facility.emoji,
+            sourceUrl: facility.sourceUrl,
+            mode: facility.mode,
+            updatedAt: new Date().toISOString(),
+            days: [],
+            notes: [],
+            warnings: ["Не удалось получить или распарсить страницу расписания"],
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      })
+    );
+
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      timezone: TIMEZONE,
+      facilities: facilityResults,
+      meta: {
+        cached: false,
+        sourceCount: FACILITIES.length,
+      },
+    };
+
+    memoryCache = {
+      at: Date.now(),
+      payload,
+    };
+
+    return respond(res, 200, payload, false);
+  } catch (error) {
+    return respond(
+      res,
+      500,
+      {
+        error: "Internal parsing failure",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      false
+    );
+  }
+};
+
+function respond(res, statusCode, payload, fromCache) {
+  const body = {
+    ...payload,
+    meta: {
+      ...(payload.meta || {}),
+      cached: Boolean(fromCache),
+    },
+  };
+
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "s-maxage=120, stale-while-revalidate=300");
+  res.status(statusCode).send(JSON.stringify(body));
+}
+
+async function fetchHtml(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 16_000);
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} for ${url}`);
+    }
+
+    return await response.text();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function extractFieldContent(html) {
+  const match = html.match(
+    /<div class="field-item even"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/i
+  );
+
+  return match ? match[1] : html;
+}
+
+function htmlToLines(html) {
+  const withBreaks = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/(p|h\d|div|li|tr|table)>/gi, "\n")
+    .replace(/<hr[^>]*>/gi, "\n");
+
+  const noTags = withBreaks.replace(/<[^>]+>/g, " ");
+
+  const decoded = decodeHtml(noTags)
+    .replace(/\u00a0/g, " ")
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\s+\.\s+/g, ".")
+    .replace(/(\d)\s+(\d)\s*\.\s*(\d{2})/g, "$1$2.$3")
+    .replace(/(\d)\s*\.\s*(\d{2})/g, "$1.$2")
+    .replace(/[ \t]+/g, " ");
+
+  return decoded
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function decodeHtml(value) {
+  return value
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&laquo;/gi, "«")
+    .replace(/&raquo;/gi, "»")
+    .replace(/&ndash;/gi, "-")
+    .replace(/&mdash;/gi, "-");
+}
+
+function parseDated(lines, facility) {
+  const dayMap = new Map();
+  const notes = [];
+  const warnings = [];
+
+  let currentDate = null;
+  let currentWeekday = null;
+  let pendingClosureRange = null;
+
+  for (const rawLine of lines) {
+    const line = normalizeLine(rawLine);
+    if (!line) {
+      continue;
+    }
+
+    if (isTechnicalOrServiceLine(line)) {
+      continue;
+    }
+
+    const rangeHeader = line.match(
+      /^(\p{L}+?)\s+(\d{2}\.\d{2}\.\d{4})\s*[-]\s*(\p{L}+?)\s+(\d{2}\.\d{2}\.\d{4})$/u
+    );
+    if (rangeHeader) {
+      pendingClosureRange = {
+        startDate: ddmmyyyyToIso(rangeHeader[2]),
+        endDate: ddmmyyyyToIso(rangeHeader[4]),
+        weekdayStart: rangeHeader[1],
+        weekdayEnd: rangeHeader[3],
+      };
+      continue;
+    }
+
+    const datedHeader = line.match(/^(\p{L}+?)\s+(\d{2}\.\d{2}\.\d{4})(.*)$/u);
+    if (datedHeader) {
+      currentWeekday = capitalizeWord(datedHeader[1]);
+      currentDate = ddmmyyyyToIso(datedHeader[2]);
+      ensureDay(dayMap, currentDate, currentWeekday);
+
+      const tail = normalizeLine(datedHeader[3]);
+      if (tail) {
+        upsertTimeRangesFromLine(dayMap, currentDate, facility, tail);
+      }
+      continue;
+    }
+
+    if (pendingClosureRange && /не работает|санитарный|техническим причинам/i.test(line)) {
+      const closureDates = expandDateRange(pendingClosureRange.startDate, pendingClosureRange.endDate);
+      for (const date of closureDates) {
+        const weekday = weekdayNameRu(date);
+        const day = ensureDay(dayMap, date, weekday);
+        day.closedReason = line;
+      }
+      pendingClosureRange = null;
+      continue;
+    }
+
+    if (!currentDate) {
+      if (/расписан/i.test(line)) {
+        notes.push(line);
+      }
+      continue;
+    }
+
+    if (isPostScheduleSection(line)) {
+      currentDate = null;
+      currentWeekday = null;
+      notes.push(line);
+      continue;
+    }
+
+    if (/санитарный день|не работает|техническим причинам/i.test(line)) {
+      const day = ensureDay(dayMap, currentDate, currentWeekday || weekdayNameRu(currentDate));
+      day.closedReason = line;
+      continue;
+    }
+
+    const rangesAdded = upsertTimeRangesFromLine(dayMap, currentDate, facility, line);
+    if (!rangesAdded && /расписан|изменени|обучени|абонемент|оплат/i.test(line)) {
+      notes.push(line);
+    }
+  }
+
+  const days = Array.from(dayMap.values())
+    .map((day) => ({
+      ...day,
+      sessions: day.sessions.sort((a, b) => toMinutes(a.start) - toMinutes(b.start)),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (days.length === 0) {
+    warnings.push("На странице не найдено датированного расписания");
+  }
+
+  return {
+    days,
+    notes: uniq(notes),
+    warnings,
+  };
+}
+
+function parseDailyTemplate(lines, facility, daysWindow) {
+  const notes = [];
+  const warnings = [];
+
+  const templateSessions = [];
+
+  for (const rawLine of lines) {
+    const line = normalizeLine(rawLine);
+    if (!line || isTechnicalOrServiceLine(line)) {
+      continue;
+    }
+
+    if (/расписан/i.test(line) && !timeRangeRegex().test(line)) {
+      notes.push(line);
+      continue;
+    }
+
+    const ranges = extractRangesFromLine(line);
+    if (ranges.length === 0) {
+      if (/ерип|стоимост|впечатлен/i.test(line)) {
+        continue;
+      }
+      notes.push(line);
+      continue;
+    }
+
+    for (const range of ranges) {
+      templateSessions.push({
+        start: range.start,
+        end: range.end,
+        activity: range.note || facility.defaults.activity,
+        note: range.note || null,
+        sourceLine: line,
+      });
+    }
+  }
+
+  const uniqueTemplate = dedupeSessions(templateSessions);
+
+  if (uniqueTemplate.length === 0) {
+    warnings.push("На странице не найдено шаблонных интервалов времени");
+  }
+
+  const today = todayIsoInTimezone(TIMEZONE);
+  const days = [];
+
+  for (let i = 0; i < daysWindow; i += 1) {
+    const date = addDays(today, i);
+    const weekday = weekdayNameRu(date);
+    const isRowingWeekendClosed = facility.id === "rowing_base" && isWeekendIso(date);
+
+    days.push({
+      date,
+      weekday,
+      sessions: isRowingWeekendClosed
+        ? []
+        : uniqueTemplate.map((session) => ({
+            ...session,
+            date,
+            weekday,
+          })),
+      closedReason: isRowingWeekendClosed ? "Выходной день" : null,
+      sourceType: "template",
+    });
+  }
+
+  notes.unshift("Источник публикует интервалы без конкретных дат; применен шаблон на ближайшие дни");
+  if (facility.id === "rowing_base") {
+    notes.unshift("Для гребной базы суббота и воскресенье отмечаются как выходные дни");
+  }
+
+  return {
+    days,
+    notes: uniq(notes),
+    warnings,
+  };
+}
+
+function ensureDay(dayMap, date, weekday) {
+  if (!dayMap.has(date)) {
+    dayMap.set(date, {
+      date,
+      weekday,
+      sessions: [],
+      closedReason: null,
+      sourceType: "dated",
+    });
+  }
+
+  return dayMap.get(date);
+}
+
+function upsertTimeRangesFromLine(dayMap, date, facility, line) {
+  const ranges = extractRangesFromLine(line);
+  if (ranges.length === 0) {
+    return 0;
+  }
+
+  const day = dayMap.get(date);
+  for (const range of ranges) {
+    day.sessions.push({
+      date,
+      weekday: day.weekday,
+      start: range.start,
+      end: range.end,
+      activity: range.note || facility.defaults.activity,
+      note: range.note || null,
+      sourceLine: line,
+    });
+  }
+
+  day.sessions = dedupeSessions(day.sessions);
+  return ranges.length;
+}
+
+function extractRangesFromLine(line) {
+  const clean = line
+    .replace(/\s+/g, " ")
+    .replace(/(\d)\s*\.\s*(\d{2})/g, "$1.$2")
+    .trim();
+
+  const ranges = [];
+  const regex = timeRangeRegex();
+  const matches = Array.from(clean.matchAll(regex));
+
+  for (let i = 0; i < matches.length; i += 1) {
+    const current = matches[i];
+    const next = matches[i + 1];
+
+    const start = normalizeTime(current[1]);
+    const end = normalizeTime(current[2]);
+
+    if (!start || !end) {
+      continue;
+    }
+
+    const noteRaw = clean.slice(current.index + current[0].length, next ? next.index : clean.length).trim();
+    const note = sanitizeNote(noteRaw);
+
+    ranges.push({ start, end, note });
+  }
+
+  return ranges;
+}
+
+function dedupeSessions(items) {
+  const seen = new Set();
+  const result = [];
+
+  for (const item of items) {
+    const key = [item.date || "*", item.start, item.end, item.activity || "", item.note || ""].join("|");
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(item);
+  }
+
+  return result;
+}
+
+function sanitizeNote(note) {
+  if (!note) {
+    return null;
+  }
+
+  const cleaned = note
+    .replace(/^[-,.;:()\s]+/, "")
+    .replace(/[-,.;:()\s]+$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) {
+    return null;
+  }
+
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(cleaned)) {
+    return null;
+  }
+
+  return cleaned;
+}
+
+function normalizeLine(line) {
+  return line
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/[ \t]+/g, " ")
+    .trim();
+}
+
+function isTechnicalOrServiceLine(line) {
+  return /^(оплата услуг|стоимость услуг|желаем вам|приносим свои извинения)$/i.test(
+    line.toLowerCase()
+  );
+}
+
+function isPostScheduleSection(line) {
+  return /^(обучение плаванию|срок действия абонементов|оплатить услуги|оплата услуг|стоимость услуг|желаем вам|в расписании возможны изменения)/i.test(
+    line
+  );
+}
+
+function timeRangeRegex() {
+  return /(\d{1,2}\s*[.:]\s*\d{2})\s*[-]\s*(\d{1,2}\s*[.:]\s*\d{2})/g;
+}
+
+function normalizeTime(value) {
+  if (!value) {
+    return null;
+  }
+
+  const match = value.replace(/\s+/g, "").match(/^(\d{1,2})[.:](\d{2})$/);
+  if (!match) {
+    return null;
+  }
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return null;
+  }
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function ddmmyyyyToIso(value) {
+  const match = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) {
+    return null;
+  }
+
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function toMinutes(hhmm) {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function todayIsoInTimezone(timeZone) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function addDays(isoDate, delta) {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + delta);
+  return date.toISOString().slice(0, 10);
+}
+
+function isWeekendIso(isoDate) {
+  const day = new Date(`${isoDate}T12:00:00Z`).getUTCDay();
+  return day === 0 || day === 6;
+}
+
+function expandDateRange(startIso, endIso) {
+  if (!startIso || !endIso) {
+    return [];
+  }
+
+  const start = new Date(`${startIso}T00:00:00Z`);
+  const end = new Date(`${endIso}T00:00:00Z`);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+    return [];
+  }
+
+  const result = [];
+  const cursor = new Date(start);
+
+  while (cursor <= end) {
+    result.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return result;
+}
+
+function weekdayNameRu(isoDate) {
+  const date = new Date(`${isoDate}T12:00:00Z`);
+  const raw = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: TIMEZONE,
+    weekday: "long",
+  }).format(date);
+
+  return capitalizeWord(raw);
+}
+
+function capitalizeWord(value) {
+  if (!value) {
+    return value;
+  }
+
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+}
+
+function uniq(values) {
+  return Array.from(new Set(values.filter(Boolean)));
+}

@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html class="dark" lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta id="themeColorMeta" name="theme-color" content="#0a0a0a" />
+    <link rel="icon" type="image/svg+xml" href="assets/app-icon-right-v2.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon-v2.png" />
+    <title>Расписание</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#3b82f6",
+              "dark-base": "#000000",
+              "dark-card": "#1c1c1e",
+              "dark-card-lighter": "#2c2c2e",
+              "background-light": "#ffffff",
+              "header-tint": "#f8fafc",
+            },
+            fontFamily: {
+              display: ["Lexend", "sans-serif"],
+            },
+          },
+        },
+      };
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="bg-dark-base min-h-screen antialiased pb-36">
+    <div id="scheduleView">
+      <header id="scheduleHeader" class="sticky top-0 z-50 ios-blur px-5 pt-14 pb-5 border-b border-white/10">
+        <div class="flex flex-col gap-4">
+          <div class="schedule-header-top">
+            <div>
+              <span
+                id="facilityMeta"
+                class="text-[11px] font-black uppercase tracking-[0.25em] text-blue-500 mb-1 block"
+                >Ледовая арена</span
+              >
+              <h1 class="text-3xl font-extrabold tracking-tight text-white leading-none">Сеансы</h1>
+            </div>
+            <div class="flex items-center gap-2.5">
+              <button
+                id="refreshButton"
+                class="size-11 flex items-center justify-center rounded-2xl bg-dark-card border border-white/5 active:bg-dark-card-lighter transition-colors text-white"
+                type="button"
+                title="Обновить"
+              >
+                <span id="refreshIcon" class="material-symbols-outlined text-[24px]">refresh</span>
+              </button>
+              <button
+                id="openSettingsButton"
+                class="size-11 flex items-center justify-center rounded-2xl bg-dark-card border border-white/5 active:bg-dark-card-lighter transition-colors text-white"
+                type="button"
+                title="Настройки"
+              >
+                <span class="material-symbols-outlined text-[24px]">settings</span>
+              </button>
+            </div>
+          </div>
+
+          <button id="openMyScheduleButton" type="button" class="my-schedule-cta">
+            <span class="my-schedule-cta-copy">
+              <span class="my-schedule-cta-kicker">Личный раздел</span>
+              <span class="my-schedule-cta-title">Мой график</span>
+              <span class="my-schedule-cta-subtitle">Смены, часы и метрики на месяц</span>
+            </span>
+            <span class="material-symbols-outlined my-schedule-cta-icon">calendar_month</span>
+          </button>
+
+          <div id="dateTabs" class="flex items-center gap-2 overflow-x-auto no-scrollbar"></div>
+        </div>
+      </header>
+
+      <main id="scheduleMain" class="flex-1 px-5 pt-5">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-[11px] font-black text-gray-500 uppercase tracking-[0.15em]">Расписание</h2>
+          <div
+            id="livePill"
+            class="flex items-center gap-1.5 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20"
+          >
+            <div class="size-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
+            <span id="liveText" class="text-[10px] font-bold text-blue-400">Синхронизировано</span>
+          </div>
+        </div>
+
+        <div id="updatedAt" class="text-[11px] font-bold text-gray-500 mb-3">Загрузка...</div>
+
+        <section
+          id="closureBanner"
+          hidden
+          class="closure-banner closure-banner-alert mb-4 rounded-2xl border px-4 py-3 text-sm font-bold"
+        ></section>
+
+        <div id="timeline" class="flex flex-col"></div>
+
+        <section id="emptyState" hidden class="ice-card rounded-2xl p-6 text-center">
+          <h2 class="text-xl font-black text-white">Сеансов нет</h2>
+          <p class="mt-2 text-sm font-semibold text-gray-400">На выбранную дату расписание отсутствует.</p>
+        </section>
+      </main>
+    </div>
+
+    <div id="settingsView" hidden class="bg-background-light text-black min-h-screen">
+      <header id="settingsHeader" class="sticky top-0 z-50 bg-header-tint/95 ios-blur-light px-6 pt-12 pb-4 header-depth">
+        <div class="flex flex-col gap-4">
+          <div class="flex items-center">
+            <button
+              id="backFromSettingsButton"
+              class="relative size-10 -ml-2 flex items-center justify-center rounded-xl hover:bg-black/5 text-slate-900 active:scale-95 transition-all"
+              type="button"
+            >
+              <span class="material-symbols-outlined text-[28px] font-medium">arrow_back</span>
+            </button>
+          </div>
+          <h1 class="text-[34px] font-[900] tracking-tight text-black leading-tight">Настройки</h1>
+        </div>
+      </header>
+
+      <main id="settingsMain" class="px-6 py-8 pb-24">
+        <section class="settings-panel mb-12">
+          <h2 class="text-xs font-[800] text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Тема оформления</h2>
+          <div id="themeSelector" class="grid grid-cols-2 gap-4">
+            <button
+              type="button"
+              data-theme="light"
+              class="theme-card group relative flex flex-col items-center overflow-hidden rounded-[24px] border-2 border-transparent bg-slate-50 p-4 transition-all"
+            >
+              <div class="theme-check hidden absolute top-3 right-3 size-6 rounded-full bg-primary items-center justify-center z-10 shadow-sm">
+                <span class="material-symbols-outlined text-white text-[16px] font-[800]">check</span>
+              </div>
+              <div class="mb-4 flex h-32 w-full flex-col gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-100">
+                <div class="h-3 w-1/3 rounded-full bg-slate-100"></div>
+                <div class="h-16 w-full rounded-lg bg-slate-50 border border-slate-100"></div>
+                <div class="mt-auto flex gap-2">
+                  <div class="h-2 w-full rounded-full bg-slate-100"></div>
+                  <div class="h-2 w-1/4 rounded-full bg-blue-100"></div>
+                </div>
+              </div>
+              <span class="text-[15px] font-[800] text-slate-900">Светлая</span>
+            </button>
+
+            <button
+              type="button"
+              data-theme="dark"
+              class="theme-card group relative flex flex-col items-center overflow-hidden rounded-[24px] border-2 border-transparent bg-slate-900 p-4 transition-all"
+            >
+              <div class="theme-check hidden absolute top-3 right-3 size-6 rounded-full bg-primary items-center justify-center z-10 shadow-sm">
+                <span class="material-symbols-outlined text-white text-[16px] font-[800]">check</span>
+              </div>
+              <div class="mb-4 flex h-32 w-full flex-col gap-2 rounded-xl bg-slate-800 p-3 shadow-inner border border-slate-700">
+                <div class="h-3 w-1/3 rounded-full bg-slate-700"></div>
+                <div class="h-16 w-full rounded-lg bg-slate-900/50 border border-slate-700/50"></div>
+                <div class="mt-auto flex gap-2">
+                  <div class="h-2 w-full rounded-full bg-slate-700"></div>
+                  <div class="h-2 w-1/4 rounded-full bg-slate-600"></div>
+                </div>
+              </div>
+              <span class="text-[15px] font-[800] text-white">Темная</span>
+            </button>
+
+            <button
+              type="button"
+              data-theme="system"
+              class="theme-card col-span-2 group relative flex items-center gap-6 overflow-hidden rounded-[24px] border-2 border-transparent bg-slate-100 p-4 transition-all"
+            >
+              <div class="theme-check hidden absolute top-3 right-3 size-6 rounded-full bg-primary items-center justify-center z-10 shadow-sm">
+                <span class="material-symbols-outlined text-white text-[16px] font-[800]">check</span>
+              </div>
+              <div class="relative flex h-24 w-1/2 overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+                <div class="w-1/2 h-full bg-white"></div>
+                <div class="w-1/2 h-full bg-slate-900"></div>
+              </div>
+              <div class="flex flex-col items-start">
+                <span class="text-[17px] font-[800] text-slate-900">Системная</span>
+                <span class="text-xs font-semibold text-slate-400 mt-1">Автоматически</span>
+              </div>
+            </button>
+          </div>
+        </section>
+
+        <section class="settings-panel mb-12">
+          <h2 class="text-xs font-[800] text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Обновление данных</h2>
+          <div class="bg-slate-50 rounded-[24px] border border-slate-100 p-5">
+            <label class="text-sm font-bold text-slate-700 block mb-2" for="autoRefreshSelect">Интервал автообновления</label>
+            <select id="autoRefreshSelect" class="w-full rounded-xl border-slate-200 text-sm font-semibold text-slate-700">
+              <option value="0">Только вручную</option>
+              <option value="5">Каждые 5 минут</option>
+              <option value="15">Каждые 15 минут</option>
+              <option value="30">Каждые 30 минут</option>
+            </select>
+            <button
+              id="settingsRefreshButton"
+              type="button"
+              class="mt-4 w-full rounded-xl bg-primary text-white text-sm font-extrabold py-3 active:scale-[0.99]"
+            >
+              Обновить сейчас
+            </button>
+          </div>
+        </section>
+
+        <section class="settings-panel">
+          <h2 class="text-xs font-[800] text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Мой график</h2>
+          <div class="bg-slate-50 rounded-[24px] border border-slate-100 p-5 mb-5">
+            <p class="text-sm font-semibold text-slate-600 mb-4">Импорт и экспорт истории ваших смен в JSON.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button id="exportMyShiftsButton" type="button" class="history-action-btn history-action-btn-export">
+                Экспорт истории
+              </button>
+              <button id="importMyShiftsButton" type="button" class="history-action-btn history-action-btn-import">
+                Импорт истории
+              </button>
+            </div>
+            <input id="importMyShiftsInput" type="file" accept=".json,application/json" hidden />
+            <p id="myShiftsDataNotice" hidden class="history-data-notice mt-3"></p>
+          </div>
+
+          <h2 class="text-xs font-[800] text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Источники</h2>
+          <ul id="sourceList" class="space-y-2"></ul>
+        </section>
+      </main>
+    </div>
+
+    <div id="myScheduleView" hidden class="bg-dark-base min-h-screen">
+      <header id="myScheduleHeader" class="sticky top-0 z-50 ios-blur px-5 pt-14 pb-5 border-b border-white/10">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <button
+              id="backFromMyScheduleButton"
+              class="size-11 flex items-center justify-center rounded-2xl bg-dark-card border border-white/5 active:bg-dark-card-lighter transition-colors text-white"
+              type="button"
+              title="Назад к расписанию"
+            >
+              <span class="material-symbols-outlined text-[24px]">arrow_back</span>
+            </button>
+            <div>
+              <span class="text-[11px] font-black uppercase tracking-[0.25em] text-blue-500 mb-1 block">Личный раздел</span>
+              <h1 class="text-3xl font-extrabold tracking-tight text-white leading-none">Мой график</h1>
+            </div>
+          </div>
+          <div class="my-schedule-refresh-group">
+            <p id="myScheduleUpdatedAt" class="my-schedule-updated-at">Загрузка...</p>
+            <button
+              id="myScheduleRefreshButton"
+              class="size-11 flex items-center justify-center rounded-2xl bg-dark-card border border-white/5 active:bg-dark-card-lighter transition-colors text-white"
+              type="button"
+              title="Обновить данные сайта"
+            >
+              <span id="myScheduleRefreshIcon" class="material-symbols-outlined text-[24px]">refresh</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main id="myScheduleMain" class="px-5 pt-5 pb-24">
+        <section class="my-graph-hero">
+          <div class="my-graph-hero-top">
+            <div>
+              <h2 id="myMonthTitle">Текущий месяц</h2>
+              <p id="myMonthSummary">Здесь будет сводка по времени за месяц.</p>
+            </div>
+            <div class="my-month-nav">
+              <button id="myMonthPrevButton" type="button" class="my-month-nav-btn" title="Предыдущий месяц">
+                <span class="material-symbols-outlined">chevron_left</span>
+              </button>
+              <input id="myMonthInput" type="month" class="my-month-input" />
+              <button id="myMonthNextButton" type="button" class="my-month-nav-btn" title="Следующий месяц">
+                <span class="material-symbols-outlined">chevron_right</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="my-graph-form-card">
+          <button id="myShiftToggleButton" type="button" class="my-shift-toggle-btn" aria-expanded="false">
+            <span class="my-shift-toggle-title">Добавить смену</span>
+            <span id="myShiftToggleIcon" class="material-symbols-outlined">expand_more</span>
+          </button>
+          <div id="myShiftFormContainer" hidden>
+            <form id="myShiftForm" class="my-shift-form" autocomplete="off">
+              <label class="my-field">
+                <span>Дата</span>
+                <input id="myShiftDateInput" type="date" required />
+              </label>
+
+              <label class="my-field">
+                <span>Объект</span>
+                <select id="myShiftFacilitySelect" required></select>
+              </label>
+
+              <div class="my-time-row">
+                <label class="my-field">
+                  <span>Начало</span>
+                  <input id="myShiftStartInput" type="time" required />
+                </label>
+                <label class="my-field">
+                  <span>Конец</span>
+                  <input id="myShiftEndInput" type="time" required />
+                </label>
+              </div>
+
+              <label class="my-field">
+                <span>Комментарий (опционально)</span>
+                <input
+                  id="myShiftNoteInput"
+                  type="text"
+                  maxlength="80"
+                  placeholder="Например: подмена, тренажёрный зал"
+                />
+              </label>
+
+              <button id="myShiftSubmitButton" type="submit" class="my-shift-submit-btn">Сохранить смену</button>
+            </form>
+          </div>
+          <p id="myScheduleNotice" hidden class="my-schedule-notice"></p>
+        </section>
+
+        <section class="my-graph-metrics">
+          <article class="my-graph-metric-card">
+            <span class="my-graph-metric-label">Смен на сайте</span>
+            <strong id="myMetricShifts" class="my-graph-metric-value">0</strong>
+          </article>
+          <article class="my-graph-metric-card">
+            <span class="my-graph-metric-label">Часов в среднем</span>
+            <strong id="myMetricAverageHours" class="my-graph-metric-value">0ч</strong>
+          </article>
+          <article class="my-graph-metric-card my-graph-metric-card-wide">
+            <span class="my-graph-metric-label">Ближайшая смена</span>
+            <strong id="myMetricNextShift" class="my-graph-metric-value my-metric-next">—</strong>
+          </article>
+        </section>
+
+        <section class="my-graph-placeholder">
+          <h3>Таймлайн месяца</h3>
+          <div id="myScheduleTimeline"></div>
+        </section>
+
+        <section id="myChartsPanel" class="my-graph-charts">
+          <article class="my-chart-card">
+            <div class="my-chart-head">
+              <h3>Распределение по объектам</h3>
+            </div>
+            <div id="myFacilityShareChart" class="my-chart-canvas" role="img" aria-label="График распределения по объектам"></div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <div id="facilityDock" class="fixed bottom-0 left-0 right-0 z-50 px-6 pb-10 pt-4">
+      <nav class="dock-blur rounded-[2.5rem] border border-white/10 p-2 flex items-center justify-between shadow-2xl" id="facilityTabs"></nav>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script src="app.js" defer></script>
+  </body>
+</html>
