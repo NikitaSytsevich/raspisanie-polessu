@@ -82,6 +82,11 @@
             <span class="material-symbols-outlined my-schedule-cta-icon">calendar_month</span>
           </button>
 
+          <button id="openChangesButton" type="button" class="site-changes-cta">
+            <span class="material-symbols-outlined">monitoring</span>
+            <span>Изменения на сайте</span>
+          </button>
+
           <div id="dateTabs" class="flex items-center gap-2 overflow-x-auto no-scrollbar"></div>
         </div>
       </header>
@@ -237,125 +242,168 @@
 
     <div id="myScheduleView" hidden class="bg-dark-base min-h-screen">
       <header id="myScheduleHeader" class="sticky top-0 z-50 ios-blur px-5 pt-14 pb-5 border-b border-white/10">
-        <div class="flex items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <button
-              id="backFromMyScheduleButton"
-              class="size-11 flex items-center justify-center rounded-2xl bg-dark-card border border-white/5 active:bg-dark-card-lighter transition-colors text-white"
-              type="button"
-              title="Назад к расписанию"
-            >
-              <span class="material-symbols-outlined text-[24px]">arrow_back</span>
-            </button>
-            <div>
-              <span class="text-[11px] font-black uppercase tracking-[0.25em] text-blue-500 mb-1 block">Личный раздел</span>
-              <h1 class="text-3xl font-extrabold tracking-tight text-white leading-none">Мой график</h1>
+        <div class="my-schedule-topbar">
+          <button id="backFromMyScheduleButton" class="my-schedule-back-btn" type="button" title="Назад к расписанию">
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+          <div class="my-schedule-status-chip">
+            <span class="material-symbols-outlined">schedule</span>
+            <div class="my-schedule-status-text">
+              <span class="my-schedule-status-label">Последнее обновление</span>
+              <p id="myScheduleUpdatedAt" class="my-schedule-updated-at">Загрузка...</p>
             </div>
           </div>
-          <div class="my-schedule-refresh-group">
-            <p id="myScheduleUpdatedAt" class="my-schedule-updated-at">Загрузка...</p>
-            <button
-              id="myScheduleRefreshButton"
-              class="size-11 flex items-center justify-center rounded-2xl bg-dark-card border border-white/5 active:bg-dark-card-lighter transition-colors text-white"
-              type="button"
-              title="Обновить данные сайта"
-            >
-              <span id="myScheduleRefreshIcon" class="material-symbols-outlined text-[24px]">refresh</span>
-            </button>
-          </div>
+          <button id="myScheduleRefreshButton" class="my-schedule-refresh-btn" type="button" title="Обновить данные сайта">
+            <span id="myScheduleRefreshIcon" class="material-symbols-outlined">refresh</span>
+            <span>Обновить</span>
+          </button>
         </div>
       </header>
 
       <main id="myScheduleMain" class="px-5 pt-5 pb-24">
-        <section class="my-graph-hero">
-          <div class="my-graph-hero-top">
-            <div>
-              <h2 id="myMonthTitle">Текущий месяц</h2>
-              <p id="myMonthSummary">Здесь будет сводка по времени за месяц.</p>
-            </div>
-            <div class="my-month-nav">
-              <button id="myMonthPrevButton" type="button" class="my-month-nav-btn" title="Предыдущий месяц">
-                <span class="material-symbols-outlined">chevron_left</span>
-              </button>
-              <input id="myMonthInput" type="month" class="my-month-input" />
-              <button id="myMonthNextButton" type="button" class="my-month-nav-btn" title="Следующий месяц">
-                <span class="material-symbols-outlined">chevron_right</span>
-              </button>
-            </div>
+        <section class="my-graph-placeholder my-day-spotlight">
+          <div class="my-day-spotlight-head">
+            <h3 id="myTimelineTitle">График на выбранные сутки</h3>
+          </div>
+          <div id="myScheduleTimeline"></div>
+          <div class="my-day-inline-actions">
+            <button id="myShowAllButton" type="button" class="my-day-control-btn">
+              <span class="material-symbols-outlined">unfold_more</span>
+              <span>Показать всё</span>
+            </button>
           </div>
         </section>
 
-        <section class="my-graph-form-card">
-          <button id="myShiftToggleButton" type="button" class="my-shift-toggle-btn" aria-expanded="false">
-            <span class="my-shift-toggle-title">Добавить смену</span>
-            <span id="myShiftToggleIcon" class="material-symbols-outlined">expand_more</span>
+        <section id="myChangesSummaryCard" class="my-changes-summary-card">
+          <div id="myChangesSummaryContent"></div>
+        </section>
+
+        <section class="my-editor-launch-wrap">
+          <button
+            id="openMyEditorButton"
+            type="button"
+            class="my-editor-launch-btn"
+            aria-label="Управление сменами"
+            title="Управление сменами"
+          >
+            <span class="material-symbols-outlined">add_circle</span>
+            <span class="my-editor-launch-copy">
+              <strong>Добавить или изменить смену</strong>
+              <small>Открыть меню управления сменами</small>
+            </span>
+            <span class="material-symbols-outlined">arrow_forward</span>
           </button>
-          <div id="myShiftFormContainer" hidden>
-            <form id="myShiftForm" class="my-shift-form" autocomplete="off">
-              <label class="my-field">
-                <span>Дата</span>
-                <input id="myShiftDateInput" type="date" required />
-              </label>
+        </section>
+      </main>
+    </div>
 
-              <label class="my-field">
-                <span>Объект</span>
-                <select id="myShiftFacilitySelect" required></select>
-              </label>
-
-              <div class="my-time-row">
-                <label class="my-field">
-                  <span>Начало</span>
-                  <input id="myShiftStartInput" type="time" required />
-                </label>
-                <label class="my-field">
-                  <span>Конец</span>
-                  <input id="myShiftEndInput" type="time" required />
-                </label>
-              </div>
-
-              <label class="my-field">
-                <span>Комментарий (опционально)</span>
-                <input
-                  id="myShiftNoteInput"
-                  type="text"
-                  maxlength="80"
-                  placeholder="Например: подмена, тренажёрный зал"
-                />
-              </label>
-
-              <button id="myShiftSubmitButton" type="submit" class="my-shift-submit-btn">Сохранить смену</button>
-            </form>
+    <div id="myScheduleEditorView" hidden class="bg-dark-base min-h-screen">
+      <header id="myScheduleEditorHeader" class="sticky top-0 z-50 ios-blur px-5 pt-14 pb-5 border-b border-white/10">
+        <div class="flex items-center gap-3">
+          <button
+            id="backFromMyEditorButton"
+            class="size-11 flex items-center justify-center rounded-2xl bg-dark-card border border-white/5 active:bg-dark-card-lighter transition-colors text-white"
+            type="button"
+            title="Назад к графику"
+          >
+            <span class="material-symbols-outlined text-[24px]">arrow_back</span>
+          </button>
+          <div>
+            <span class="text-[11px] font-black uppercase tracking-[0.25em] text-blue-500 mb-1 block">Личный раздел</span>
+            <h1 class="text-3xl font-extrabold tracking-tight text-white leading-none">Управление сменами</h1>
           </div>
+        </div>
+      </header>
+
+      <main id="myScheduleEditorMain" class="px-5 pt-5 pb-24">
+        <section class="my-editor-form-card">
+          <div class="my-editor-head">
+            <h2 id="myEditorTitle">Добавить смену</h2>
+            <p id="myEditorSummary">Заполните смену и сохраните её в график.</p>
+          </div>
+
+          <form id="myShiftForm" class="my-shift-form" autocomplete="off">
+            <label class="my-field">
+              <span>Дата</span>
+              <input id="myShiftDateInput" type="date" required />
+            </label>
+
+            <label class="my-field">
+              <span>Объект</span>
+              <select id="myShiftFacilitySelect" required></select>
+            </label>
+
+            <div class="my-time-row">
+              <label class="my-field">
+                <span>Начало</span>
+                <input id="myShiftStartInput" type="time" required />
+              </label>
+              <label class="my-field">
+                <span>Конец</span>
+                <input id="myShiftEndInput" type="time" required />
+              </label>
+            </div>
+
+            <label class="my-field">
+              <span>Комментарий (опционально)</span>
+              <input
+                id="myShiftNoteInput"
+                type="text"
+                maxlength="80"
+                placeholder="Например: подмена, тренажёрный зал"
+              />
+            </label>
+
+            <div class="my-editor-form-actions">
+              <button id="myShiftSubmitButton" type="submit" class="my-shift-submit-btn">Сохранить смену</button>
+              <button id="myShiftCancelEditButton" type="button" class="my-shift-cancel-btn" hidden>
+                Отмена редактирования
+              </button>
+            </div>
+          </form>
+
           <p id="myScheduleNotice" hidden class="my-schedule-notice"></p>
         </section>
 
-        <section class="my-graph-metrics">
-          <article class="my-graph-metric-card">
-            <span class="my-graph-metric-label">Смен на сайте</span>
-            <strong id="myMetricShifts" class="my-graph-metric-value">0</strong>
-          </article>
-          <article class="my-graph-metric-card">
-            <span class="my-graph-metric-label">Часов в среднем</span>
-            <strong id="myMetricAverageHours" class="my-graph-metric-value">0ч</strong>
-          </article>
-          <article class="my-graph-metric-card my-graph-metric-card-wide">
-            <span class="my-graph-metric-label">Ближайшая смена</span>
-            <strong id="myMetricNextShift" class="my-graph-metric-value my-metric-next">—</strong>
-          </article>
+        <section class="my-editor-list-card">
+          <div class="my-editor-head">
+            <h3>Все смены</h3>
+            <p>Нажмите «Изменить», чтобы поправить запись, или «Удалить», чтобы убрать её.</p>
+          </div>
+          <div id="myEditorShiftList" class="my-editor-shift-list"></div>
         </section>
+      </main>
+    </div>
 
-        <section class="my-graph-placeholder">
-          <h3>Таймлайн месяца</h3>
-          <div id="myScheduleTimeline"></div>
-        </section>
-
-        <section id="myChartsPanel" class="my-graph-charts">
-          <article class="my-chart-card">
-            <div class="my-chart-head">
-              <h3>Распределение по объектам</h3>
+    <div id="changesView" hidden class="bg-dark-base min-h-screen">
+      <header id="changesHeader" class="sticky top-0 z-50 ios-blur px-5 pt-14 pb-5 border-b border-white/10">
+        <div class="changes-topbar">
+          <button id="backFromChangesButton" class="changes-back-btn" type="button" title="Назад к расписанию">
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+          <div class="changes-status-chip">
+            <span class="material-symbols-outlined">schedule</span>
+            <div class="changes-status-text">
+              <span class="changes-status-label">Последняя проверка</span>
+              <p id="changesUpdatedAt" class="changes-updated-at">Загрузка...</p>
             </div>
-            <div id="myFacilityShareChart" class="my-chart-canvas" role="img" aria-label="График распределения по объектам"></div>
-          </article>
+          </div>
+          <button id="changesRefreshButton" class="changes-refresh-btn" type="button" title="Проверить изменения">
+            <span id="changesRefreshIcon" class="material-symbols-outlined">refresh</span>
+            <span>Проверить</span>
+          </button>
+        </div>
+      </header>
+
+      <main id="changesMain" class="px-5 pt-5 pb-24">
+        <section id="changesLatestCard" class="changes-latest-card"></section>
+        <section id="changesStats" class="changes-stats"></section>
+        <section class="changes-list-card">
+          <div class="changes-list-head">
+            <h2>Лента изменений</h2>
+            <p>История проверок и изменений расписания по объектам.</p>
+          </div>
+          <div id="changesList" class="changes-list"></div>
         </section>
       </main>
     </div>
@@ -364,7 +412,7 @@
       <nav class="dock-blur rounded-[2.5rem] border border-white/10 p-2 flex items-center justify-between shadow-2xl" id="facilityTabs"></nav>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
     <script src="app.js" defer></script>
   </body>
 </html>

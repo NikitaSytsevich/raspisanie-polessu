@@ -81,7 +81,8 @@ body::before {
 }
 
 #refreshButton,
-#myScheduleRefreshButton {
+#myScheduleRefreshButton,
+#changesRefreshButton {
   transition:
     transform 140ms ease,
     background-color 180ms ease,
@@ -91,31 +92,36 @@ body::before {
 }
 
 #refreshButton.refresh-btn-tap,
-#myScheduleRefreshButton.refresh-btn-tap {
+#myScheduleRefreshButton.refresh-btn-tap,
+#changesRefreshButton.refresh-btn-tap {
   transform: scale(0.94);
 }
 
 #refreshButton.refresh-btn-loading,
-#myScheduleRefreshButton.refresh-btn-loading {
+#myScheduleRefreshButton.refresh-btn-loading,
+#changesRefreshButton.refresh-btn-loading {
   transform: translateY(-1px);
   border-color: rgba(59, 130, 246, 0.45);
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
 }
 
 #refreshButton.refresh-btn-success,
-#myScheduleRefreshButton.refresh-btn-success {
+#myScheduleRefreshButton.refresh-btn-success,
+#changesRefreshButton.refresh-btn-success {
   border-color: rgba(34, 197, 94, 0.55);
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18);
 }
 
 #refreshButton.refresh-btn-error,
-#myScheduleRefreshButton.refresh-btn-error {
+#myScheduleRefreshButton.refresh-btn-error,
+#changesRefreshButton.refresh-btn-error {
   border-color: rgba(248, 113, 113, 0.62);
   box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.18);
 }
 
 #refreshButton:disabled,
-#myScheduleRefreshButton:disabled {
+#myScheduleRefreshButton:disabled,
+#changesRefreshButton:disabled {
   cursor: wait;
   opacity: 1;
 }
@@ -130,6 +136,18 @@ body::before {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes myCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -282,6 +300,34 @@ body::before {
   font-size: 34px;
   color: #dbeafe;
   flex-shrink: 0;
+}
+
+.site-changes-cta {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.42);
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: transform 140ms ease, border-color 180ms ease, background-color 180ms ease;
+}
+
+.site-changes-cta .material-symbols-outlined {
+  font-size: 18px;
+  color: #93c5fd;
+}
+
+.site-changes-cta:active {
+  transform: scale(0.99);
 }
 
 .facility-btn {
@@ -662,44 +708,509 @@ body::before {
   color: #ffffff;
 }
 
+#myScheduleEditorView {
+  background: linear-gradient(180deg, #04070f 0%, #000000 100%);
+  color: #ffffff;
+}
+
 #myScheduleHeader {
   padding-top: max(3.5rem, calc(env(safe-area-inset-top) + 12px)) !important;
 }
 
-.my-schedule-refresh-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
+#myScheduleEditorHeader {
+  padding-top: max(3.5rem, calc(env(safe-area-inset-top) + 12px)) !important;
 }
 
-.my-schedule-updated-at {
-  margin: 0;
-  font-size: 10px;
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  color: #94a3b8;
-  white-space: nowrap;
+#changesView {
+  background: linear-gradient(180deg, #04070f 0%, #000000 100%);
+  color: #ffffff;
 }
 
-#myScheduleMain {
+#changesHeader {
+  padding-top: max(3.5rem, calc(env(safe-area-inset-top) + 12px)) !important;
+}
+
+#changesMain {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.my-graph-hero,
-.my-graph-metric-card,
-.my-graph-placeholder {
+.changes-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.changes-back-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.52);
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.changes-back-btn .material-symbols-outlined {
+  font-size: 22px;
+}
+
+.changes-back-btn:active {
+  transform: scale(0.97);
+}
+
+.changes-status-chip {
+  flex: 1;
+  min-width: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.42);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.changes-status-chip .material-symbols-outlined {
+  font-size: 19px;
+  color: #93c5fd;
+  flex-shrink: 0;
+}
+
+.changes-status-text {
+  min-width: 0;
+}
+
+.changes-status-label {
+  display: block;
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.changes-updated-at {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.changes-refresh-btn {
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  background: rgba(37, 99, 235, 0.24);
+  color: #dbeafe;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.changes-refresh-btn .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.changes-refresh-btn:active {
+  transform: scale(0.98);
+}
+
+.changes-latest-card,
+.changes-list-card {
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(28, 28, 30, 0.88), rgba(15, 23, 42, 0.58));
   padding: 14px;
 }
 
-.my-graph-hero h2,
-.my-graph-placeholder h3 {
+.changes-latest-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.changes-latest-top h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.15;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.changes-latest-time {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.25;
+  font-weight: 800;
+  color: #93c5fd;
+}
+
+.changes-latest-text {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.changes-empty-state h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.15;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.changes-empty-state p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.changes-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.changes-stat-card {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.42);
+  padding: 10px 11px;
+}
+
+.changes-stat-card span {
+  display: block;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.changes-stat-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.changes-list-head h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.15;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.changes-list-head p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.changes-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.changes-check-card {
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.44);
+  padding: 12px;
+}
+
+.changes-check-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.changes-check-head h3 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.changes-check-head p {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.changes-check-badge {
+  border-radius: 9999px;
+  padding: 5px 9px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.changes-check-badge.changed {
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: rgba(220, 38, 38, 0.22);
+  color: #fecaca;
+}
+
+.changes-check-badge.stable {
+  border: 1px solid rgba(52, 211, 153, 0.38);
+  background: rgba(5, 150, 105, 0.2);
+  color: #a7f3d0;
+}
+
+.changes-check-badge.baseline {
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  background: rgba(37, 99, 235, 0.23);
+  color: #dbeafe;
+}
+
+.changes-check-summary {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.changes-check-summary span {
+  border-radius: 9999px;
+  padding: 4px 8px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  background: rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+}
+
+.changes-events {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.changes-event {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.36);
+  padding: 8px 9px;
+}
+
+.changes-event-title {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.changes-event-desc {
+  margin: 5px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.changes-event-meta {
+  margin: 5px 0 0;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #93c5fd;
+}
+
+.changes-event-positive {
+  border-color: rgba(16, 185, 129, 0.34);
+}
+
+.changes-event-warning {
+  border-color: rgba(248, 113, 113, 0.36);
+}
+
+.changes-event-info {
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+.changes-check-empty,
+.changes-check-more {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.changes-check-more {
+  margin-top: 9px;
+}
+
+.my-schedule-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.my-schedule-back-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.52);
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 140ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.my-schedule-back-btn .material-symbols-outlined {
+  font-size: 22px;
+}
+
+.my-schedule-back-btn:active {
+  transform: scale(0.97);
+}
+
+.my-schedule-status-chip {
+  flex: 1;
+  min-width: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.42);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.my-schedule-status-chip .material-symbols-outlined {
+  font-size: 19px;
+  color: #93c5fd;
+  flex-shrink: 0;
+}
+
+.my-schedule-status-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.my-schedule-status-label {
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.my-schedule-updated-at {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.my-schedule-refresh-btn {
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  background: rgba(37, 99, 235, 0.24);
+  color: #dbeafe;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.my-schedule-refresh-btn .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.my-schedule-refresh-btn:active {
+  transform: scale(0.98);
+}
+
+#myScheduleMain {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: calc(100vh - 170px);
+}
+
+#myScheduleEditorMain {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.my-graph-placeholder,
+.my-day-footer {
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(28, 28, 30, 0.88), rgba(15, 23, 42, 0.58));
+  padding: 14px;
+}
+
+.my-graph-placeholder h3,
+.my-day-footer h2 {
   margin: 0;
   font-size: 18px;
   line-height: 1.15;
@@ -708,8 +1219,7 @@ body::before {
   letter-spacing: -0.01em;
 }
 
-.my-graph-hero p,
-.my-graph-placeholder p {
+.my-day-footer p {
   margin: 8px 0 0;
   font-size: 13px;
   line-height: 1.45;
@@ -717,174 +1227,291 @@ body::before {
   color: #cbd5e1;
 }
 
-.my-graph-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.my-graph-metric-label {
-  display: block;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #93c5fd;
-}
-
-.my-graph-metric-value {
-  display: block;
-  margin-top: 8px;
-  font-size: 24px;
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  color: #ffffff;
-}
-
-.my-graph-metric-card-wide {
-  grid-column: 1 / -1;
-}
-
-.my-graph-charts {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-
-.my-chart-card {
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, rgba(28, 28, 30, 0.88), rgba(15, 23, 42, 0.58));
-  padding: 12px;
-}
-
-.my-chart-head {
+.my-day-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.my-chart-head h3 {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.15;
-  font-weight: 900;
-  color: #f8fafc;
-}
-
-.my-chart-canvas {
-  margin-top: 10px;
-  width: 100%;
-  height: 240px;
-}
-
-.my-metric-next {
-  font-size: 14px;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-}
-
-.my-graph-hero-top {
-  display: flex;
-  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
-.my-month-nav {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  border-radius: 9999px;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  background: rgba(15, 23, 42, 0.3);
-  padding: 4px;
+.my-editor-launch-wrap {
+  margin-top: auto;
 }
 
-.my-month-nav-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 9999px;
-  border: none;
-  background: rgba(148, 163, 184, 0.16);
-  color: #e2e8f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.my-month-nav-btn .material-symbols-outlined {
-  font-size: 20px;
-}
-
-.my-month-nav-btn:active {
-  transform: scale(0.98);
-}
-
-.my-month-input {
-  appearance: none;
-  -webkit-appearance: none;
-  border-radius: 9999px;
-  border: none;
-  background: rgba(148, 163, 184, 0.14);
-  color: #e2e8f0;
-  font-size: 12px;
-  font-weight: 800;
-  padding: 7px 12px;
-  min-width: 130px;
-}
-
-.my-graph-form-card {
+.my-changes-summary-card {
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(28, 28, 30, 0.88), rgba(15, 23, 42, 0.58));
   padding: 14px;
 }
 
-.my-graph-form-card h3 {
+.my-changes-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.my-changes-head h3 {
   margin: 0;
-  font-size: 17px;
-  line-height: 1.15;
+  font-size: 16px;
+  line-height: 1.1;
   font-weight: 900;
   color: #f8fafc;
 }
 
-.my-shift-toggle-btn {
+.my-changes-head p {
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.my-changes-badge {
+  border-radius: 9999px;
+  padding: 5px 9px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.my-changes-badge.is-changed {
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: rgba(220, 38, 38, 0.22);
+  color: #fecaca;
+}
+
+.my-changes-badge.is-stable {
+  border: 1px solid rgba(52, 211, 153, 0.38);
+  background: rgba(5, 150, 105, 0.2);
+  color: #a7f3d0;
+}
+
+.my-changes-badge.is-baseline {
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  background: rgba(37, 99, 235, 0.23);
+  color: #dbeafe;
+}
+
+.my-changes-time {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #93c5fd;
+}
+
+.my-changes-stats {
+  margin-top: 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.my-changes-stats span {
+  border-radius: 9999px;
+  padding: 4px 8px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  background: rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+}
+
+.my-changes-events {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.my-changes-event {
   width: 100%;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.36);
+  padding: 8px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.my-changes-event-title {
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.my-changes-event-desc {
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.my-changes-event-meta {
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #93c5fd;
+}
+
+.my-changes-event-positive {
+  border-color: rgba(16, 185, 129, 0.34);
+}
+
+.my-changes-event-warning {
+  border-color: rgba(248, 113, 113, 0.36);
+}
+
+.my-changes-event-info {
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+.my-changes-actions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.my-changes-action-btn {
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  background: rgba(148, 163, 184, 0.11);
+  border-radius: 12px;
+  padding: 8px 10px;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.my-changes-action-btn:active,
+.my-changes-event:active {
+  transform: scale(0.995);
+}
+
+.my-editor-launch-btn {
+  width: 100%;
+  border-radius: 20px;
+  border: 1px solid rgba(96, 165, 250, 0.46);
+  background: radial-gradient(130% 170% at 0% 0%, rgba(59, 130, 246, 0.36), rgba(30, 64, 175, 0.42) 52%, rgba(15, 23, 42, 0.44));
+  color: #eff6ff;
+  min-height: 86px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.3);
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.my-editor-launch-btn .material-symbols-outlined {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.my-editor-launch-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  flex: 1;
+}
+
+.my-editor-launch-copy strong {
+  font-size: 17px;
+  line-height: 1.15;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+
+.my-editor-launch-copy small {
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #dbeafe;
+}
+
+.my-editor-launch-btn:hover {
+  border-color: rgba(125, 211, 252, 0.62);
+  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.34);
+}
+
+.my-editor-launch-btn:active {
+  transform: scale(0.99);
+}
+
+.my-day-control-btn {
   border: 1px solid rgba(148, 163, 184, 0.34);
   background: rgba(148, 163, 184, 0.11);
   border-radius: 14px;
-  padding: 11px 12px;
+  padding: 10px 11px;
   color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.my-day-control-btn .material-symbols-outlined {
+  font-size: 17px;
+}
+
+.my-day-control-btn.is-active {
+  border-color: rgba(96, 165, 250, 0.48);
+  background: rgba(37, 99, 235, 0.26);
+  color: #dbeafe;
+}
+
+.my-day-control-btn:active {
+  transform: scale(0.995);
+}
+
+.my-day-spotlight {
+  flex: 0 1 auto;
+  min-height: min(56vh, 560px);
+  display: flex;
+  flex-direction: column;
+}
+
+.my-day-spotlight-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  cursor: pointer;
 }
 
-.my-shift-toggle-btn .material-symbols-outlined {
-  font-size: 20px;
+.my-day-inline-actions {
+  margin-top: auto;
+  padding-top: 12px;
+  display: flex;
+  justify-content: center;
 }
 
-.my-shift-toggle-title {
-  font-size: 12px;
-  line-height: 1;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-}
-
-.my-shift-toggle-btn:active {
-  transform: scale(0.995);
-}
-
-#myShiftFormContainer {
-  margin-top: 10px;
+.my-day-inline-actions .my-day-control-btn {
+  min-width: 180px;
 }
 
 .my-shift-form {
@@ -980,6 +1607,207 @@ body::before {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1;
+}
+
+.my-empty-state {
+  border-radius: 16px;
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.35);
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  min-height: 260px;
+  justify-content: center;
+}
+
+.my-empty-lottie {
+  width: 210px;
+  max-width: 100%;
+  height: 170px;
+}
+
+.my-empty-title {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.15;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.my-empty-text {
+  margin: 0;
+  max-width: 520px;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.my-empty-cta {
+  margin-top: 2px;
+  border: 1px solid rgba(96, 165, 250, 0.48);
+  background: rgba(37, 99, 235, 0.26);
+  color: #dbeafe;
+  border-radius: 9999px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 11px 16px;
+  cursor: pointer;
+}
+
+.my-empty-cta:active {
+  transform: scale(0.99);
+}
+
+.my-editor-form-card,
+.my-editor-list-card {
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(28, 28, 30, 0.88), rgba(15, 23, 42, 0.58));
+  padding: 14px;
+}
+
+.my-editor-head h2,
+.my-editor-head h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.15;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.my-editor-head p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.my-editor-form-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.my-shift-cancel-btn {
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  background: rgba(71, 85, 105, 0.24);
+  color: #e2e8f0;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 11px;
+  cursor: pointer;
+}
+
+.my-shift-cancel-btn:active {
+  transform: scale(0.99);
+}
+
+.my-editor-shift-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.my-editor-shift-card {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(30, 41, 59, 0.5);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.my-editor-shift-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.my-editor-shift-date {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #60a5fa;
+}
+
+.my-editor-shift-title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.15;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.my-editor-shift-place {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.my-editor-shift-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.my-editor-shift-meta {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.my-editor-shift-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.my-editor-action-btn {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(71, 85, 105, 0.22);
+  color: #e2e8f0;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.my-editor-action-btn.danger {
+  border-color: rgba(248, 113, 113, 0.44);
+  background: rgba(248, 113, 113, 0.15);
+  color: #fecaca;
+}
+
+.my-editor-action-btn:active {
+  transform: scale(0.99);
 }
 
 .my-timeline-empty {
@@ -1001,6 +1829,14 @@ body::before {
   border: 1px solid rgba(148, 163, 184, 0.24);
   background: rgba(15, 23, 42, 0.28);
   padding: 10px;
+  animation: myCardIn 260ms ease-out;
+}
+
+.my-timeline-day.is-spotlight {
+  border-color: rgba(59, 130, 246, 0.5);
+  background: radial-gradient(130% 140% at 0% 0%, rgba(37, 99, 235, 0.22), rgba(15, 23, 42, 0.42) 48%, rgba(15, 23, 42, 0.26) 100%);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.16);
+  padding: 14px;
 }
 
 .my-timeline-day.is-weekend {
@@ -1050,11 +1886,52 @@ body::before {
   flex-shrink: 0;
 }
 
+.my-timeline-day-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.my-timeline-day-state {
+  border-radius: 9999px;
+  padding: 4px 8px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  background: rgba(100, 116, 139, 0.2);
+  color: #cbd5e1;
+}
+
+.my-timeline-day-state.is-working {
+  border-color: rgba(16, 185, 129, 0.42);
+  background: rgba(16, 185, 129, 0.18);
+  color: #a7f3d0;
+}
+
+.my-timeline-day-state.is-off {
+  border-color: rgba(148, 163, 184, 0.4);
+  background: rgba(71, 85, 105, 0.32);
+  color: #cbd5e1;
+}
+
 .my-timeline-day-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-top: 8px;
+}
+
+.my-day-empty {
+  border-radius: 10px;
+  border: 1px dashed rgba(148, 163, 184, 0.36);
+  background: rgba(15, 23, 42, 0.22);
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #94a3b8;
 }
 
 .my-shift-card {
@@ -1353,7 +2230,8 @@ html.light #scheduleHeader .text-white {
 
 html.light #scheduleHeader #refreshButton,
 html.light #scheduleHeader #openSettingsButton,
-html.light #myScheduleHeader #myScheduleRefreshButton {
+html.light #myScheduleHeader #myScheduleRefreshButton,
+html.light #changesHeader #changesRefreshButton {
   background: #ffffff;
   border-color: rgba(15, 23, 42, 0.12);
   color: #0f172a;
@@ -1382,26 +2260,40 @@ html.light .my-schedule-cta-icon {
   color: #1d4ed8;
 }
 
+html.light .site-changes-cta {
+  border-color: rgba(148, 163, 184, 0.42);
+  background: rgba(255, 255, 255, 0.9);
+  color: #1e293b;
+}
+
+html.light .site-changes-cta .material-symbols-outlined {
+  color: #2563eb;
+}
+
 html.light #scheduleHeader #refreshButton:active,
 html.light #scheduleHeader #openSettingsButton:active,
-html.light #myScheduleHeader #myScheduleRefreshButton:active {
+html.light #myScheduleHeader #myScheduleRefreshButton:active,
+html.light #changesHeader #changesRefreshButton:active {
   background: #e2e8f0;
 }
 
 html.light #refreshButton.refresh-btn-loading,
-html.light #myScheduleRefreshButton.refresh-btn-loading {
+html.light #myScheduleRefreshButton.refresh-btn-loading,
+html.light #changesRefreshButton.refresh-btn-loading {
   border-color: rgba(37, 99, 235, 0.5);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
 }
 
 html.light #refreshButton.refresh-btn-success,
-html.light #myScheduleRefreshButton.refresh-btn-success {
+html.light #myScheduleRefreshButton.refresh-btn-success,
+html.light #changesRefreshButton.refresh-btn-success {
   border-color: rgba(22, 163, 74, 0.52);
   box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.16);
 }
 
 html.light #refreshButton.refresh-btn-error,
-html.light #myScheduleRefreshButton.refresh-btn-error {
+html.light #myScheduleRefreshButton.refresh-btn-error,
+html.light #changesRefreshButton.refresh-btn-error {
   border-color: rgba(220, 38, 38, 0.52);
   box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
 }
@@ -1625,7 +2517,27 @@ html.light #myScheduleView {
   color: #0f172a;
 }
 
+html.light #myScheduleEditorView {
+  background: linear-gradient(180deg, #f8fbff 0%, #edf2f8 100%);
+  color: #0f172a;
+}
+
+html.light #changesView {
+  background: linear-gradient(180deg, #f8fbff 0%, #edf2f8 100%);
+  color: #0f172a;
+}
+
 html.light #myScheduleHeader {
+  background: rgba(248, 250, 252, 0.88);
+  border-bottom-color: rgba(15, 23, 42, 0.12);
+}
+
+html.light #changesHeader {
+  background: rgba(248, 250, 252, 0.88);
+  border-bottom-color: rgba(15, 23, 42, 0.12);
+}
+
+html.light #myScheduleEditorHeader {
   background: rgba(248, 250, 252, 0.88);
   border-bottom-color: rgba(15, 23, 42, 0.12);
 }
@@ -1634,86 +2546,224 @@ html.light #myScheduleHeader .text-white {
   color: #0f172a !important;
 }
 
-html.light #myScheduleHeader .my-schedule-updated-at {
-  color: #64748b;
+html.light #myScheduleEditorHeader .text-white {
+  color: #0f172a !important;
 }
 
-html.light #myScheduleHeader #backFromMyScheduleButton {
+html.light #myScheduleHeader .my-schedule-updated-at {
+  color: #334155;
+}
+
+html.light #myScheduleHeader .my-schedule-back-btn {
   background: #ffffff;
   border-color: rgba(15, 23, 42, 0.12);
   color: #0f172a;
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
 }
 
-html.light #myScheduleHeader #backFromMyScheduleButton:active {
+html.light #myScheduleHeader .my-schedule-back-btn:active {
   background: #e2e8f0;
 }
 
-html.light .my-graph-hero,
-html.light .my-graph-metric-card,
-html.light .my-graph-placeholder {
-  border-color: rgba(148, 163, 184, 0.28);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+html.light #myScheduleHeader .my-schedule-status-chip {
+  border-color: rgba(148, 163, 184, 0.36);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07);
 }
 
-html.light .my-graph-hero h2,
-html.light .my-graph-placeholder h3 {
-  color: #0f172a;
-}
-
-html.light .my-graph-hero p,
-html.light .my-graph-placeholder p {
-  color: #334155;
-}
-
-html.light .my-graph-metric-label {
+html.light #myScheduleHeader .my-schedule-status-chip .material-symbols-outlined {
   color: #2563eb;
 }
 
-html.light .my-graph-metric-value {
-  color: #0f172a;
+html.light #myScheduleHeader .my-schedule-status-label {
+  color: #2563eb;
 }
 
-html.light .my-chart-card {
+html.light #changesHeader .changes-back-btn {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+html.light #changesHeader .changes-back-btn:active {
+  background: #e2e8f0;
+}
+
+html.light #changesHeader .changes-status-chip {
+  border-color: rgba(148, 163, 184, 0.36);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07);
+}
+
+html.light #changesHeader .changes-status-chip .material-symbols-outlined,
+html.light #changesHeader .changes-status-label {
+  color: #2563eb;
+}
+
+html.light #changesHeader .changes-updated-at {
+  color: #334155;
+}
+
+html.light .changes-latest-card,
+html.light .changes-list-card {
   border-color: rgba(148, 163, 184, 0.28);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
 
-html.light .my-chart-head h3 {
+html.light .changes-latest-top h2,
+html.light .changes-empty-state h2,
+html.light .changes-list-head h2,
+html.light .changes-check-head h3,
+html.light .changes-event-title {
   color: #0f172a;
 }
 
-html.light .my-month-nav {
-  border-color: rgba(148, 163, 184, 0.42);
+html.light .changes-latest-text,
+html.light .changes-empty-state p,
+html.light .changes-list-head p,
+html.light .changes-event-desc {
+  color: #334155;
+}
+
+html.light .changes-latest-time,
+html.light .changes-event-meta {
+  color: #2563eb;
+}
+
+html.light .changes-stat-card {
+  border-color: rgba(148, 163, 184, 0.38);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+html.light .changes-stat-card span {
+  color: #2563eb;
+}
+
+html.light .changes-stat-card strong {
+  color: #0f172a;
+}
+
+html.light .changes-check-card {
+  border-color: rgba(148, 163, 184, 0.36);
+  background: rgba(248, 250, 252, 0.9);
+}
+
+html.light .changes-check-head p,
+html.light .changes-check-empty,
+html.light .changes-check-more {
+  color: #64748b;
+}
+
+html.light .changes-check-summary span {
+  background: rgba(148, 163, 184, 0.2);
+  color: #334155;
+}
+
+html.light .changes-event {
+  border-color: rgba(148, 163, 184, 0.36);
   background: rgba(255, 255, 255, 0.92);
 }
 
-html.light .my-month-nav-btn {
-  background: rgba(226, 232, 240, 0.84);
-  color: #1e293b;
+html.light #myScheduleEditorHeader #backFromMyEditorButton {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
 }
 
-html.light .my-month-input {
-  background: rgba(255, 255, 255, 0.96);
-  color: #1e293b;
+html.light #myScheduleEditorHeader #backFromMyEditorButton:active {
+  background: #e2e8f0;
 }
 
-html.light .my-graph-form-card {
+html.light .my-graph-placeholder,
+html.light .my-day-footer,
+html.light .my-changes-summary-card {
   border-color: rgba(148, 163, 184, 0.28);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
 
-html.light .my-graph-form-card h3 {
+html.light .my-graph-placeholder h3,
+html.light .my-day-footer h2 {
   color: #0f172a;
 }
 
-html.light .my-shift-toggle-btn {
+html.light .my-day-footer p {
+  color: #334155;
+}
+
+html.light .my-changes-head h3,
+html.light .my-changes-event-title {
+  color: #0f172a;
+}
+
+html.light .my-changes-head p,
+html.light .my-changes-event-desc {
+  color: #334155;
+}
+
+html.light .my-changes-time,
+html.light .my-changes-event-meta {
+  color: #2563eb;
+}
+
+html.light .my-changes-stats span,
+html.light .my-changes-action-btn {
+  background: rgba(148, 163, 184, 0.2);
+  color: #334155;
+}
+
+html.light .my-changes-event {
+  border-color: rgba(148, 163, 184, 0.36);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+html.light .my-editor-launch-btn {
+  border-color: rgba(37, 99, 235, 0.36);
+  background: radial-gradient(130% 170% at 0% 0%, rgba(191, 219, 254, 0.95), rgba(219, 234, 254, 0.78) 52%, rgba(255, 255, 255, 0.95));
+  color: #1d4ed8;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.16);
+}
+
+html.light .my-editor-launch-copy strong {
+  color: #0f172a;
+}
+
+html.light .my-editor-launch-copy small {
+  color: #334155;
+}
+
+html.light .my-day-control-btn {
   border-color: rgba(148, 163, 184, 0.42);
   background: rgba(248, 250, 252, 0.95);
   color: #1e293b;
+}
+
+html.light .my-day-control-btn.is-active {
+  border-color: rgba(37, 99, 235, 0.44);
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+html.light .my-empty-state {
+  border-color: rgba(148, 163, 184, 0.42);
+  background: rgba(248, 250, 252, 0.78);
+}
+
+html.light .my-empty-title {
+  color: #0f172a;
+}
+
+html.light .my-empty-text {
+  color: #334155;
+}
+
+html.light .my-empty-cta {
+  border-color: rgba(37, 99, 235, 0.42);
+  background: rgba(37, 99, 235, 0.14);
+  color: #1d4ed8;
 }
 
 html.light .my-field span {
@@ -1735,6 +2785,61 @@ html.light .my-shift-submit-btn {
   border-color: rgba(37, 99, 235, 0.45);
   background: rgba(37, 99, 235, 0.16);
   color: #1d4ed8;
+}
+
+html.light .my-shift-cancel-btn {
+  border-color: rgba(148, 163, 184, 0.42);
+  background: rgba(226, 232, 240, 0.9);
+  color: #334155;
+}
+
+html.light .my-editor-form-card,
+html.light .my-editor-list-card {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+html.light .my-editor-head h2,
+html.light .my-editor-head h3 {
+  color: #0f172a;
+}
+
+html.light .my-editor-head p {
+  color: #334155;
+}
+
+html.light .my-editor-shift-card {
+  border-color: rgba(148, 163, 184, 0.45);
+  background: #ffffff;
+}
+
+html.light .my-editor-shift-date {
+  color: #2563eb;
+}
+
+html.light .my-editor-shift-title {
+  color: #0f172a;
+}
+
+html.light .my-editor-shift-place {
+  color: #334155;
+}
+
+html.light .my-editor-shift-note {
+  color: #64748b;
+}
+
+html.light .my-editor-action-btn {
+  border-color: rgba(148, 163, 184, 0.44);
+  background: rgba(226, 232, 240, 0.86);
+  color: #334155;
+}
+
+html.light .my-editor-action-btn.danger {
+  border-color: rgba(220, 38, 38, 0.38);
+  background: rgba(254, 226, 226, 0.9);
+  color: #991b1b;
 }
 
 html.light .my-schedule-notice.success {
@@ -1766,6 +2871,12 @@ html.light .my-timeline-day {
   background: rgba(248, 250, 252, 0.92);
 }
 
+html.light .my-timeline-day.is-spotlight {
+  border-color: rgba(37, 99, 235, 0.46);
+  background: radial-gradient(130% 140% at 0% 0%, rgba(191, 219, 254, 0.85), rgba(219, 234, 254, 0.55) 42%, rgba(248, 250, 252, 0.94) 100%);
+  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.14);
+}
+
 html.light .my-timeline-day.is-weekend {
   border-color: rgba(100, 116, 139, 0.42);
   background: rgba(226, 232, 240, 0.94);
@@ -1788,6 +2899,30 @@ html.light .my-timeline-day-total {
   border-color: rgba(37, 99, 235, 0.38);
   background: rgba(37, 99, 235, 0.12);
   color: #1e3a8a;
+}
+
+html.light .my-timeline-day-state {
+  border-color: rgba(148, 163, 184, 0.42);
+  background: rgba(226, 232, 240, 0.92);
+  color: #334155;
+}
+
+html.light .my-timeline-day-state.is-working {
+  border-color: rgba(22, 163, 74, 0.4);
+  background: rgba(220, 252, 231, 0.88);
+  color: #166534;
+}
+
+html.light .my-timeline-day-state.is-off {
+  border-color: rgba(148, 163, 184, 0.46);
+  background: rgba(226, 232, 240, 0.96);
+  color: #334155;
+}
+
+html.light .my-day-empty {
+  border-color: rgba(148, 163, 184, 0.44);
+  background: rgba(248, 250, 252, 0.84);
+  color: #64748b;
 }
 
 html.light .my-shift-card {
@@ -2105,7 +3240,8 @@ html.dark #settingsMain .source-item .source-cta .material-symbols-outlined {
 
   #scheduleView,
   #settingsView,
-  #myScheduleView {
+  #myScheduleView,
+  #changesView {
     max-width: 1180px;
     margin: 0 auto;
     border-radius: 30px;
@@ -2115,7 +3251,9 @@ html.dark #settingsMain .source-item .source-cta .material-symbols-outlined {
 
   #scheduleHeader,
   #settingsHeader,
-  #myScheduleHeader {
+  #myScheduleHeader,
+  #changesHeader,
+  #myScheduleEditorHeader {
     border-radius: 30px 30px 0 0;
   }
 
@@ -2128,17 +3266,14 @@ html.dark #settingsMain .source-item .source-cta .material-symbols-outlined {
     gap: 16px;
   }
 
-  .my-graph-hero h2,
-  .my-graph-placeholder h3 {
+  #changesMain {
+    padding: 26px;
+    gap: 16px;
+  }
+
+  .my-graph-placeholder h3,
+  .my-day-footer h2 {
     font-size: 20px;
-  }
-
-  .my-chart-head h3 {
-    font-size: 16px;
-  }
-
-  .my-graph-charts {
-    grid-template-columns: 1fr;
   }
 
   #timeline.timeline-desktop-grid {
@@ -2214,6 +3349,14 @@ html.dark #settingsMain .source-item .source-cta .material-symbols-outlined {
   html.light #myScheduleView {
     box-shadow: 0 20px 46px rgba(15, 23, 42, 0.15);
   }
+
+  html.light #changesView {
+    box-shadow: 0 20px 46px rgba(15, 23, 42, 0.15);
+  }
+
+  html.light #myScheduleEditorView {
+    box-shadow: 0 20px 46px rgba(15, 23, 42, 0.15);
+  }
 }
 
 @media (min-width: 1440px) {
@@ -2222,56 +3365,115 @@ html.dark #settingsMain .source-item .source-cta .material-symbols-outlined {
   }
 
   #myScheduleMain {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 980px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  #myScheduleEditorMain {
     display: grid;
+    grid-template-columns: minmax(320px, 420px) 1fr;
+    gap: 14px;
+    align-items: start;
   }
 
-  .my-graph-hero {
-    grid-column: 1 / -1;
-  }
-
-  .my-graph-form-card {
-    grid-column: 1 / -1;
-  }
-
-  .my-graph-metrics {
-    grid-column: 1 / -1;
-  }
-
-  .my-graph-charts {
-    grid-column: 1 / -1;
-  }
-
-  .my-graph-placeholder {
-    grid-column: 1 / -1;
+  .my-editor-form-card {
+    position: sticky;
+    top: 114px;
   }
 }
 
 @media (max-width: 420px) {
-  .my-schedule-updated-at {
-    font-size: 9px;
+  .my-day-spotlight {
+    min-height: min(50vh, 460px);
   }
 
-  .my-graph-hero-top {
+  .my-schedule-topbar {
+    gap: 8px;
+  }
+
+  .my-schedule-status-chip {
+    padding: 7px 8px;
+  }
+
+  .my-schedule-status-label {
+    font-size: 8px;
+  }
+
+  .my-schedule-updated-at {
+    font-size: 10px;
+  }
+
+  .my-schedule-refresh-btn {
+    min-height: 42px;
+    padding: 0 10px;
+  }
+
+  .changes-topbar {
+    gap: 8px;
+  }
+
+  .changes-status-chip {
+    padding: 7px 8px;
+  }
+
+  .changes-status-label {
+    font-size: 8px;
+  }
+
+  .changes-updated-at {
+    font-size: 10px;
+  }
+
+  .changes-refresh-btn {
+    min-height: 42px;
+    padding: 0 10px;
+  }
+
+  .changes-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .my-day-spotlight-head {
     flex-direction: column;
     gap: 10px;
+    align-items: stretch;
   }
 
-  .my-month-nav {
+  .my-editor-launch-btn {
+    min-height: 80px;
+    padding: 12px 13px;
+  }
+
+  .my-editor-launch-copy strong {
+    font-size: 15px;
+  }
+
+  .my-changes-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .my-changes-actions {
     width: 100%;
   }
 
-  .my-month-input {
+  .my-changes-action-btn {
     flex: 1;
     min-width: 0;
+    text-align: center;
+  }
+
+  .my-day-inline-actions .my-day-control-btn {
+    width: 100%;
+  }
+
+  .my-editor-shift-actions {
+    grid-template-columns: 1fr;
   }
 
   .my-time-row {
     grid-template-columns: 1fr;
-  }
-
-  .my-chart-canvas {
-    height: 210px;
   }
 
   .my-schedule-cta-title {
@@ -2286,7 +3488,8 @@ html.dark #settingsMain .source-item .source-cta .material-symbols-outlined {
 
   .date-chip,
   #refreshButton,
-  #myScheduleRefreshButton {
+  #myScheduleRefreshButton,
+  #changesRefreshButton {
     transition: none;
   }
 

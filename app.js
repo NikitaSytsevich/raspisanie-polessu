@@ -2,11 +2,11 @@ const STORAGE = {
   settings: "polessu_schedule_settings_v2",
   cache: "polessu_schedule_cache_v2",
   myShifts: "polessu_schedule_my_shifts_v1",
-  myShiftFormExpanded: "polessu_schedule_my_shift_form_expanded_v1",
+  siteChanges: "polessu_site_changes_v1",
 };
 
 const DEFAULT_SETTINGS = {
-  theme: "light",
+  theme: "system",
   autoRefreshMins: 0,
 };
 
@@ -21,11 +21,14 @@ const state = {
   data: null,
   selectedFacilityId: null,
   selectedDate: null,
-  view: "schedule",
+  view: "my_schedule",
   settings: loadSettings(),
   myShifts: loadMyShifts(),
-  myScheduleMonth: currentMonthIso(),
-  myShiftFormExpanded: loadMyShiftFormExpanded(),
+  siteChangesHistory: loadSiteChangesHistory(),
+  myScheduleFocusDate: null,
+  myScheduleShowAll: false,
+  myChangesSummaryExpanded: false,
+  myEditingShiftId: null,
   autoRefreshTimer: null,
   updatedAtTicker: null,
   expandedTimelineByFacility: {},
@@ -35,32 +38,38 @@ const state = {
   refreshFeedbackTimers: {
     header: null,
     mySchedule: null,
+    changes: null,
   },
   myScheduleNoticeTimer: null,
-  myCharts: {
-    facility: null,
-  },
-  chartResizeRafId: null,
 };
 
 const el = {
   scheduleView: document.getElementById("scheduleView"),
   settingsView: document.getElementById("settingsView"),
   myScheduleView: document.getElementById("myScheduleView"),
+  myScheduleEditorView: document.getElementById("myScheduleEditorView"),
+  changesView: document.getElementById("changesView"),
   facilityDock: document.getElementById("facilityDock"),
   facilityMeta: document.getElementById("facilityMeta"),
   updatedAt: document.getElementById("updatedAt"),
   myScheduleUpdatedAt: document.getElementById("myScheduleUpdatedAt"),
+  changesUpdatedAt: document.getElementById("changesUpdatedAt"),
   livePill: document.getElementById("livePill"),
   liveText: document.getElementById("liveText"),
   refreshButton: document.getElementById("refreshButton"),
   refreshIcon: document.getElementById("refreshIcon"),
   myScheduleRefreshButton: document.getElementById("myScheduleRefreshButton"),
   myScheduleRefreshIcon: document.getElementById("myScheduleRefreshIcon"),
+  changesRefreshButton: document.getElementById("changesRefreshButton"),
+  changesRefreshIcon: document.getElementById("changesRefreshIcon"),
   openSettingsButton: document.getElementById("openSettingsButton"),
   openMyScheduleButton: document.getElementById("openMyScheduleButton"),
+  openChangesButton: document.getElementById("openChangesButton"),
+  openMyEditorButton: document.getElementById("openMyEditorButton"),
   backFromSettingsButton: document.getElementById("backFromSettingsButton"),
   backFromMyScheduleButton: document.getElementById("backFromMyScheduleButton"),
+  backFromChangesButton: document.getElementById("backFromChangesButton"),
+  backFromMyEditorButton: document.getElementById("backFromMyEditorButton"),
   facilityTabs: document.getElementById("facilityTabs"),
   dateTabs: document.getElementById("dateTabs"),
   closureBanner: document.getElementById("closureBanner"),
@@ -74,11 +83,10 @@ const el = {
   importMyShiftsInput: document.getElementById("importMyShiftsInput"),
   myShiftsDataNotice: document.getElementById("myShiftsDataNotice"),
   sourceList: document.getElementById("sourceList"),
-  myMonthTitle: document.getElementById("myMonthTitle"),
-  myMonthSummary: document.getElementById("myMonthSummary"),
-  myMonthInput: document.getElementById("myMonthInput"),
-  myMonthPrevButton: document.getElementById("myMonthPrevButton"),
-  myMonthNextButton: document.getElementById("myMonthNextButton"),
+  myDayTitle: document.getElementById("myDayTitle"),
+  myDaySummary: document.getElementById("myDaySummary"),
+  myShowAllButton: document.getElementById("myShowAllButton"),
+  myTimelineTitle: document.getElementById("myTimelineTitle"),
   myShiftForm: document.getElementById("myShiftForm"),
   myShiftDateInput: document.getElementById("myShiftDateInput"),
   myShiftFacilitySelect: document.getElementById("myShiftFacilitySelect"),
@@ -86,14 +94,17 @@ const el = {
   myShiftEndInput: document.getElementById("myShiftEndInput"),
   myShiftNoteInput: document.getElementById("myShiftNoteInput"),
   myScheduleNotice: document.getElementById("myScheduleNotice"),
-  myMetricShifts: document.getElementById("myMetricShifts"),
-  myMetricAverageHours: document.getElementById("myMetricAverageHours"),
-  myMetricNextShift: document.getElementById("myMetricNextShift"),
   myScheduleTimeline: document.getElementById("myScheduleTimeline"),
-  myShiftToggleButton: document.getElementById("myShiftToggleButton"),
-  myShiftToggleIcon: document.getElementById("myShiftToggleIcon"),
-  myShiftFormContainer: document.getElementById("myShiftFormContainer"),
-  myFacilityShareChart: document.getElementById("myFacilityShareChart"),
+  myEditorShiftList: document.getElementById("myEditorShiftList"),
+  myEditorTitle: document.getElementById("myEditorTitle"),
+  myEditorSummary: document.getElementById("myEditorSummary"),
+  myShiftSubmitButton: document.getElementById("myShiftSubmitButton"),
+  myShiftCancelEditButton: document.getElementById("myShiftCancelEditButton"),
+  myChangesSummaryCard: document.getElementById("myChangesSummaryCard"),
+  myChangesSummaryContent: document.getElementById("myChangesSummaryContent"),
+  changesLatestCard: document.getElementById("changesLatestCard"),
+  changesStats: document.getElementById("changesStats"),
+  changesList: document.getElementById("changesList"),
 };
 
 init();
@@ -103,6 +114,7 @@ function init() {
   hydrateSettingsUI();
   bindEvents();
   hydrateMyScheduleUI();
+  setView(state.view);
   loadFromLocalCache();
   setupUpdatedAtTicker();
   fetchSchedule(false, { source: "init" });
@@ -113,35 +125,36 @@ function bindEvents() {
   el.refreshButton.addEventListener("click", () => fetchSchedule(true, { source: "header" }));
   el.settingsRefreshButton.addEventListener("click", () => fetchSchedule(true, { source: "settings" }));
   if (el.myScheduleRefreshButton) {
-    el.myScheduleRefreshButton.addEventListener("click", () => fetchSchedule(true, { source: "my_schedule" }));
+    el.myScheduleRefreshButton.addEventListener("click", () => fetchSchedule(true, { source: "my_schedule_global" }));
+  }
+  if (el.changesRefreshButton) {
+    el.changesRefreshButton.addEventListener("click", () => fetchSchedule(true, { source: "changes" }));
   }
 
   el.openSettingsButton.addEventListener("click", () => setView("settings"));
   el.openMyScheduleButton.addEventListener("click", () => setView("my_schedule"));
+  if (el.openChangesButton) {
+    el.openChangesButton.addEventListener("click", () => setView("changes"));
+  }
+  if (el.openMyEditorButton) {
+    el.openMyEditorButton.addEventListener("click", () => {
+      state.myEditingShiftId = null;
+      resetMyShiftForm();
+      setView("my_schedule_editor");
+    });
+  }
   el.backFromSettingsButton.addEventListener("click", () => setView("schedule"));
   el.backFromMyScheduleButton.addEventListener("click", () => setView("schedule"));
-
-  if (el.myMonthInput) {
-    el.myMonthInput.addEventListener("change", () => {
-      const month = String(el.myMonthInput.value || "");
-      if (!/^\d{4}-\d{2}$/.test(month)) {
-        return;
-      }
-      state.myScheduleMonth = month;
-      renderMySchedule();
-    });
+  if (el.backFromChangesButton) {
+    el.backFromChangesButton.addEventListener("click", () => setView("schedule"));
+  }
+  if (el.backFromMyEditorButton) {
+    el.backFromMyEditorButton.addEventListener("click", () => setView("my_schedule"));
   }
 
-  if (el.myMonthPrevButton) {
-    el.myMonthPrevButton.addEventListener("click", () => {
-      state.myScheduleMonth = shiftMonthKey(state.myScheduleMonth, -1);
-      renderMySchedule();
-    });
-  }
-
-  if (el.myMonthNextButton) {
-    el.myMonthNextButton.addEventListener("click", () => {
-      state.myScheduleMonth = shiftMonthKey(state.myScheduleMonth, 1);
+  if (el.myShowAllButton) {
+    el.myShowAllButton.addEventListener("click", () => {
+      state.myScheduleShowAll = !state.myScheduleShowAll;
       renderMySchedule();
     });
   }
@@ -154,9 +167,19 @@ function bindEvents() {
     el.myScheduleTimeline.addEventListener("click", handleMyScheduleTimelineClick);
   }
 
-  if (el.myShiftToggleButton) {
-    el.myShiftToggleButton.addEventListener("click", () => {
-      setMyShiftFormExpanded(!state.myShiftFormExpanded);
+  if (el.myChangesSummaryCard) {
+    el.myChangesSummaryCard.addEventListener("click", handleMyChangesSummaryClick);
+  }
+
+  if (el.myEditorShiftList) {
+    el.myEditorShiftList.addEventListener("click", handleMyEditorShiftListClick);
+  }
+
+  if (el.myShiftCancelEditButton) {
+    el.myShiftCancelEditButton.addEventListener("click", () => {
+      state.myEditingShiftId = null;
+      resetMyShiftForm();
+      renderMyScheduleEditor();
     });
   }
 
@@ -199,7 +222,6 @@ function bindEvents() {
   });
 
   window.addEventListener("scroll", handleScheduleScroll, { passive: true });
-  window.addEventListener("resize", requestMyChartsResize, { passive: true });
 }
 
 function setView(view) {
@@ -208,14 +230,35 @@ function setView(view) {
   const showSchedule = view === "schedule";
   const showSettings = view === "settings";
   const showMySchedule = view === "my_schedule";
+  const showMyScheduleEditor = view === "my_schedule_editor";
+  const showChanges = view === "changes";
 
   el.scheduleView.hidden = !showSchedule;
   el.settingsView.hidden = !showSettings;
   el.myScheduleView.hidden = !showMySchedule;
+  if (el.changesView) {
+    el.changesView.hidden = !showChanges;
+  }
+  if (el.myScheduleEditorView) {
+    el.myScheduleEditorView.hidden = !showMyScheduleEditor;
+  }
   el.facilityDock.hidden = !showSchedule;
 
   if (showMySchedule) {
+    state.myScheduleFocusDate = todayIso();
+    state.myScheduleShowAll = false;
+    state.myChangesSummaryExpanded = false;
+    if (el.myShiftDateInput) {
+      el.myShiftDateInput.value = state.myScheduleFocusDate;
+    }
     renderMySchedule();
+  }
+
+  if (showMyScheduleEditor) {
+    renderMyScheduleEditor();
+  }
+  if (showChanges) {
+    renderChangesView();
   }
 
   window.scrollTo({ top: 0, behavior: "auto" });
@@ -321,7 +364,9 @@ function loadFromLocalCache() {
 async function fetchSchedule(force, options = {}) {
   const { source = "auto" } = options;
   const isHeaderRefresh = source === "header";
-  const isMyScheduleRefresh = source === "my_schedule";
+  const isMyScheduleRefresh = source === "my_schedule" || source === "my_schedule_global";
+  const isChangesRefresh = source === "changes";
+  const checkSiteChanges = source === "my_schedule_global";
 
   if (state.fetchInFlight) {
     if (isHeaderRefresh) {
@@ -329,6 +374,9 @@ async function fetchSchedule(force, options = {}) {
     }
     if (isMyScheduleRefresh) {
       pulseRefreshButton(el.myScheduleRefreshButton);
+    }
+    if (isChangesRefresh) {
+      pulseRefreshButton(el.changesRefreshButton);
     }
     return;
   }
@@ -346,8 +394,14 @@ async function fetchSchedule(force, options = {}) {
       icon: el.myScheduleRefreshIcon,
     });
   }
+  if (isChangesRefresh) {
+    setRefreshButtonLoading(true, {
+      button: el.changesRefreshButton,
+      icon: el.changesRefreshIcon,
+    });
+  }
 
-  setLiveText("Обновляем расписание…", true);
+  setLiveText(checkSiteChanges ? "Обновляем расписание и проверяем изменения…" : "Обновляем расписание…", true);
 
   const query = force ? "?refresh=1" : "";
 
@@ -361,6 +415,8 @@ async function fetchSchedule(force, options = {}) {
     }
 
     const payload = await response.json();
+    const previousPayload = state.data ? clonePayload(state.data) : null;
+    registerSiteChanges(previousPayload, payload, { source: checkSiteChanges ? "changes" : source, forced: force });
     state.data = payload;
 
     initializeSelection();
@@ -391,6 +447,12 @@ async function fetchSchedule(force, options = {}) {
         timerKey: "mySchedule",
       });
     }
+    if (isChangesRefresh) {
+      showRefreshResult("success", {
+        button: el.changesRefreshButton,
+        timerKey: "changes",
+      });
+    }
   } catch (error) {
     setLiveText("Ошибка обновления", false);
     if (isHeaderRefresh) {
@@ -403,6 +465,12 @@ async function fetchSchedule(force, options = {}) {
       showRefreshResult("error", {
         button: el.myScheduleRefreshButton,
         timerKey: "mySchedule",
+      });
+    }
+    if (isChangesRefresh) {
+      showRefreshResult("error", {
+        button: el.changesRefreshButton,
+        timerKey: "changes",
       });
     }
     if (!state.data) {
@@ -420,6 +488,12 @@ async function fetchSchedule(force, options = {}) {
       setRefreshButtonLoading(false, {
         button: el.myScheduleRefreshButton,
         icon: el.myScheduleRefreshIcon,
+      });
+    }
+    if (isChangesRefresh) {
+      setRefreshButtonLoading(false, {
+        button: el.changesRefreshButton,
+        icon: el.changesRefreshIcon,
       });
     }
   }
@@ -540,6 +614,8 @@ function renderAll() {
   renderTimeline();
   renderSources();
   renderMySchedule();
+  renderMyScheduleEditor();
+  renderChangesView();
 }
 
 function renderHeader() {
@@ -548,6 +624,10 @@ function renderHeader() {
   if (el.myScheduleUpdatedAt) {
     el.myScheduleUpdatedAt.textContent = freshness.shortText;
     el.myScheduleUpdatedAt.title = freshness.tooltip;
+  }
+  if (el.changesUpdatedAt) {
+    el.changesUpdatedAt.textContent = freshness.shortText;
+    el.changesUpdatedAt.title = freshness.tooltip;
   }
 
   const facility = getSelectedFacility();
@@ -1074,10 +1154,14 @@ function hydrateMyScheduleUI() {
     return;
   }
 
+  if (!state.myScheduleFocusDate) {
+    state.myScheduleFocusDate = todayIso();
+  }
+
   renderMyScheduleFacilityOptions();
 
   if (!el.myShiftDateInput.value) {
-    el.myShiftDateInput.value = todayIso();
+    el.myShiftDateInput.value = state.myScheduleFocusDate;
   }
 
   if (!el.myShiftStartInput.value) {
@@ -1088,21 +1172,9 @@ function hydrateMyScheduleUI() {
     el.myShiftEndInput.value = "10:00";
   }
 
-  setMyShiftFormExpanded(state.myShiftFormExpanded);
+  resetMyShiftForm();
   renderMySchedule();
-}
-
-function setMyShiftFormExpanded(expanded) {
-  state.myShiftFormExpanded = Boolean(expanded);
-  saveMyShiftFormExpanded();
-
-  if (!el.myShiftFormContainer || !el.myShiftToggleButton || !el.myShiftToggleIcon) {
-    return;
-  }
-
-  el.myShiftFormContainer.hidden = !state.myShiftFormExpanded;
-  el.myShiftToggleButton.setAttribute("aria-expanded", state.myShiftFormExpanded ? "true" : "false");
-  el.myShiftToggleIcon.textContent = state.myShiftFormExpanded ? "expand_less" : "expand_more";
+  renderMyScheduleEditor();
 }
 
 function renderMySchedule() {
@@ -1110,70 +1182,138 @@ function renderMySchedule() {
     return;
   }
 
-  if (!/^\d{4}-\d{2}$/.test(state.myScheduleMonth)) {
-    state.myScheduleMonth = currentMonthIso();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(state.myScheduleFocusDate || ""))) {
+    state.myScheduleFocusDate = todayIso();
   }
 
   renderMyScheduleFacilityOptions();
-  el.myMonthInput.value = state.myScheduleMonth;
-  el.myMonthTitle.textContent = formatMonthLabel(state.myScheduleMonth);
-
-  const monthShifts = state.myShifts
-    .filter((shift) => shift.date.slice(0, 7) === state.myScheduleMonth)
-    .sort(compareMyShift);
-
-  const monthShiftChecks = monthShifts.map((shift) => ({
-    shift,
-    verification: getShiftVerification(shift),
-  }));
-
-  renderMyScheduleCharts(monthShiftChecks);
-
-  const missingCount = monthShiftChecks.filter((item) => item.verification.status === "missing").length;
-  const partialCount = monthShiftChecks.filter((item) => item.verification.status === "partial").length;
-  const confirmedShiftChecks = monthShiftChecks.filter((item) => item.verification.confirmedMinutes > 0);
-  const confirmedShiftCount = confirmedShiftChecks.length;
-  const totalMinutes = confirmedShiftChecks.reduce((sum, item) => sum + item.verification.confirmedMinutes, 0);
-  const avgMinutes = confirmedShiftCount ? Math.round(totalMinutes / confirmedShiftCount) : 0;
-
-  const nearestShift = findNearestVerifiedShift(
-    state.myShifts.map((shift) => ({
+  const allShiftChecks = state.myShifts
+    .slice()
+    .sort(compareMyShift)
+    .map((shift) => ({
       shift,
       verification: getShiftVerification(shift),
-    }))
-  );
+    }));
 
-  el.myMetricShifts.textContent = String(confirmedShiftCount);
-  el.myMetricAverageHours.textContent = confirmedShiftCount ? formatDuration(avgMinutes) : "0ч";
-  el.myMetricNextShift.textContent = nearestShift ? formatNearestShift(nearestShift) : "—";
-  el.myMonthSummary.textContent = monthShifts.length
-    ? `${confirmedShiftCount} ${pluralizeShifts(confirmedShiftCount)} · ${formatDuration(totalMinutes)} по сайту${
-        confirmedShiftCount !== monthShifts.length ? ` · внесено: ${monthShifts.length}` : ""
-      }${
-        missingCount ? ` · ${missingCount} не на сайте` : partialCount ? ` · ${partialCount} частично` : ""
-      }`
-    : "В этом месяце смен пока нет";
+  const groupedByDate = new Map();
+  for (const item of allShiftChecks) {
+    if (!groupedByDate.has(item.shift.date)) {
+      groupedByDate.set(item.shift.date, []);
+    }
+    groupedByDate.get(item.shift.date).push(item);
+  }
 
-  if (!monthShifts.length) {
-    el.myScheduleTimeline.innerHTML = `
-      <div class="my-timeline-empty">
-        <p>Смен пока нет. Добавьте первую запись через форму выше.</p>
-      </div>
-    `;
+  const focusDate = state.myScheduleFocusDate;
+  let datesToRender = [focusDate];
+  if (state.myScheduleShowAll) {
+    const futureShiftDates = Array.from(groupedByDate.keys())
+      .filter((date) => date >= focusDate)
+      .sort((a, b) => a.localeCompare(b));
+    const lastDate = futureShiftDates.length ? futureShiftDates[futureShiftDates.length - 1] : focusDate;
+    datesToRender = [];
+    let cursor = focusDate;
+    while (cursor <= lastDate) {
+      datesToRender.push(cursor);
+      cursor = addDays(cursor, 1);
+    }
+  }
+
+  const visibleShiftChecks = state.myScheduleShowAll
+    ? allShiftChecks.filter((item) => item.shift.date >= focusDate)
+    : groupedByDate.get(focusDate) || [];
+  const focusShiftChecks = groupedByDate.get(focusDate) || [];
+  const focusStats = summarizeShiftChecks(focusShiftChecks);
+
+  updateMyScheduleHeader(focusDate, datesToRender.length, focusStats);
+
+  if (el.myShowAllButton) {
+    el.myShowAllButton.classList.toggle("is-active", state.myScheduleShowAll);
+    el.myShowAllButton.innerHTML = state.myScheduleShowAll
+      ? '<span class="material-symbols-outlined">unfold_less</span><span>Свернуть</span>'
+      : '<span class="material-symbols-outlined">unfold_more</span><span>Показать всё</span>';
+  }
+
+  if (el.myTimelineTitle) {
+    el.myTimelineTitle.textContent = state.myScheduleShowAll
+      ? "Выбранные и следующие сутки"
+      : "График на выбранные сутки";
+  }
+
+  if (!state.myShifts.length) {
+    el.myScheduleTimeline.innerHTML = renderMyScheduleEmptyState();
+    renderMyChangesSummary();
     return;
   }
 
-  const grouped = new Map();
-  for (const item of monthShiftChecks) {
-    if (!grouped.has(item.shift.date)) {
-      grouped.set(item.shift.date, []);
-    }
-    grouped.get(item.shift.date).push(item);
+  el.myScheduleTimeline.innerHTML = datesToRender
+    .map((date) =>
+      renderMyScheduleDay(date, groupedByDate.get(date) || [], {
+        spotlight: !state.myScheduleShowAll && date === focusDate,
+      })
+    )
+    .join("");
+  renderMyChangesSummary();
+}
+
+function updateMyScheduleHeader(focusDate, dayCount, focusStats) {
+  if (el.myDayTitle) {
+    el.myDayTitle.textContent = focusDate === todayIso() ? `Текущие сутки · ${formatMonthDayShort(focusDate)}` : formatMyDayHeading(focusDate);
   }
 
-  el.myScheduleTimeline.innerHTML = Array.from(grouped.entries())
-    .map(([date, shiftChecks]) => renderMyScheduleDay(date, shiftChecks))
-    .join("");
+  if (!el.myDaySummary) {
+    return;
+  }
+
+  if (state.myScheduleShowAll) {
+    const tailCount = Math.max(0, dayCount - 1);
+    el.myDaySummary.textContent = tailCount
+      ? `Режим «Показать всё»: сначала выбранные сутки, ниже ещё ${tailCount} следующих дней.`
+      : "Показываем только выбранные сутки: следующих дней со сменами пока нет.";
+    return;
+  }
+
+  if (!focusStats.planned) {
+    el.myDaySummary.textContent = "На выбранные сутки смен пока нет. Откройте «Управление», чтобы добавить первую запись.";
+    return;
+  }
+
+  const confirmedText = focusStats.confirmedMinutes ? formatDuration(focusStats.confirmedMinutes) : "0ч";
+  el.myDaySummary.textContent =
+    `${focusStats.planned} смен · подтверждено ${confirmedText}` +
+    (focusStats.partial ? ` · частично ${focusStats.partial}` : "") +
+    (focusStats.missing ? ` · не найдено ${focusStats.missing}` : "");
+}
+
+function summarizeShiftChecks(shiftChecks) {
+  return {
+    planned: shiftChecks.length,
+    confirmedMinutes: shiftChecks.reduce((sum, item) => sum + item.verification.confirmedMinutes, 0),
+    missing: shiftChecks.filter((item) => item.verification.status === "missing").length,
+    partial: shiftChecks.filter((item) => item.verification.status === "partial").length,
+  };
+}
+
+function renderMyScheduleEmptyState() {
+  return `
+    <section class="my-empty-state">
+      <lottie-player
+        class="my-empty-lottie"
+        src="https://assets4.lottiefiles.com/packages/lf20_5tl1xxnz.json"
+        background="transparent"
+        speed="1"
+        loop
+        autoplay
+      ></lottie-player>
+      <h4 class="my-empty-title">График пока пуст</h4>
+      <p class="my-empty-text">
+        Перейдите в управление сменами, добавьте первую запись по дате и времени.
+        После сохранения здесь сразу появится подробный график на выбранные сутки.
+      </p>
+      <button type="button" class="my-empty-cta" data-open-editor>
+        Открыть управление сменами
+      </button>
+    </section>
+  `;
 }
 
 function renderMyScheduleFacilityOptions() {
@@ -1240,28 +1380,295 @@ function handleMyShiftSubmit(event) {
     return;
   }
 
+  const editingShift = state.myEditingShiftId
+    ? state.myShifts.find((item) => item.id === state.myEditingShiftId) || null
+    : null;
   const facility = getMyFacilityOptions().find((item) => item.id === facilityId);
   const shift = {
-    id: createShiftId(),
+    id: editingShift ? editingShift.id : createShiftId(),
     date,
     facilityId,
     facilityName: facility ? facility.name : "Объект",
     start,
     end,
     note,
-    createdAt: new Date().toISOString(),
+    createdAt: editingShift?.createdAt || new Date().toISOString(),
   };
 
-  state.myShifts = [...state.myShifts, shift].sort(compareMyShift);
+  if (editingShift) {
+    state.myShifts = state.myShifts
+      .map((item) => (item.id === editingShift.id ? shift : item))
+      .sort(compareMyShift);
+  } else {
+    state.myShifts = [...state.myShifts, shift].sort(compareMyShift);
+  }
   saveMyShifts();
 
-  state.myScheduleMonth = date.slice(0, 7);
-  el.myMonthInput.value = state.myScheduleMonth;
-  setMyScheduleNotice("Смена добавлена в график.", "success");
+  state.myScheduleFocusDate = date;
+  state.myScheduleShowAll = false;
+  state.myEditingShiftId = null;
+  resetMyShiftForm({ preserveDate: date });
+  setMyScheduleNotice(editingShift ? "Смена обновлена." : "Смена добавлена в график.", "success");
   renderMySchedule();
+  renderMyScheduleEditor();
 }
 
-function handleMyScheduleTimelineClick(event) {
+function resetMyShiftForm(options = {}) {
+  const { preserveDate = "" } = options;
+  if (!el.myShiftForm) {
+    return;
+  }
+
+  el.myShiftForm.reset();
+  el.myShiftDateInput.value = preserveDate || state.myScheduleFocusDate || todayIso();
+  el.myShiftStartInput.value = "08:00";
+  el.myShiftEndInput.value = "10:00";
+  renderMyScheduleFacilityOptions();
+  syncMyShiftEditorFormState();
+}
+
+function syncMyShiftEditorFormState() {
+  const editingShift = state.myEditingShiftId
+    ? state.myShifts.find((item) => item.id === state.myEditingShiftId) || null
+    : null;
+
+  if (editingShift) {
+    el.myShiftDateInput.value = editingShift.date;
+    el.myShiftFacilitySelect.value = editingShift.facilityId;
+    el.myShiftStartInput.value = editingShift.start;
+    el.myShiftEndInput.value = editingShift.end;
+    el.myShiftNoteInput.value = editingShift.note || "";
+
+    if (el.myEditorTitle) {
+      el.myEditorTitle.textContent = "Редактирование смены";
+    }
+    if (el.myEditorSummary) {
+      el.myEditorSummary.textContent = "Измените поля и сохраните обновлённую запись.";
+    }
+    if (el.myShiftSubmitButton) {
+      el.myShiftSubmitButton.textContent = "Сохранить изменения";
+    }
+    if (el.myShiftCancelEditButton) {
+      el.myShiftCancelEditButton.hidden = false;
+    }
+    return;
+  }
+
+  if (el.myEditorTitle) {
+    el.myEditorTitle.textContent = "Добавить смену";
+  }
+  if (el.myEditorSummary) {
+    el.myEditorSummary.textContent = "Заполните смену и сохраните её в график.";
+  }
+  if (el.myShiftSubmitButton) {
+    el.myShiftSubmitButton.textContent = "Сохранить смену";
+  }
+  if (el.myShiftCancelEditButton) {
+    el.myShiftCancelEditButton.hidden = true;
+  }
+}
+
+function renderMyScheduleEditor() {
+  if (!el.myEditorShiftList) {
+    return;
+  }
+
+  renderMyScheduleFacilityOptions();
+  syncMyShiftEditorFormState();
+
+  if (!state.myShifts.length) {
+    el.myEditorShiftList.innerHTML = `
+      <div class="my-timeline-empty">
+        <p>Смен пока нет. Добавьте первую запись через форму выше.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const today = todayIso();
+  const sorted = state.myShifts.slice().sort(compareMyShift);
+  const list = [...sorted.filter((item) => item.date >= today), ...sorted.filter((item) => item.date < today).reverse()];
+
+  el.myEditorShiftList.innerHTML = list
+    .map((shift) => renderMyEditorShiftCard(shift, getShiftVerification(shift)))
+    .join("");
+}
+
+function renderMyEditorShiftCard(shift, verification) {
+  const labelDate = formatMyDayHeading(shift.date);
+  const noteHtml = shift.note ? `<p class="my-editor-shift-note">${escapeHtml(shift.note)}</p>` : "";
+
+  return `
+    <article class="my-editor-shift-card">
+      <div class="my-editor-shift-main">
+        <p class="my-editor-shift-date">${escapeHtml(labelDate)}</p>
+        <h4 class="my-editor-shift-title">${escapeHtml(`${shift.start} — ${shift.end}`)}</h4>
+        <p class="my-editor-shift-place">${escapeHtml(resolveShiftFacilityName(shift))}</p>
+        ${noteHtml}
+        <div class="my-editor-shift-meta">
+          <span class="my-shift-verify ${escapeHtml(verification.badgeClass)}">${escapeHtml(verification.label)}</span>
+          <span class="my-shift-duration">${escapeHtml(formatDuration(verification.confirmedMinutes))}</span>
+        </div>
+      </div>
+      <div class="my-editor-shift-actions">
+        <button type="button" class="my-editor-action-btn" data-edit-shift="${escapeHtml(shift.id)}">Изменить</button>
+        <button type="button" class="my-editor-action-btn danger" data-delete-shift="${escapeHtml(shift.id)}">Удалить</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderChangesView() {
+  if (!el.changesLatestCard || !el.changesStats || !el.changesList) {
+    return;
+  }
+
+  const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [];
+  const latest = history[0] || null;
+
+  if (el.changesUpdatedAt) {
+    if (latest?.checkedAt) {
+      const checkedAt = new Date(latest.checkedAt);
+      const relative = formatRelativeAge(checkedAt, { compact: true });
+      const checkedText = checkedAt.toLocaleTimeString("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      el.changesUpdatedAt.textContent = relative ? `${checkedText} · ${relative}` : checkedText;
+      el.changesUpdatedAt.title = `Проверено ${checkedAt.toLocaleString("ru-RU")}`;
+    } else {
+      const freshness = buildScheduleFreshnessState(state.data?.generatedAt);
+      el.changesUpdatedAt.textContent = freshness.shortText;
+      el.changesUpdatedAt.title = freshness.tooltip;
+    }
+  }
+
+  if (!latest) {
+    el.changesLatestCard.innerHTML = `
+      <div class="changes-empty-state">
+        <h2>Изменений пока нет</h2>
+        <p>Нажмите «Проверить», чтобы получить первый снимок и начать отслеживание изменений на сайте.</p>
+      </div>
+    `;
+    el.changesStats.innerHTML = `
+      <article class="changes-stat-card"><span>Найдено</span><strong>0</strong></article>
+      <article class="changes-stat-card"><span>Добавлено</span><strong>0</strong></article>
+      <article class="changes-stat-card"><span>Удалено</span><strong>0</strong></article>
+      <article class="changes-stat-card"><span>Изменено</span><strong>0</strong></article>
+    `;
+    el.changesList.innerHTML = "";
+    return;
+  }
+
+  const latestBadge = latest.baseline
+    ? '<span class="changes-check-badge baseline">Базовый снимок</span>'
+    : latest.hasChanges
+      ? '<span class="changes-check-badge changed">Есть изменения</span>'
+      : '<span class="changes-check-badge stable">Без изменений</span>';
+  const latestTime = formatChangesDateTime(latest.checkedAt);
+  const summary = latest.summary || { total: 0, added: 0, removed: 0, updated: 0 };
+  const latestText = latest.baseline
+    ? "Создан первый снимок расписания для сравнения будущих обновлений."
+    : latest.hasChanges
+      ? `Найдено ${summary.total} изменений по объектам и сеансам.`
+      : "После последней проверки изменений не обнаружено.";
+
+  el.changesLatestCard.innerHTML = `
+    <article class="changes-latest-inner">
+      <div class="changes-latest-top">
+        <h2>Последняя проверка</h2>
+        ${latestBadge}
+      </div>
+      <p class="changes-latest-time">${escapeHtml(latestTime)}</p>
+      <p class="changes-latest-text">${escapeHtml(latestText)}</p>
+    </article>
+  `;
+
+  el.changesStats.innerHTML = `
+    <article class="changes-stat-card"><span>Найдено</span><strong>${escapeHtml(String(summary.total || 0))}</strong></article>
+    <article class="changes-stat-card"><span>Добавлено</span><strong>${escapeHtml(String(summary.added || 0))}</strong></article>
+    <article class="changes-stat-card"><span>Удалено</span><strong>${escapeHtml(String(summary.removed || 0))}</strong></article>
+    <article class="changes-stat-card"><span>Изменено</span><strong>${escapeHtml(String(summary.updated || 0))}</strong></article>
+  `;
+
+  const visibleHistory = history.slice(0, 12);
+  el.changesList.innerHTML = visibleHistory.map((entry) => renderChangesCheckCard(entry)).join("");
+}
+
+function renderChangesCheckCard(entry) {
+  const summary = entry.summary || { total: 0, added: 0, removed: 0, updated: 0 };
+  const headline = entry.baseline
+    ? "Базовый снимок"
+    : entry.hasChanges
+      ? `Изменений: ${summary.total}`
+      : "Изменений не найдено";
+  const badge = entry.baseline
+    ? '<span class="changes-check-badge baseline">Снимок</span>'
+    : entry.hasChanges
+      ? '<span class="changes-check-badge changed">Обновлено</span>'
+      : '<span class="changes-check-badge stable">Стабильно</span>';
+  const events = Array.isArray(entry.events) ? entry.events : [];
+  const previewEvents = events.slice(0, 8);
+  const more = Math.max(0, events.length - previewEvents.length);
+
+  const eventsHtml = previewEvents.length
+    ? previewEvents.map((item) => renderChangeEvent(item)).join("")
+    : `<p class="changes-check-empty">Расписание совпадает с предыдущей проверкой.</p>`;
+
+  return `
+    <article class="changes-check-card">
+      <div class="changes-check-head">
+        <div>
+          <h3>${escapeHtml(headline)}</h3>
+          <p>${escapeHtml(formatChangesDateTime(entry.checkedAt))}</p>
+        </div>
+        ${badge}
+      </div>
+      <div class="changes-check-summary">
+        <span>+${escapeHtml(String(summary.added || 0))}</span>
+        <span>-${escapeHtml(String(summary.removed || 0))}</span>
+        <span>~${escapeHtml(String(summary.updated || 0))}</span>
+      </div>
+      <div class="changes-events">${eventsHtml}</div>
+      ${more ? `<p class="changes-check-more">И ещё ${escapeHtml(String(more))} изменений…</p>` : ""}
+    </article>
+  `;
+}
+
+function renderChangeEvent(event) {
+  const severity = event.severity || "info";
+  const title = event.title || "Изменение";
+  const description = event.description || "";
+  const dateText = event.date ? formatMonthDayShort(event.date) : "";
+  const facility = event.facilityName ? `${event.facilityName}${dateText ? " · " : ""}` : "";
+  const suffix = `${facility}${dateText}`;
+
+  return `
+    <div class="changes-event changes-event-${escapeHtml(severity)}">
+      <p class="changes-event-title">${escapeHtml(title)}</p>
+      <p class="changes-event-desc">${escapeHtml(description)}</p>
+      ${suffix ? `<p class="changes-event-meta">${escapeHtml(suffix)}</p>` : ""}
+    </div>
+  `;
+}
+
+function handleMyEditorShiftListClick(event) {
+  const editButton = event.target.closest("button[data-edit-shift]");
+  if (editButton) {
+    const shiftId = String(editButton.dataset.editShift || "");
+    if (!shiftId) {
+      return;
+    }
+    const exists = state.myShifts.some((item) => item.id === shiftId);
+    if (!exists) {
+      return;
+    }
+    state.myEditingShiftId = shiftId;
+    renderMyScheduleEditor();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+
   const removeButton = event.target.closest("button[data-delete-shift]");
   if (!removeButton) {
     return;
@@ -1284,19 +1691,47 @@ function handleMyScheduleTimelineClick(event) {
 
   state.myShifts = state.myShifts.filter((item) => item.id !== shiftId);
   saveMyShifts();
+  if (state.myEditingShiftId === shiftId) {
+    state.myEditingShiftId = null;
+    resetMyShiftForm();
+  }
+
   setMyScheduleNotice("Смена удалена.", "info");
   renderMySchedule();
+  renderMyScheduleEditor();
 }
 
-function renderMyScheduleDay(date, shiftChecks) {
+function handleMyScheduleTimelineClick(event) {
+  const openEditorButton = event.target.closest("button[data-open-editor]");
+  if (!openEditorButton) {
+    return;
+  }
+
+  state.myEditingShiftId = null;
+  resetMyShiftForm({ preserveDate: state.myScheduleFocusDate || todayIso() });
+  setView("my_schedule_editor");
+}
+
+function renderMyScheduleDay(date, shiftChecks, options = {}) {
+  const { spotlight = false } = options;
   const dayTotalMinutes = shiftChecks.reduce((sum, item) => sum + item.verification.confirmedMinutes, 0);
   const dayClasses = ["my-timeline-day"];
+  if (spotlight) {
+    dayClasses.push("is-spotlight");
+  }
+  const isWorkingDay = shiftChecks.length > 0;
   if (date === todayIso()) {
     dayClasses.push("is-today");
   }
   if (isWeekendIsoDate(date)) {
     dayClasses.push("is-weekend");
   }
+
+  const stateClass = isWorkingDay ? "is-working" : "is-off";
+  const stateLabel = isWorkingDay ? "Рабочий день" : "Смен нет";
+  const dayBody = isWorkingDay
+    ? shiftChecks.map((item) => renderMyShiftCard(item.shift, item.verification)).join("")
+    : `<div class="my-day-empty">На эти сутки смены не добавлены.</div>`;
 
   return `
     <section class="${dayClasses.join(" ")}">
@@ -1305,13 +1740,122 @@ function renderMyScheduleDay(date, shiftChecks) {
           <p class="my-timeline-day-kicker">${escapeHtml(formatDayTag(date))}</p>
           <h4 class="my-timeline-day-title">${escapeHtml(formatMyDayHeading(date))}</h4>
         </div>
-        <span class="my-timeline-day-total">${escapeHtml(formatDuration(dayTotalMinutes))}</span>
+        <div class="my-timeline-day-badges">
+          <span class="my-timeline-day-state ${stateClass}">${escapeHtml(stateLabel)}</span>
+          <span class="my-timeline-day-total">${escapeHtml(formatDuration(dayTotalMinutes))}</span>
+        </div>
       </div>
       <div class="my-timeline-day-list">
-        ${shiftChecks.map((item) => renderMyShiftCard(item.shift, item.verification)).join("")}
+        ${dayBody}
       </div>
     </section>
   `;
+}
+
+function renderMyChangesSummary() {
+  if (!el.myChangesSummaryContent) {
+    return;
+  }
+
+  const latest = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory[0] || null : null;
+  if (!latest) {
+    el.myChangesSummaryContent.innerHTML = `
+      <div class="my-changes-head">
+        <div>
+          <h3>Изменения на сайте</h3>
+          <p>Пока нет проверок. Нажмите «Проверить», чтобы создать первый снимок.</p>
+        </div>
+        <span class="my-changes-badge is-baseline">Нет данных</span>
+      </div>
+      <div class="my-changes-actions">
+        <button type="button" class="my-changes-action-btn" data-my-changes-action="refresh">Проверить</button>
+        <button type="button" class="my-changes-action-btn" data-my-changes-action="open">Лента</button>
+      </div>
+    `;
+    return;
+  }
+
+  const checkedAt = new Date(latest.checkedAt);
+  const checkedText = Number.isNaN(checkedAt.getTime())
+    ? "Время проверки неизвестно"
+    : `${checkedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} · ${formatRelativeAge(checkedAt, { compact: false })}`;
+  const summary = latest.summary || { total: 0, added: 0, removed: 0, updated: 0 };
+  const events = Array.isArray(latest.events) ? latest.events : [];
+  const hasDetails = events.length > 0;
+  const visibleEvents = events.slice(0, state.myChangesSummaryExpanded ? 4 : 2);
+  const badgeClass = latest.baseline ? "is-baseline" : latest.hasChanges ? "is-changed" : "is-stable";
+  const badgeText = latest.baseline ? "Снимок" : latest.hasChanges ? "Есть изменения" : "Без изменений";
+  const summaryText = latest.baseline
+    ? "Создан базовый снимок для отслеживания будущих изменений."
+    : latest.hasChanges
+      ? `Найдено ${summary.total} изменений.`
+      : "После последней проверки изменений не обнаружено.";
+
+  el.myChangesSummaryContent.innerHTML = `
+    <div class="my-changes-head">
+      <div>
+        <h3>Изменения на сайте</h3>
+        <p>${escapeHtml(summaryText)}</p>
+      </div>
+      <span class="my-changes-badge ${badgeClass}">${escapeHtml(badgeText)}</span>
+    </div>
+    <p class="my-changes-time">${escapeHtml(checkedText)}</p>
+    <div class="my-changes-stats">
+      <span>+${escapeHtml(String(summary.added || 0))}</span>
+      <span>-${escapeHtml(String(summary.removed || 0))}</span>
+      <span>~${escapeHtml(String(summary.updated || 0))}</span>
+    </div>
+    ${
+      hasDetails
+        ? `<div class="my-changes-events">${visibleEvents.map((event) => renderMyChangesSummaryEvent(event)).join("")}</div>`
+        : ""
+    }
+    <div class="my-changes-actions">
+      <button type="button" class="my-changes-action-btn" data-my-changes-action="refresh">Проверить</button>
+      <button type="button" class="my-changes-action-btn" data-my-changes-action="open">Лента</button>
+      ${
+        events.length > 2
+          ? `<button type="button" class="my-changes-action-btn" data-my-changes-action="toggle">${state.myChangesSummaryExpanded ? "Скрыть" : "Детали"}</button>`
+          : ""
+      }
+    </div>
+  `;
+}
+
+function renderMyChangesSummaryEvent(event) {
+  const severity = event.severity || "info";
+  const title = event.title || "Изменение";
+  const description = event.description || "";
+  const dateText = event.date ? formatMonthDayShort(event.date) : "";
+  const meta = [event.facilityName || "", dateText].filter(Boolean).join(" · ");
+  return `
+    <button type="button" class="my-changes-event my-changes-event-${escapeHtml(severity)}" data-my-changes-action="open">
+      <span class="my-changes-event-title">${escapeHtml(title)}</span>
+      <span class="my-changes-event-desc">${escapeHtml(description)}</span>
+      ${meta ? `<span class="my-changes-event-meta">${escapeHtml(meta)}</span>` : ""}
+    </button>
+  `;
+}
+
+function handleMyChangesSummaryClick(event) {
+  const button = event.target.closest("button[data-my-changes-action]");
+  if (!button) {
+    return;
+  }
+
+  const action = String(button.dataset.myChangesAction || "");
+  if (action === "refresh") {
+    fetchSchedule(true, { source: "changes" });
+    return;
+  }
+  if (action === "open") {
+    setView("changes");
+    return;
+  }
+  if (action === "toggle") {
+    state.myChangesSummaryExpanded = !state.myChangesSummaryExpanded;
+    renderMyChangesSummary();
+  }
 }
 
 function renderMyShiftCard(shift, verification = getShiftVerification(shift)) {
@@ -1331,9 +1875,6 @@ function renderMyShiftCard(shift, verification = getShiftVerification(shift)) {
         <span class="my-shift-verify ${escapeHtml(verification.badgeClass)}">${escapeHtml(verification.label)}</span>
         <span class="my-shift-status">${escapeHtml(status.label)}</span>
         <span class="my-shift-duration">${escapeHtml(duration)}</span>
-        <button type="button" class="my-shift-delete-btn" data-delete-shift="${escapeHtml(shift.id)}" aria-label="Удалить смену">
-          <span class="material-symbols-outlined">delete</span>
-        </button>
       </div>
     </article>
   `;
@@ -1386,148 +1927,6 @@ function renderMyShiftBreak(minutes, facilityId) {
   return `
     <div class="my-shift-site-break">${escapeHtml(formatDuration(minutes))} ${escapeHtml(classifyBreak(minutes, facilityId))}</div>
   `;
-}
-
-function renderMyScheduleCharts(monthShiftChecks) {
-  if (!ensureMyChartInstances()) {
-    return;
-  }
-
-  const mode = getResolvedThemeMode();
-  const isDark = mode === "dark";
-  const palette = isDark ? ["#60a5fa", "#22c55e", "#f59e0b", "#38bdf8", "#a78bfa"] : ["#2563eb", "#16a34a", "#d97706", "#0284c7", "#7c3aed"];
-  const textColor = isDark ? "#e2e8f0" : "#0f172a";
-  const mutedColor = isDark ? "#94a3b8" : "#475569";
-  const gridColor = isDark ? "rgba(148,163,184,0.18)" : "rgba(148,163,184,0.35)";
-  const cardBg = isDark ? "#0f172a" : "#f8fafc";
-
-  const facilityTotals = new Map();
-  for (const item of monthShiftChecks) {
-    if (!item.verification.confirmedMinutes) {
-      continue;
-    }
-    const name = resolveShiftFacilityName(item.shift);
-    const hours = item.verification.confirmedMinutes / 60;
-    facilityTotals.set(name, (facilityTotals.get(name) || 0) + hours);
-  }
-
-  const facilityData = Array.from(facilityTotals.entries())
-    .map(([name, value]) => ({ name: shortFacilityLabel(name), value: Number(value.toFixed(2)) }))
-    .sort((a, b) => b.value - a.value);
-
-  const pieData =
-    facilityData.length > 0
-      ? facilityData
-      : [
-          {
-            name: "Нет данных",
-            value: 1,
-            itemStyle: { color: isDark ? "rgba(148,163,184,0.35)" : "rgba(148,163,184,0.55)" },
-            label: { color: mutedColor },
-          },
-        ];
-
-  state.myCharts.facility.setOption(
-    {
-      animationDuration: 420,
-      color: palette,
-      tooltip: {
-        trigger: "item",
-        backgroundColor: isDark ? "rgba(2,6,23,0.96)" : "rgba(255,255,255,0.98)",
-        borderColor: gridColor,
-        textStyle: { color: textColor, fontFamily: "Lexend, sans-serif", fontSize: 12 },
-        formatter: (item) => {
-          if (!facilityData.length) {
-            return "Нет данных для графика";
-          }
-          const hours = Number(item?.value || 0);
-          return `${item.name}<br/>${hours.toFixed(1)} ч (${item.percent}%)`;
-        },
-      },
-      legend: {
-        show: true,
-        bottom: 2,
-        left: "center",
-        icon: "circle",
-        textStyle: { color: mutedColor, fontSize: 11, fontFamily: "Lexend, sans-serif" },
-      },
-      series: [
-        {
-          type: "pie",
-          radius: ["46%", "72%"],
-          center: ["50%", "46%"],
-          avoidLabelOverlap: true,
-          minShowLabelAngle: 6,
-          itemStyle: {
-            borderWidth: 2,
-            borderColor: cardBg,
-          },
-          label: {
-            color: textColor,
-            fontSize: 11,
-            formatter: facilityData.length ? "{b}" : "{b}",
-          },
-          labelLine: {
-            lineStyle: { color: gridColor },
-          },
-          emphasis: {
-            scale: true,
-            scaleSize: 7,
-          },
-          data: pieData,
-        },
-      ],
-      graphic:
-        facilityData.length > 0
-          ? []
-          : [
-              {
-                type: "text",
-                left: "center",
-                top: "42%",
-                style: {
-                  text: "Нет смен",
-                  fill: mutedColor,
-                  fontSize: 13,
-                  fontWeight: 800,
-                  fontFamily: "Lexend, sans-serif",
-                },
-              },
-            ],
-    },
-    true
-  );
-
-  requestMyChartsResize();
-}
-
-function ensureMyChartInstances() {
-  if (!window.echarts || !el.myFacilityShareChart) {
-    return false;
-  }
-
-  if (!state.myCharts.facility) {
-    state.myCharts.facility = window.echarts.init(el.myFacilityShareChart, null, { renderer: "canvas" });
-  }
-
-  return Boolean(state.myCharts.facility);
-}
-
-function requestMyChartsResize() {
-  if (state.chartResizeRafId) {
-    return;
-  }
-
-  state.chartResizeRafId = window.requestAnimationFrame(() => {
-    state.chartResizeRafId = null;
-    if (state.myCharts.facility) {
-      state.myCharts.facility.resize();
-    }
-  });
-}
-
-function getResolvedThemeMode() {
-  return document.documentElement.classList.contains("dark") ? "dark" : "light";
 }
 
 function getMyShiftStatus(shift) {
@@ -1693,63 +2092,6 @@ function getMergedSessionMinutes(sessions) {
   return total + (mergedEnd - mergedStart);
 }
 
-function findNearestVerifiedShift(shiftChecks) {
-  const today = todayIso();
-  const now = nowInMinutes();
-  let nearest = null;
-
-  for (const item of shiftChecks) {
-    const shift = item.shift;
-    const sessions = Array.isArray(item.verification?.siteSessions) ? item.verification.siteSessions : [];
-    if (!sessions.length || shift.date < today) {
-      continue;
-    }
-
-    let focusSession = null;
-    let sortMinute = 0;
-
-    if (shift.date === today) {
-      focusSession = sessions.find((session) => session.endMinutes > now);
-      if (!focusSession) {
-        continue;
-      }
-      sortMinute = Math.max(now, focusSession.startMinutes);
-    } else {
-      focusSession = sessions[0];
-      sortMinute = focusSession.startMinutes;
-    }
-
-    const candidate = {
-      date: shift.date,
-      start: focusSession.start,
-      end: focusSession.end,
-      sortMinute,
-    };
-
-    if (
-      !nearest ||
-      candidate.date < nearest.date ||
-      (candidate.date === nearest.date && candidate.sortMinute < nearest.sortMinute)
-    ) {
-      nearest = candidate;
-    }
-  }
-
-  return nearest;
-}
-
-function formatNearestShift(shift) {
-  const tag = formatDayTag(shift.date);
-  const datePart = tag === "Дата" ? formatMonthDayShort(shift.date) : tag;
-  return `${datePart} · ${shift.start}`;
-}
-
-function getShiftDurationMinutes(shift) {
-  const start = toMinutes(shift.start);
-  const end = toMinutes(shift.end);
-  return Math.max(0, end - start);
-}
-
 function resolveShiftFacilityName(shift) {
   const facility = getMyFacilityOptions().find((item) => item.id === shift.facilityId);
   if (facility) {
@@ -1785,23 +2127,6 @@ function normalizeTime(value) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-function shiftMonthKey(monthKey, delta) {
-  const [year, month] = monthKey.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1 + delta, 1));
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-function formatMonthLabel(monthKey) {
-  const [year, month] = monthKey.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, 1, 12, 0, 0));
-  return capitalize(
-    new Intl.DateTimeFormat("ru-RU", {
-      month: "long",
-      year: "numeric",
-    }).format(date)
-  );
-}
-
 function formatMonthDayShort(isoDate) {
   const [year, month, day] = isoDate.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
@@ -1821,19 +2146,6 @@ function formatMyDayHeading(isoDate) {
       month: "long",
     }).format(date)
   );
-}
-
-function pluralizeShifts(count) {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-
-  if (mod10 === 1 && mod100 !== 11) {
-    return "смена";
-  }
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-    return "смены";
-  }
-  return "смен";
 }
 
 function isWeekendIsoDate(isoDate) {
@@ -1934,11 +2246,13 @@ async function handleMyShiftsImport(event) {
     state.myShifts = normalized;
     saveMyShifts();
 
-    if (state.myShifts.length && !state.myShifts.some((item) => item.date.slice(0, 7) === state.myScheduleMonth)) {
-      state.myScheduleMonth = state.myShifts[0].date.slice(0, 7);
-    }
+    state.myScheduleFocusDate = state.myShifts.length ? state.myShifts[0].date : todayIso();
+    state.myScheduleShowAll = false;
+    state.myEditingShiftId = null;
+    resetMyShiftForm();
 
     renderMySchedule();
+    renderMyScheduleEditor();
     setMyShiftsDataNotice(`Импортировано смен: ${state.myShifts.length}.`, "success");
   } catch (error) {
     setMyShiftsDataNotice(
@@ -1990,7 +2304,8 @@ function applyTheme(theme) {
   document.documentElement.classList.toggle("light", resolved !== "dark");
   applyThemeColor(resolved);
   renderMySchedule();
-  requestMyChartsResize();
+  renderMyScheduleEditor();
+  renderChangesView();
 }
 
 function applyThemeColor(resolvedTheme) {
@@ -2072,6 +2387,330 @@ function showErrorEmpty(error) {
       error instanceof Error ? error.message : String(error)
     )}</p>
   `;
+}
+
+function registerSiteChanges(previousPayload, nextPayload, options = {}) {
+  if (!nextPayload?.facilities?.length) {
+    return;
+  }
+
+  const { source = "auto", forced = false } = options;
+  const checkedAt = new Date().toISOString();
+  const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory.slice() : [];
+
+  if (!previousPayload?.facilities?.length) {
+    if (history.length) {
+      return;
+    }
+
+    const baselineEntry = {
+      id: createShiftId(),
+      checkedAt,
+      generatedAt: nextPayload.generatedAt || null,
+      source,
+      forced: Boolean(forced),
+      baseline: true,
+      hasChanges: false,
+      summary: { total: 0, added: 0, removed: 0, updated: 0 },
+      events: [],
+    };
+    state.siteChangesHistory = [baselineEntry];
+    saveSiteChangesHistory();
+    return;
+  }
+
+  const events = diffSchedulePayload(previousPayload, nextPayload);
+  const summary = summarizeChangeEvents(events);
+  const hasChanges = summary.total > 0;
+
+  if (!hasChanges && source === "auto") {
+    return;
+  }
+
+  const entry = {
+    id: createShiftId(),
+    checkedAt,
+    generatedAt: nextPayload.generatedAt || null,
+    source,
+    forced: Boolean(forced),
+    baseline: false,
+    hasChanges,
+    summary,
+    events: events.slice(0, 60),
+  };
+
+  history.unshift(entry);
+  state.siteChangesHistory = history.slice(0, 30);
+  saveSiteChangesHistory();
+}
+
+function diffSchedulePayload(previousPayload, nextPayload) {
+  const events = [];
+  const previousFacilities = toFacilityMap(previousPayload?.facilities);
+  const nextFacilities = toFacilityMap(nextPayload?.facilities);
+  const facilityIds = Array.from(new Set([...previousFacilities.keys(), ...nextFacilities.keys()])).sort();
+
+  for (const facilityId of facilityIds) {
+    const previousFacility = previousFacilities.get(facilityId) || null;
+    const nextFacility = nextFacilities.get(facilityId) || null;
+    const facilityName = String(nextFacility?.name || previousFacility?.name || facilityId);
+
+    if (!previousFacility && nextFacility) {
+      events.push({
+        type: "facility_added",
+        severity: "positive",
+        facilityId,
+        facilityName,
+        date: null,
+        title: "Добавлен объект",
+        description: `Объект «${facilityName}» появился в данных расписания.`,
+      });
+      continue;
+    }
+
+    if (previousFacility && !nextFacility) {
+      events.push({
+        type: "facility_removed",
+        severity: "warning",
+        facilityId,
+        facilityName,
+        date: null,
+        title: "Удалён объект",
+        description: `Объект «${facilityName}» пропал из данных расписания.`,
+      });
+      continue;
+    }
+
+    const previousDays = toDayMap(previousFacility?.days);
+    const nextDays = toDayMap(nextFacility?.days);
+    const dates = Array.from(new Set([...previousDays.keys(), ...nextDays.keys()])).sort();
+
+    for (const date of dates) {
+      const previousDay = previousDays.get(date) || null;
+      const nextDay = nextDays.get(date) || null;
+
+      if (!previousDay && nextDay) {
+        const sessionsCount = Array.isArray(nextDay.sessions) ? nextDay.sessions.length : 0;
+        events.push({
+          type: "day_added",
+          severity: "positive",
+          facilityId,
+          facilityName,
+          date,
+          title: "Добавлены сутки",
+          description: nextDay.closedReason
+            ? "Для даты добавлен статус закрытия."
+            : `Новых сеансов: ${sessionsCount}.`,
+        });
+        continue;
+      }
+
+      if (previousDay && !nextDay) {
+        const sessionsCount = Array.isArray(previousDay.sessions) ? previousDay.sessions.length : 0;
+        events.push({
+          type: "day_removed",
+          severity: "warning",
+          facilityId,
+          facilityName,
+          date,
+          title: "Удалены сутки",
+          description: `Дата удалена из расписания (было сеансов: ${sessionsCount}).`,
+        });
+        continue;
+      }
+
+      const previousClosed = normalizeDiffText(previousDay?.closedReason);
+      const nextClosed = normalizeDiffText(nextDay?.closedReason);
+      if (previousClosed !== nextClosed) {
+        let title = "Изменён статус суток";
+        let description = "Статус закрытия на дату изменился.";
+        let severity = "info";
+        if (!previousClosed && nextClosed) {
+          title = "Объект закрыт";
+          description = `Появилась причина: ${nextClosed}.`;
+          severity = "warning";
+        } else if (previousClosed && !nextClosed) {
+          title = "Объект открыт";
+          description = "Ранее закрытые сутки снова открыты.";
+          severity = "positive";
+        }
+        events.push({
+          type: "closure_changed",
+          severity,
+          facilityId,
+          facilityName,
+          date,
+          title,
+          description,
+        });
+      }
+
+      const previousSessions = toSessionMap(previousDay?.sessions);
+      const nextSessions = toSessionMap(nextDay?.sessions);
+      const sessionKeys = Array.from(new Set([...previousSessions.keys(), ...nextSessions.keys()])).sort();
+
+      for (const sessionKey of sessionKeys) {
+        const previousSession = previousSessions.get(sessionKey) || null;
+        const nextSession = nextSessions.get(sessionKey) || null;
+
+        if (!previousSession && nextSession) {
+          const label = `${nextSession.start} — ${nextSession.end}`;
+          events.push({
+            type: "session_added",
+            severity: "positive",
+            facilityId,
+            facilityName,
+            date,
+            title: "Добавлен сеанс",
+            description: `${label}${nextSession.activity ? ` · ${nextSession.activity}` : ""}`,
+          });
+          continue;
+        }
+
+        if (previousSession && !nextSession) {
+          const label = `${previousSession.start} — ${previousSession.end}`;
+          events.push({
+            type: "session_removed",
+            severity: "warning",
+            facilityId,
+            facilityName,
+            date,
+            title: "Удалён сеанс",
+            description: `${label}${previousSession.activity ? ` · ${previousSession.activity}` : ""}`,
+          });
+          continue;
+        }
+
+        const previousActivity = normalizeDiffText(previousSession?.activity);
+        const nextActivity = normalizeDiffText(nextSession?.activity);
+        const previousNote = normalizeDiffText(previousSession?.note);
+        const nextNote = normalizeDiffText(nextSession?.note);
+        if (previousActivity !== nextActivity || previousNote !== nextNote) {
+          events.push({
+            type: "session_updated",
+            severity: "info",
+            facilityId,
+            facilityName,
+            date,
+            title: "Изменён сеанс",
+            description: `${nextSession.start} — ${nextSession.end} · обновлено описание/тип.`,
+          });
+        }
+      }
+    }
+  }
+
+  return events.sort(compareSiteChangeEvent);
+}
+
+function compareSiteChangeEvent(a, b) {
+  const dateA = String(a.date || "9999-12-31");
+  const dateB = String(b.date || "9999-12-31");
+  if (dateA !== dateB) {
+    return dateA.localeCompare(dateB);
+  }
+  const facilityA = String(a.facilityName || "");
+  const facilityB = String(b.facilityName || "");
+  if (facilityA !== facilityB) {
+    return facilityA.localeCompare(facilityB, "ru");
+  }
+  return String(a.title || "").localeCompare(String(b.title || ""), "ru");
+}
+
+function summarizeChangeEvents(events) {
+  const summary = {
+    total: Array.isArray(events) ? events.length : 0,
+    added: 0,
+    removed: 0,
+    updated: 0,
+  };
+
+  for (const event of events || []) {
+    const type = String(event.type || "");
+    if (type.endsWith("_added")) {
+      summary.added += 1;
+      continue;
+    }
+    if (type.endsWith("_removed")) {
+      summary.removed += 1;
+      continue;
+    }
+    summary.updated += 1;
+  }
+
+  return summary;
+}
+
+function toFacilityMap(facilities) {
+  const map = new Map();
+  for (const facility of facilities || []) {
+    const id = String(facility?.id || "");
+    if (!id) {
+      continue;
+    }
+    map.set(id, facility);
+  }
+  return map;
+}
+
+function toDayMap(days) {
+  const map = new Map();
+  for (const day of days || []) {
+    const date = String(day?.date || "");
+    if (!date) {
+      continue;
+    }
+    map.set(date, day);
+  }
+  return map;
+}
+
+function toSessionMap(sessions) {
+  const map = new Map();
+  for (const session of sessions || []) {
+    const start = normalizeTime(String(session?.start || ""));
+    const end = normalizeTime(String(session?.end || ""));
+    if (!start || !end) {
+      continue;
+    }
+    map.set(`${start}-${end}`, {
+      start,
+      end,
+      activity: String(session?.activity || ""),
+      note: String(session?.note || ""),
+    });
+  }
+  return map;
+}
+
+function normalizeDiffText(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function clonePayload(payload) {
+  try {
+    return JSON.parse(JSON.stringify(payload || null));
+  } catch {
+    return null;
+  }
+}
+
+function formatChangesDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Время неизвестно";
+  }
+  const relative = formatRelativeAge(date, { compact: false });
+  const text = date.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return relative ? `${text} · ${relative}` : text;
 }
 
 function getSelectedFacility() {
@@ -2206,14 +2845,6 @@ function shortFacilityLabel(name) {
   return name;
 }
 
-function currentMonthIso() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Minsk",
-    year: "numeric",
-    month: "2-digit",
-  }).format(new Date());
-}
-
 function normalizeShiftRecords(records) {
   if (!Array.isArray(records)) {
     return [];
@@ -2254,19 +2885,6 @@ function saveMyShifts() {
   localStorage.setItem(STORAGE.myShifts, JSON.stringify(state.myShifts));
 }
 
-function loadMyShiftFormExpanded() {
-  try {
-    const raw = localStorage.getItem(STORAGE.myShiftFormExpanded);
-    return raw === "1";
-  } catch {
-    return false;
-  }
-}
-
-function saveMyShiftFormExpanded() {
-  localStorage.setItem(STORAGE.myShiftFormExpanded, state.myShiftFormExpanded ? "1" : "0");
-}
-
 function loadSettings() {
   try {
     const raw = localStorage.getItem(STORAGE.settings);
@@ -2285,6 +2903,28 @@ function loadSettings() {
 
 function saveSettings() {
   localStorage.setItem(STORAGE.settings, JSON.stringify(state.settings));
+}
+
+function loadSiteChangesHistory() {
+  try {
+    const raw = localStorage.getItem(STORAGE.siteChanges);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .filter((item) => item && typeof item === "object" && typeof item.checkedAt === "string")
+      .slice(0, 30);
+  } catch {
+    return [];
+  }
+}
+
+function saveSiteChangesHistory() {
+  localStorage.setItem(STORAGE.siteChanges, JSON.stringify(state.siteChangesHistory.slice(0, 30)));
 }
 
 function escapeHtml(value) {
