@@ -1,6 +1,8 @@
 const TIMEZONE = "Europe/Minsk";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_DAYS_WINDOW = 8;
+const SOURCE_DISCOVERY_TTL_MS = 20 * 60 * 1000;
+const SITEMAP_URL = "https://www.polessu.by/sitemap.xml";
 
 const FACILITIES = [
   {
@@ -8,8 +10,11 @@ const FACILITIES = [
     name: "Ледовая арена",
     emoji: "❄️",
     mode: "dated",
-    sourceUrl:
+    sourceUrls: [
       "https://www.polessu.by/%D0%BB%D0%B5%D0%B4%D0%BE%D0%B2%D0%B0%D1%8F-%D0%B0%D1%80%D0%B5%D0%BD%D0%B0-%D0%BF%D0%BE%D0%BB%D0%B5%D1%81%D0%B3%D1%83",
+      "http://www.polessu.by/%D0%BB%D0%B5%D0%B4%D0%BE%D0%B2%D0%B0%D1%8F-%D0%B0%D1%80%D0%B5%D0%BD%D0%B0-%D0%BF%D0%BE%D0%BB%D0%B5%D1%81%D0%B3%D1%83",
+    ],
+    discoveryKeywords: ["ледов", "арен", "полесг"],
     defaults: {
       activity: "Массовое катание",
     },
@@ -19,8 +24,11 @@ const FACILITIES = [
     name: "Большой бассейн",
     emoji: "🏊",
     mode: "dated",
-    sourceUrl:
+    sourceUrls: [
       "https://www.polessu.by/%D0%B1%D0%BE%D0%BB%D1%8C%D1%88%D0%BE%D0%B9-%D0%B1%D0%B0%D1%81%D1%81%D0%B5%D0%B9%D0%BD",
+      "http://www.polessu.by/%D0%B1%D0%BE%D0%BB%D1%8C%D1%88%D0%BE%D0%B9-%D0%B1%D0%B0%D1%81%D1%81%D0%B5%D0%B9%D0%BD",
+    ],
+    discoveryKeywords: ["больш", "басс"],
     defaults: {
       activity: "Свободное плавание",
     },
@@ -30,8 +38,11 @@ const FACILITIES = [
     name: "Малый бассейн",
     emoji: "🌊",
     mode: "dated",
-    sourceUrl:
+    sourceUrls: [
       "https://www.polessu.by/%D0%BC%D0%B0%D0%BB%D1%8B%D0%B9-%D0%B1%D0%B0%D1%81%D1%81%D0%B5%D0%B9%D0%BD",
+      "http://www.polessu.by/%D0%BC%D0%B0%D0%BB%D1%8B%D0%B9-%D0%B1%D0%B0%D1%81%D1%81%D0%B5%D0%B9%D0%BD",
+    ],
+    discoveryKeywords: ["мал", "басс"],
     defaults: {
       activity: "Сеанс",
     },
@@ -41,8 +52,11 @@ const FACILITIES = [
     name: "Гребная база",
     emoji: "🚣",
     mode: "dailyTemplate",
-    sourceUrl:
+    sourceUrls: [
       "https://www.polessu.by/%D1%80%D0%B0%D1%81%D0%BF%D0%B8%D1%81%D0%B0%D0%BD%D0%B8%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B-%D1%82%D1%80%D0%B5%D0%BD%D0%B0%D0%B6%D0%B5%D1%80%D0%BD%D0%BE%D0%B3%D0%BE-%D0%B7%D0%B0%D0%BB%D0%B0-%D0%B8-%D0%B7%D0%B0%D0%BB%D0%B0-%D1%88%D1%82%D0%B0%D0%BD%D0%B3%D0%B8-%D0%B3%D1%80%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F-%D0%B1%D0%B0%D0%B7%D0%B0-%E2%84%961",
+      "http://www.polessu.by/%D1%80%D0%B0%D1%81%D0%BF%D0%B8%D1%81%D0%B0%D0%BD%D0%B8%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B-%D1%82%D1%80%D0%B5%D0%BD%D0%B0%D0%B6%D0%B5%D1%80%D0%BD%D0%BE%D0%B3%D0%BE-%D0%B7%D0%B0%D0%BB%D0%B0-%D0%B8-%D0%B7%D0%B0%D0%BB%D0%B0-%D1%88%D1%82%D0%B0%D0%BD%D0%B3%D0%B8-%D0%B3%D1%80%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F-%D0%B1%D0%B0%D0%B7%D0%B0-%E2%84%961",
+    ],
+    discoveryKeywords: ["греб", "баз", "расписан"],
     defaults: {
       activity: "Тренажерный зал",
     },
@@ -54,6 +68,11 @@ let memoryCache = {
   payload: null,
 };
 
+let sourceDiscoveryCache = {
+  at: 0,
+  urls: [],
+};
+
 module.exports = async function handler(req, res) {
   try {
     const force = String(req.query?.refresh || req.query?.force || "").trim() === "1";
@@ -62,41 +81,9 @@ module.exports = async function handler(req, res) {
       return respond(res, 200, memoryCache.payload, true);
     }
 
+    const previousFacilities = toFacilityMap(memoryCache.payload?.facilities);
     const facilityResults = await Promise.all(
-      FACILITIES.map(async (facility) => {
-        try {
-          const html = await fetchHtml(facility.sourceUrl);
-          const lines = htmlToLines(extractFieldContent(html));
-          const parsed =
-            facility.mode === "dated"
-              ? parseDated(lines, facility)
-              : parseDailyTemplate(lines, facility, DEFAULT_DAYS_WINDOW);
-
-          return {
-            id: facility.id,
-            name: facility.name,
-            emoji: facility.emoji,
-            sourceUrl: facility.sourceUrl,
-            mode: facility.mode,
-            updatedAt: new Date().toISOString(),
-            ...parsed,
-            error: null,
-          };
-        } catch (error) {
-          return {
-            id: facility.id,
-            name: facility.name,
-            emoji: facility.emoji,
-            sourceUrl: facility.sourceUrl,
-            mode: facility.mode,
-            updatedAt: new Date().toISOString(),
-            days: [],
-            notes: [],
-            warnings: ["Не удалось получить или распарсить страницу расписания"],
-            error: error instanceof Error ? error.message : String(error),
-          };
-        }
-      })
+      FACILITIES.map((facility) => parseFacilityWithFallback(facility, previousFacilities.get(facility.id) || null))
     );
 
     const payload = {
@@ -106,6 +93,7 @@ module.exports = async function handler(req, res) {
       meta: {
         cached: false,
         sourceCount: FACILITIES.length,
+        sourceIssues: facilityResults.filter((item) => item.fetchState !== "ok").length,
       },
     };
 
@@ -142,7 +130,249 @@ function respond(res, statusCode, payload, fromCache) {
   res.status(statusCode).send(JSON.stringify(body));
 }
 
-async function fetchHtml(url) {
+async function parseFacilityWithFallback(facility, previousFacility) {
+  const startedAt = new Date().toISOString();
+  const directUrls = normalizeFacilitySourceUrls(facility);
+  const attempted = new Set();
+  const errors = [];
+
+  for (const sourceUrl of directUrls) {
+    attempted.add(sourceUrl);
+    try {
+      const parsed = await parseFacilityFromUrl(facility, sourceUrl);
+      return {
+        id: facility.id,
+        name: facility.name,
+        emoji: facility.emoji,
+        sourceUrl,
+        mode: facility.mode,
+        updatedAt: startedAt,
+        ...parsed,
+        warnings: uniq(parsed.warnings || []),
+        error: null,
+        fetchState: "ok",
+        sourceIssue: null,
+      };
+    } catch (error) {
+      errors.push({ sourceUrl, reason: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  const discoveredUrls = await discoverFacilitySourceUrls(facility, attempted);
+  for (const sourceUrl of discoveredUrls) {
+    attempted.add(sourceUrl);
+    try {
+      const parsed = await parseFacilityFromUrl(facility, sourceUrl);
+      return {
+        id: facility.id,
+        name: facility.name,
+        emoji: facility.emoji,
+        sourceUrl,
+        mode: facility.mode,
+        updatedAt: startedAt,
+        ...parsed,
+        warnings: uniq([...(parsed.warnings || []), "Источник найден автоматически через sitemap"]),
+        error: null,
+        fetchState: "ok",
+        sourceIssue: null,
+      };
+    } catch (error) {
+      errors.push({ sourceUrl, reason: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  const sourceIssue = buildSourceIssueMessage(errors);
+  const fallbackSourceUrl = previousFacility?.sourceUrl || directUrls[0] || null;
+
+  if (canReusePreviousFacility(previousFacility)) {
+    const previousWarnings = Array.isArray(previousFacility.warnings)
+      ? previousFacility.warnings.filter((item) => !/^Источник недоступен/i.test(String(item || "")))
+      : [];
+
+    return {
+      id: facility.id,
+      name: facility.name,
+      emoji: facility.emoji,
+      sourceUrl: fallbackSourceUrl,
+      mode: facility.mode,
+      updatedAt: startedAt,
+      days: deepClone(previousFacility.days || []),
+      notes: deepClone(previousFacility.notes || []),
+      warnings: uniq([...previousWarnings, "Источник недоступен, показаны последние сохранённые данные"]),
+      error: sourceIssue,
+      fetchState: "stale_cache",
+      sourceIssue,
+    };
+  }
+
+  return {
+    id: facility.id,
+    name: facility.name,
+    emoji: facility.emoji,
+    sourceUrl: fallbackSourceUrl,
+    mode: facility.mode,
+    updatedAt: startedAt,
+    days: [],
+    notes: [],
+    warnings: ["Не удалось получить актуальные данные со страницы расписания"],
+    error: sourceIssue,
+    fetchState: "error",
+    sourceIssue,
+  };
+}
+
+async function parseFacilityFromUrl(facility, sourceUrl) {
+  const html = await fetchHtml(sourceUrl);
+  const lines = htmlToLines(extractFieldContent(html));
+  const parsed =
+    facility.mode === "dated" ? parseDated(lines, facility) : parseDailyTemplate(lines, facility, DEFAULT_DAYS_WINDOW);
+
+  if (!isParsedResultUsable(parsed)) {
+    const warning = Array.isArray(parsed?.warnings) ? parsed.warnings.find((item) => /не найдено/i.test(String(item || ""))) : "";
+    throw new Error(String(warning || "На странице нет пригодного расписания"));
+  }
+
+  return parsed;
+}
+
+function isParsedResultUsable(parsed) {
+  const days = Array.isArray(parsed?.days) ? parsed.days : [];
+  if (!days.length) {
+    return false;
+  }
+  const warnings = Array.isArray(parsed?.warnings) ? parsed.warnings : [];
+  return !warnings.some((item) => /не найдено (датированного расписания|шаблонных интервалов времени)/i.test(String(item || "")));
+}
+
+function canReusePreviousFacility(previousFacility) {
+  if (!previousFacility || typeof previousFacility !== "object") {
+    return false;
+  }
+  const days = Array.isArray(previousFacility.days) ? previousFacility.days : [];
+  return days.length > 0;
+}
+
+function buildSourceIssueMessage(errors) {
+  if (!Array.isArray(errors) || !errors.length) {
+    return "Источник недоступен";
+  }
+  const chunks = errors.slice(0, 2).map((item) => {
+    const source = String(item.sourceUrl || "");
+    const reason = String(item.reason || "Ошибка");
+    return `${source} (${reason})`;
+  });
+  return chunks.join(" | ").slice(0, 420);
+}
+
+function normalizeFacilitySourceUrls(facility) {
+  const configured = Array.isArray(facility?.sourceUrls) ? facility.sourceUrls : facility?.sourceUrl ? [facility.sourceUrl] : [];
+  return uniq(configured.map(normalizeSourceUrl).filter(Boolean));
+}
+
+async function discoverFacilitySourceUrls(facility, excludedUrls) {
+  const keywords = Array.isArray(facility?.discoveryKeywords)
+    ? facility.discoveryKeywords.map(normalizeDiscoveryToken).filter(Boolean)
+    : [];
+  if (!keywords.length) {
+    return [];
+  }
+
+  const sitemapUrls = await loadSitemapUrls();
+  if (!sitemapUrls.length) {
+    return [];
+  }
+
+  const minScore = Math.min(2, keywords.length);
+  return sitemapUrls
+    .map((sourceUrl) => ({ sourceUrl, score: scoreSitemapUrl(sourceUrl, keywords) }))
+    .filter((item) => item.score >= minScore && !excludedUrls.has(item.sourceUrl))
+    .sort((a, b) => b.score - a.score || a.sourceUrl.length - b.sourceUrl.length)
+    .slice(0, 6)
+    .map((item) => item.sourceUrl);
+}
+
+async function loadSitemapUrls() {
+  if (sourceDiscoveryCache.urls.length && Date.now() - sourceDiscoveryCache.at < SOURCE_DISCOVERY_TTL_MS) {
+    return sourceDiscoveryCache.urls;
+  }
+
+  try {
+    const xml = await fetchHtml(SITEMAP_URL, {
+      accept: "application/xml,text/xml,text/html;q=0.8,*/*;q=0.5",
+    });
+    const parsed = Array.from(xml.matchAll(/<loc>([^<]+)<\/loc>/gi))
+      .map((match) => normalizeSourceUrl(match[1]))
+      .filter(Boolean);
+    sourceDiscoveryCache = {
+      at: Date.now(),
+      urls: uniq(parsed),
+    };
+    return sourceDiscoveryCache.urls;
+  } catch {
+    sourceDiscoveryCache = {
+      at: Date.now(),
+      urls: [],
+    };
+    return [];
+  }
+}
+
+function scoreSitemapUrl(sourceUrl, keywords) {
+  const haystack = normalizeDiscoveryToken(sourceUrl);
+  return keywords.reduce((score, keyword) => (haystack.includes(keyword) ? score + 1 : score), 0);
+}
+
+function normalizeSourceUrl(value) {
+  if (!value) {
+    return "";
+  }
+  try {
+    const normalized = new URL(String(value).trim(), "https://www.polessu.by/");
+    normalized.protocol = "https:";
+    normalized.hash = "";
+    normalized.search = "";
+    normalized.pathname = normalized.pathname.replace(/\/+$/, "") || "/";
+    return normalized.toString();
+  } catch {
+    return "";
+  }
+}
+
+function normalizeDiscoveryToken(value) {
+  if (!value) {
+    return "";
+  }
+  let decoded = String(value);
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch {
+    // keep source as-is
+  }
+  return decoded.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+function toFacilityMap(facilities) {
+  const result = new Map();
+  for (const facility of facilities || []) {
+    const id = String(facility?.id || "");
+    if (!id) {
+      continue;
+    }
+    result.set(id, facility);
+  }
+  return result;
+}
+
+function deepClone(value) {
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return value;
+  }
+}
+
+async function fetchHtml(url, options = {}) {
+  const { accept = "text/html,application/xhtml+xml" } = options;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 16_000);
 
@@ -152,7 +382,7 @@ async function fetchHtml(url) {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-        Accept: "text/html,application/xhtml+xml",
+        Accept: accept,
       },
       signal: controller.signal,
     });

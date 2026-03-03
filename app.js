@@ -27,7 +27,6 @@ const state = {
   siteChangesHistory: loadSiteChangesHistory(),
   myScheduleFocusDate: null,
   myScheduleShowAll: false,
-  myChangesSummaryExpanded: false,
   myEditingShiftId: null,
   autoRefreshTimer: null,
   updatedAtTicker: null,
@@ -168,7 +167,7 @@ function bindEvents() {
   }
 
   if (el.myChangesSummaryCard) {
-    el.myChangesSummaryCard.addEventListener("click", handleMyChangesSummaryClick);
+    el.myChangesSummaryCard.addEventListener("click", () => setView("changes"));
   }
 
   if (el.myEditorShiftList) {
@@ -247,7 +246,6 @@ function setView(view) {
   if (showMySchedule) {
     state.myScheduleFocusDate = todayIso();
     state.myScheduleShowAll = false;
-    state.myChangesSummaryExpanded = false;
     if (el.myShiftDateInput) {
       el.myShiftDateInput.value = state.myScheduleFocusDate;
     }
@@ -1562,14 +1560,25 @@ function renderChangesView() {
 
   const latestBadge = latest.baseline
     ? '<span class="changes-check-badge baseline">Базовый снимок</span>'
-    : latest.hasChanges
+    : Array.isArray(latest.sourceIssues) && latest.sourceIssues.length
+      ? '<span class="changes-check-badge changed">Ошибка источника</span>'
+      : latest.hasChanges
       ? '<span class="changes-check-badge changed">Есть изменения</span>'
       : '<span class="changes-check-badge stable">Без изменений</span>';
   const latestTime = formatChangesDateTime(latest.checkedAt);
   const summary = latest.summary || { total: 0, added: 0, removed: 0, updated: 0 };
+  const sourceIssues = Array.isArray(latest.sourceIssues) ? latest.sourceIssues : [];
+  const hasSourceIssues = sourceIssues.length > 0;
+  const sourceIssueText = hasSourceIssues
+    ? `${sourceIssues[0]?.facilityName ? `${sourceIssues[0].facilityName}: ` : ""}${
+        sourceIssues[0]?.description || "Обнаружена проблема с источником данных."
+      }`
+    : "";
   const latestText = latest.baseline
     ? "Создан первый снимок расписания для сравнения будущих обновлений."
-    : latest.hasChanges
+    : hasSourceIssues
+      ? sourceIssueText
+      : latest.hasChanges
       ? `Найдено ${summary.total} изменений по объектам и сеансам.`
       : "После последней проверки изменений не обнаружено.";
 
@@ -1584,12 +1593,21 @@ function renderChangesView() {
     </article>
   `;
 
-  el.changesStats.innerHTML = `
-    <article class="changes-stat-card"><span>Найдено</span><strong>${escapeHtml(String(summary.total || 0))}</strong></article>
-    <article class="changes-stat-card"><span>Добавлено</span><strong>${escapeHtml(String(summary.added || 0))}</strong></article>
-    <article class="changes-stat-card"><span>Удалено</span><strong>${escapeHtml(String(summary.removed || 0))}</strong></article>
-    <article class="changes-stat-card"><span>Изменено</span><strong>${escapeHtml(String(summary.updated || 0))}</strong></article>
-  `;
+  if (hasSourceIssues && !latest.hasChanges) {
+    el.changesStats.innerHTML = `
+      <article class="changes-stat-card"><span>Проблемы</span><strong>${escapeHtml(String(sourceIssues.length))}</strong></article>
+      <article class="changes-stat-card"><span>Найдено</span><strong>—</strong></article>
+      <article class="changes-stat-card"><span>Добавлено</span><strong>—</strong></article>
+      <article class="changes-stat-card"><span>Удалено</span><strong>—</strong></article>
+    `;
+  } else {
+    el.changesStats.innerHTML = `
+      <article class="changes-stat-card"><span>Найдено</span><strong>${escapeHtml(String(summary.total || 0))}</strong></article>
+      <article class="changes-stat-card"><span>Добавлено</span><strong>${escapeHtml(String(summary.added || 0))}</strong></article>
+      <article class="changes-stat-card"><span>Удалено</span><strong>${escapeHtml(String(summary.removed || 0))}</strong></article>
+      <article class="changes-stat-card"><span>Изменено</span><strong>${escapeHtml(String(summary.updated || 0))}</strong></article>
+    `;
+  }
 
   const visibleHistory = history.slice(0, 12);
   el.changesList.innerHTML = visibleHistory.map((entry) => renderChangesCheckCard(entry)).join("");
@@ -1597,23 +1615,41 @@ function renderChangesView() {
 
 function renderChangesCheckCard(entry) {
   const summary = entry.summary || { total: 0, added: 0, removed: 0, updated: 0 };
+  const sourceIssues = Array.isArray(entry.sourceIssues) ? entry.sourceIssues : [];
+  const hasSourceIssues = sourceIssues.length > 0;
   const headline = entry.baseline
     ? "Базовый снимок"
-    : entry.hasChanges
+    : hasSourceIssues
+      ? `Ошибка источника (${sourceIssues.length})`
+      : entry.hasChanges
       ? `Изменений: ${summary.total}`
       : "Изменений не найдено";
   const badge = entry.baseline
     ? '<span class="changes-check-badge baseline">Снимок</span>'
-    : entry.hasChanges
+    : hasSourceIssues
+      ? '<span class="changes-check-badge changed">Источник</span>'
+      : entry.hasChanges
       ? '<span class="changes-check-badge changed">Обновлено</span>'
       : '<span class="changes-check-badge stable">Стабильно</span>';
   const events = Array.isArray(entry.events) ? entry.events : [];
-  const previewEvents = events.slice(0, 8);
-  const more = Math.max(0, events.length - previewEvents.length);
+  const feedEvents = hasSourceIssues ? [...sourceIssues, ...events] : events;
+  const previewEvents = feedEvents.slice(0, 8);
+  const more = Math.max(0, feedEvents.length - previewEvents.length);
 
   const eventsHtml = previewEvents.length
     ? previewEvents.map((item) => renderChangeEvent(item)).join("")
-    : `<p class="changes-check-empty">Расписание совпадает с предыдущей проверкой.</p>`;
+    : `<p class="changes-check-empty">${
+        hasSourceIssues ? "Источник временно недоступен, изменения расписания не рассчитываются." : "Расписание совпадает с предыдущей проверкой."
+      }</p>`;
+  const summaryHtml = entry.hasChanges
+    ? `
+      <div class="changes-check-summary">
+        <span>+${escapeHtml(String(summary.added || 0))}</span>
+        <span>-${escapeHtml(String(summary.removed || 0))}</span>
+        <span>~${escapeHtml(String(summary.updated || 0))}</span>
+      </div>
+    `
+    : "";
 
   return `
     <article class="changes-check-card">
@@ -1624,11 +1660,7 @@ function renderChangesCheckCard(entry) {
         </div>
         ${badge}
       </div>
-      <div class="changes-check-summary">
-        <span>+${escapeHtml(String(summary.added || 0))}</span>
-        <span>-${escapeHtml(String(summary.removed || 0))}</span>
-        <span>~${escapeHtml(String(summary.updated || 0))}</span>
-      </div>
+      ${summaryHtml}
       <div class="changes-events">${eventsHtml}</div>
       ${more ? `<p class="changes-check-more">И ещё ${escapeHtml(String(more))} изменений…</p>` : ""}
     </article>
@@ -1763,14 +1795,11 @@ function renderMyChangesSummary() {
       <div class="my-changes-head">
         <div>
           <h3>Изменения на сайте</h3>
-          <p>Пока нет проверок. Нажмите «Проверить», чтобы создать первый снимок.</p>
+          <p>Пока нет проверок. Откройте раздел изменений, чтобы сделать первый снимок.</p>
         </div>
         <span class="my-changes-badge is-baseline">Нет данных</span>
       </div>
-      <div class="my-changes-actions">
-        <button type="button" class="my-changes-action-btn" data-my-changes-action="refresh">Проверить</button>
-        <button type="button" class="my-changes-action-btn" data-my-changes-action="open">Лента</button>
-      </div>
+      <p class="my-changes-time">Нажмите карточку, чтобы открыть страницу «Изменения на сайте».</p>
     `;
     return;
   }
@@ -1780,14 +1809,17 @@ function renderMyChangesSummary() {
     ? "Время проверки неизвестно"
     : `${checkedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} · ${formatRelativeAge(checkedAt, { compact: false })}`;
   const summary = latest.summary || { total: 0, added: 0, removed: 0, updated: 0 };
-  const events = Array.isArray(latest.events) ? latest.events : [];
-  const hasDetails = events.length > 0;
-  const visibleEvents = events.slice(0, state.myChangesSummaryExpanded ? 4 : 2);
-  const badgeClass = latest.baseline ? "is-baseline" : latest.hasChanges ? "is-changed" : "is-stable";
-  const badgeText = latest.baseline ? "Снимок" : latest.hasChanges ? "Есть изменения" : "Без изменений";
+  const sourceIssues = Array.isArray(latest.sourceIssues) ? latest.sourceIssues : [];
+  const hasSourceIssues = sourceIssues.length > 0;
+  const badgeClass = latest.baseline ? "is-baseline" : hasSourceIssues || latest.hasChanges ? "is-changed" : "is-stable";
+  const badgeText = latest.baseline ? "Базовый снимок" : hasSourceIssues ? "Ошибка источника" : latest.hasChanges ? "Есть изменения" : "Без изменений";
   const summaryText = latest.baseline
     ? "Создан базовый снимок для отслеживания будущих изменений."
-    : latest.hasChanges
+    : hasSourceIssues
+      ? `${sourceIssues[0]?.facilityName ? `${sourceIssues[0].facilityName}: ` : ""}${
+          sourceIssues[0]?.description || "Источник временно недоступен, изменения расписания сейчас не рассчитываются."
+        }`
+      : latest.hasChanges
       ? `Найдено ${summary.total} изменений.`
       : "После последней проверки изменений не обнаружено.";
 
@@ -1800,62 +1832,8 @@ function renderMyChangesSummary() {
       <span class="my-changes-badge ${badgeClass}">${escapeHtml(badgeText)}</span>
     </div>
     <p class="my-changes-time">${escapeHtml(checkedText)}</p>
-    <div class="my-changes-stats">
-      <span>+${escapeHtml(String(summary.added || 0))}</span>
-      <span>-${escapeHtml(String(summary.removed || 0))}</span>
-      <span>~${escapeHtml(String(summary.updated || 0))}</span>
-    </div>
-    ${
-      hasDetails
-        ? `<div class="my-changes-events">${visibleEvents.map((event) => renderMyChangesSummaryEvent(event)).join("")}</div>`
-        : ""
-    }
-    <div class="my-changes-actions">
-      <button type="button" class="my-changes-action-btn" data-my-changes-action="refresh">Проверить</button>
-      <button type="button" class="my-changes-action-btn" data-my-changes-action="open">Лента</button>
-      ${
-        events.length > 2
-          ? `<button type="button" class="my-changes-action-btn" data-my-changes-action="toggle">${state.myChangesSummaryExpanded ? "Скрыть" : "Детали"}</button>`
-          : ""
-      }
-    </div>
+    <p class="my-changes-open-hint">Нажмите карточку, чтобы открыть детальную ленту изменений.</p>
   `;
-}
-
-function renderMyChangesSummaryEvent(event) {
-  const severity = event.severity || "info";
-  const title = event.title || "Изменение";
-  const description = event.description || "";
-  const dateText = event.date ? formatMonthDayShort(event.date) : "";
-  const meta = [event.facilityName || "", dateText].filter(Boolean).join(" · ");
-  return `
-    <button type="button" class="my-changes-event my-changes-event-${escapeHtml(severity)}" data-my-changes-action="open">
-      <span class="my-changes-event-title">${escapeHtml(title)}</span>
-      <span class="my-changes-event-desc">${escapeHtml(description)}</span>
-      ${meta ? `<span class="my-changes-event-meta">${escapeHtml(meta)}</span>` : ""}
-    </button>
-  `;
-}
-
-function handleMyChangesSummaryClick(event) {
-  const button = event.target.closest("button[data-my-changes-action]");
-  if (!button) {
-    return;
-  }
-
-  const action = String(button.dataset.myChangesAction || "");
-  if (action === "refresh") {
-    fetchSchedule(true, { source: "changes" });
-    return;
-  }
-  if (action === "open") {
-    setView("changes");
-    return;
-  }
-  if (action === "toggle") {
-    state.myChangesSummaryExpanded = !state.myChangesSummaryExpanded;
-    renderMyChangesSummary();
-  }
 }
 
 function renderMyShiftCard(shift, verification = getShiftVerification(shift)) {
@@ -2397,8 +2375,33 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
   const { source = "auto", forced = false } = options;
   const checkedAt = new Date().toISOString();
   const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory.slice() : [];
+  const sourceIssues = collectSourceIssueEvents(previousPayload, nextPayload);
+  const hasSourceIssues = sourceIssues.length > 0;
 
   if (!previousPayload?.facilities?.length) {
+    if (hasSourceIssues) {
+      const issueEntry = {
+        id: createShiftId(),
+        checkedAt,
+        generatedAt: nextPayload.generatedAt || null,
+        source,
+        forced: Boolean(forced),
+        baseline: false,
+        entryType: "source_error",
+        hasChanges: false,
+        hasSourceIssues: true,
+        summary: { total: 0, added: 0, removed: 0, updated: 0 },
+        events: [],
+        sourceIssues: sourceIssues.slice(0, 8),
+      };
+      if (!hasSameSourceIssueSignature(history[0], sourceIssues)) {
+        history.unshift(issueEntry);
+        state.siteChangesHistory = history.slice(0, 30);
+        saveSiteChangesHistory();
+      }
+      return;
+    }
+
     if (history.length) {
       return;
     }
@@ -2410,9 +2413,12 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
       source,
       forced: Boolean(forced),
       baseline: true,
+      entryType: "baseline",
       hasChanges: false,
+      hasSourceIssues: false,
       summary: { total: 0, added: 0, removed: 0, updated: 0 },
       events: [],
+      sourceIssues: [],
     };
     state.siteChangesHistory = [baselineEntry];
     saveSiteChangesHistory();
@@ -2423,7 +2429,11 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
   const summary = summarizeChangeEvents(events);
   const hasChanges = summary.total > 0;
 
-  if (!hasChanges && source === "auto") {
+  if (!hasChanges && !hasSourceIssues && source === "auto") {
+    return;
+  }
+
+  if (!hasChanges && hasSourceIssues && hasSameSourceIssueSignature(history[0], sourceIssues)) {
     return;
   }
 
@@ -2434,9 +2444,12 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
     source,
     forced: Boolean(forced),
     baseline: false,
+    entryType: hasSourceIssues ? (hasChanges ? "schedule_with_source_issues" : "source_error") : "schedule_diff",
     hasChanges,
+    hasSourceIssues,
     summary,
     events: events.slice(0, 60),
+    sourceIssues: sourceIssues.slice(0, 8),
   };
 
   history.unshift(entry);
@@ -2454,6 +2467,10 @@ function diffSchedulePayload(previousPayload, nextPayload) {
     const previousFacility = previousFacilities.get(facilityId) || null;
     const nextFacility = nextFacilities.get(facilityId) || null;
     const facilityName = String(nextFacility?.name || previousFacility?.name || facilityId);
+
+    if (hasFacilityBrokenData(previousFacility) || hasFacilityBrokenData(nextFacility)) {
+      continue;
+    }
 
     if (!previousFacility && nextFacility) {
       events.push({
@@ -2603,6 +2620,91 @@ function diffSchedulePayload(previousPayload, nextPayload) {
   return events.sort(compareSiteChangeEvent);
 }
 
+function collectSourceIssueEvents(previousPayload, nextPayload) {
+  const events = [];
+  const previousFacilities = toFacilityMap(previousPayload?.facilities);
+  const nextFacilities = toFacilityMap(nextPayload?.facilities);
+
+  for (const [facilityId, nextFacility] of nextFacilities.entries()) {
+    const previousFacility = previousFacilities.get(facilityId) || null;
+    const facilityName = String(nextFacility?.name || previousFacility?.name || facilityId);
+    if (!isFacilitySourceUnavailable(nextFacility)) {
+      continue;
+    }
+
+    const issueText = getFacilitySourceIssueText(nextFacility);
+    events.push({
+      type: "source_issue",
+      severity: "warning",
+      facilityId,
+      facilityName,
+      date: null,
+      title: "Ошибка источника",
+      description: issueText || "Источник временно недоступен.",
+    });
+  }
+
+  return events.sort(compareSiteChangeEvent);
+}
+
+function isFacilitySourceUnavailable(facility) {
+  if (!facility || typeof facility !== "object") {
+    return false;
+  }
+  const fetchState = String(facility.fetchState || "").toLowerCase();
+  if (fetchState === "error" || fetchState === "stale_cache") {
+    return true;
+  }
+  return Boolean(facility.error && getFacilityDayCount(facility) === 0);
+}
+
+function hasFacilityBrokenData(facility) {
+  if (!facility || typeof facility !== "object") {
+    return false;
+  }
+  const fetchState = String(facility.fetchState || "").toLowerCase();
+  if (fetchState === "error") {
+    return true;
+  }
+  return Boolean(facility.error && getFacilityDayCount(facility) === 0);
+}
+
+function getFacilityDayCount(facility) {
+  return Array.isArray(facility?.days) ? facility.days.length : 0;
+}
+
+function getFacilitySourceIssueText(facility) {
+  if (!facility || typeof facility !== "object") {
+    return "";
+  }
+  const sourceIssue = String(facility.sourceIssue || facility.error || "").trim();
+  if (sourceIssue) {
+    return sourceIssue.slice(0, 240);
+  }
+  const warning = Array.isArray(facility.warnings) ? String(facility.warnings[0] || "").trim() : "";
+  if (warning) {
+    return warning.slice(0, 240);
+  }
+  return "Источник временно недоступен.";
+}
+
+function hasSameSourceIssueSignature(entry, sourceIssues) {
+  if (!entry || !Array.isArray(sourceIssues) || !sourceIssues.length) {
+    return false;
+  }
+  return buildSourceIssueSignature(entry.sourceIssues) === buildSourceIssueSignature(sourceIssues);
+}
+
+function buildSourceIssueSignature(sourceIssues) {
+  if (!Array.isArray(sourceIssues) || !sourceIssues.length) {
+    return "";
+  }
+  return sourceIssues
+    .map((item) => `${String(item.facilityId || "")}:${normalizeDiffText(item.description || item.title || "")}`)
+    .sort()
+    .join("|");
+}
+
 function compareSiteChangeEvent(a, b) {
   const dateA = String(a.date || "9999-12-31");
   const dateB = String(b.date || "9999-12-31");
@@ -2618,14 +2720,15 @@ function compareSiteChangeEvent(a, b) {
 }
 
 function summarizeChangeEvents(events) {
+  const normalizedEvents = (events || []).filter((event) => !String(event?.type || "").startsWith("source_"));
   const summary = {
-    total: Array.isArray(events) ? events.length : 0,
+    total: normalizedEvents.length,
     added: 0,
     removed: 0,
     updated: 0,
   };
 
-  for (const event of events || []) {
+  for (const event of normalizedEvents) {
     const type = String(event.type || "");
     if (type.endsWith("_added")) {
       summary.added += 1;
