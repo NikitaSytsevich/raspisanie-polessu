@@ -2672,6 +2672,28 @@ html.light .my-changes-open-hint {
   color: #2563eb;
 }
 
+html.light .my-changes-badge {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75) inset;
+}
+
+html.light .my-changes-badge.is-stable {
+  border-color: rgba(22, 163, 74, 0.46);
+  background: rgba(220, 252, 231, 0.95);
+  color: #166534;
+}
+
+html.light .my-changes-badge.is-baseline {
+  border-color: rgba(37, 99, 235, 0.46);
+  background: rgba(219, 234, 254, 0.95);
+  color: #1d4ed8;
+}
+
+html.light .my-changes-badge.is-changed {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: rgba(254, 226, 226, 0.94);
+  color: #991b1b;
+}
+
 html.light .my-changes-last-block {
   border-color: rgba(148, 163, 184, 0.38);
   background: rgba(248, 250, 252, 0.9);
