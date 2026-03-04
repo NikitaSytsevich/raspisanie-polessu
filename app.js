@@ -33,6 +33,11 @@ const MY_SCHEDULE_RANGE = {
   FULL: "full",
 };
 
+const SITE_CHANGES_HISTORY_LIMIT = 20;
+const SITE_CHANGES_EVENTS_LIMIT = 24;
+const SITE_CHANGES_PREVIEW_LIMIT = 20;
+const SITE_CHANGES_COMPARE_LIMIT = 4;
+
 const state = {
   data: null,
   selectedFacilityId: null,
@@ -1700,12 +1705,13 @@ function renderMyEditorShiftCard(shift, verification) {
 }
 
 function renderChangesView() {
-  if (!el.changesLatestCard || !el.changesStats || !el.changesList) {
+  if (!el.changesLatestCard || !el.changesList) {
     return;
   }
 
   const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [];
   const latest = history[0] || null;
+  const latestChangedEntry = history.find((entry) => entry && !entry.baseline && entry.hasChanges) || null;
 
   if (el.changesUpdatedAt) {
     if (latest?.checkedAt) {
@@ -1716,7 +1722,10 @@ function renderChangesView() {
         minute: "2-digit",
       });
       el.changesUpdatedAt.textContent = relative ? `${checkedText} · ${relative}` : checkedText;
-      el.changesUpdatedAt.title = `Проверено ${checkedAt.toLocaleString("ru-RU")}`;
+      const lastChangedTitle = latestChangedEntry?.checkedAt
+        ? `Последние изменения: ${new Date(latestChangedEntry.checkedAt).toLocaleString("ru-RU")}`
+        : "Изменения пока не зафиксированы";
+      el.changesUpdatedAt.title = `Проверено ${checkedAt.toLocaleString("ru-RU")} · ${lastChangedTitle}`;
     } else {
       const freshness = buildScheduleFreshnessState(state.data?.generatedAt);
       el.changesUpdatedAt.textContent = freshness.shortText;
@@ -1731,24 +1740,24 @@ function renderChangesView() {
         <p>Нажмите «Проверить», чтобы получить первый снимок и начать отслеживание изменений на сайте.</p>
       </div>
     `;
-    el.changesStats.innerHTML = `
-      <article class="changes-stat-card"><span>Найдено</span><strong>0</strong></article>
-      <article class="changes-stat-card"><span>Добавлено</span><strong>0</strong></article>
-      <article class="changes-stat-card"><span>Удалено</span><strong>0</strong></article>
-      <article class="changes-stat-card"><span>Изменено</span><strong>0</strong></article>
-    `;
+    if (el.changesStats) {
+      el.changesStats.innerHTML = "";
+    }
     el.changesList.innerHTML = "";
     return;
   }
 
   const latestBadge = latest.baseline
     ? '<span class="changes-check-badge baseline">Базовый снимок</span>'
-    : Array.isArray(latest.sourceIssues) && latest.sourceIssues.length
+    : latest.hasChanges && Array.isArray(latest.sourceIssues) && latest.sourceIssues.length
+      ? '<span class="changes-check-badge changed">Есть изменения · источник нестабилен</span>'
+      : Array.isArray(latest.sourceIssues) && latest.sourceIssues.length
       ? '<span class="changes-check-badge changed">Ошибка источника</span>'
       : latest.hasChanges
       ? '<span class="changes-check-badge changed">Есть изменения</span>'
       : '<span class="changes-check-badge stable">Без изменений</span>';
   const latestTime = formatChangesDateTime(latest.checkedAt);
+  const latestChangedTime = latestChangedEntry?.checkedAt ? formatChangesDateTime(latestChangedEntry.checkedAt) : "Изменения ещё не зафиксированы";
   const summary = latest.summary || { total: 0, added: 0, removed: 0, updated: 0 };
   const sourceIssues = Array.isArray(latest.sourceIssues) ? latest.sourceIssues : [];
   const hasSourceIssues = sourceIssues.length > 0;
@@ -1759,10 +1768,12 @@ function renderChangesView() {
     : "";
   const latestText = latest.baseline
     ? "Создан первый снимок расписания для сравнения будущих обновлений."
-    : hasSourceIssues
+    : latest.hasChanges
+      ? `Найдено ${summary.total} изменений. Ниже показаны ключевые блоки «было / стало».${
+          hasSourceIssues ? " Часть источников работает нестабильно." : ""
+        }`
+      : hasSourceIssues
       ? sourceIssueText
-      : latest.hasChanges
-      ? `Найдено ${summary.total} изменений по объектам и сеансам.`
       : "После последней проверки изменений не обнаружено.";
 
   el.changesLatestCard.innerHTML = `
@@ -1772,27 +1783,20 @@ function renderChangesView() {
         ${latestBadge}
       </div>
       <p class="changes-latest-time">${escapeHtml(latestTime)}</p>
+      <div class="changes-last-change-row">
+        <span class="changes-last-change-label">Дата последних изменений на сайте</span>
+        <strong class="changes-last-change-value">${escapeHtml(latestChangedTime)}</strong>
+      </div>
       <p class="changes-latest-text">${escapeHtml(latestText)}</p>
+      ${renderLatestChangesComparison(latest)}
     </article>
   `;
 
-  if (hasSourceIssues && !latest.hasChanges) {
-    el.changesStats.innerHTML = `
-      <article class="changes-stat-card"><span>Проблемы</span><strong>${escapeHtml(String(sourceIssues.length))}</strong></article>
-      <article class="changes-stat-card"><span>Найдено</span><strong>—</strong></article>
-      <article class="changes-stat-card"><span>Добавлено</span><strong>—</strong></article>
-      <article class="changes-stat-card"><span>Удалено</span><strong>—</strong></article>
-    `;
-  } else {
-    el.changesStats.innerHTML = `
-      <article class="changes-stat-card"><span>Найдено</span><strong>${escapeHtml(String(summary.total || 0))}</strong></article>
-      <article class="changes-stat-card"><span>Добавлено</span><strong>${escapeHtml(String(summary.added || 0))}</strong></article>
-      <article class="changes-stat-card"><span>Удалено</span><strong>${escapeHtml(String(summary.removed || 0))}</strong></article>
-      <article class="changes-stat-card"><span>Изменено</span><strong>${escapeHtml(String(summary.updated || 0))}</strong></article>
-    `;
+  if (el.changesStats) {
+    el.changesStats.innerHTML = renderChangesStatsCompact(latest, summary, sourceIssues);
   }
 
-  const visibleHistory = history.slice(0, 12);
+  const visibleHistory = history.slice(0, SITE_CHANGES_PREVIEW_LIMIT);
   el.changesList.innerHTML = visibleHistory.map((entry) => renderChangesCheckCard(entry)).join("");
 }
 
@@ -1802,69 +1806,181 @@ function renderChangesCheckCard(entry) {
   const hasSourceIssues = sourceIssues.length > 0;
   const headline = entry.baseline
     ? "Базовый снимок"
-    : hasSourceIssues
+    : entry.hasChanges
+      ? hasSourceIssues
+        ? `Изменений: ${summary.total} · источник нестабилен`
+        : `Изменений: ${summary.total}`
+      : hasSourceIssues
       ? `Ошибка источника (${sourceIssues.length})`
-      : entry.hasChanges
-      ? `Изменений: ${summary.total}`
       : "Изменений не найдено";
   const badge = entry.baseline
     ? '<span class="changes-check-badge baseline">Снимок</span>'
+    : entry.hasChanges && hasSourceIssues
+      ? '<span class="changes-check-badge changed">Обновлено + источник</span>'
     : hasSourceIssues
       ? '<span class="changes-check-badge changed">Источник</span>'
       : entry.hasChanges
       ? '<span class="changes-check-badge changed">Обновлено</span>'
       : '<span class="changes-check-badge stable">Стабильно</span>';
   const events = Array.isArray(entry.events) ? entry.events : [];
-  const feedEvents = hasSourceIssues ? [...sourceIssues, ...events] : events;
-  const previewEvents = feedEvents.slice(0, 8);
-  const more = Math.max(0, feedEvents.length - previewEvents.length);
-
-  const eventsHtml = previewEvents.length
-    ? previewEvents.map((item) => renderChangeEvent(item)).join("")
-    : `<p class="changes-check-empty">${
-        hasSourceIssues ? "Источник временно недоступен, изменения расписания не рассчитываются." : "Расписание совпадает с предыдущей проверкой."
-      }</p>`;
-  const summaryHtml = entry.hasChanges
-    ? `
-      <div class="changes-check-summary">
-        <span>+${escapeHtml(String(summary.added || 0))}</span>
-        <span>-${escapeHtml(String(summary.removed || 0))}</span>
-        <span>~${escapeHtml(String(summary.updated || 0))}</span>
-      </div>
-    `
-    : "";
+  const previewText = getChangesEntryPreviewText(entry, events, sourceIssues);
+  const chipsHtml = renderChangesEntryChips(entry, summary, events.length, sourceIssues.length);
 
   return `
-    <article class="changes-check-card">
-      <div class="changes-check-head">
+    <article class="changes-feed-card">
+      <div class="changes-feed-top">
         <div>
-          <h3>${escapeHtml(headline)}</h3>
-          <p>${escapeHtml(formatChangesDateTime(entry.checkedAt))}</p>
+          <h3 class="changes-feed-title">${escapeHtml(headline)}</h3>
+          <p class="changes-feed-time">${escapeHtml(formatChangesDateTime(entry.checkedAt))}</p>
         </div>
         ${badge}
       </div>
-      ${summaryHtml}
-      <div class="changes-events">${eventsHtml}</div>
-      ${more ? `<p class="changes-check-more">И ещё ${escapeHtml(String(more))} изменений…</p>` : ""}
+      <p class="changes-feed-line">${escapeHtml(previewText)}</p>
+      <div class="changes-feed-chips">${chipsHtml}</div>
     </article>
   `;
 }
 
-function renderChangeEvent(event) {
-  const severity = event.severity || "info";
-  const title = event.title || "Изменение";
-  const description = event.description || "";
-  const dateText = event.date ? formatMonthDayShort(event.date) : "";
-  const facility = event.facilityName ? `${event.facilityName}${dateText ? " · " : ""}` : "";
-  const suffix = `${facility}${dateText}`;
+function renderChangesStatsCompact(latest, summary, sourceIssues) {
+  if (latest.hasSourceIssues && !latest.hasChanges) {
+    return `
+      <article class="changes-stat-card compact issue"><span>Проблемы источника</span><strong>${escapeHtml(String(sourceIssues.length))}</strong></article>
+      <article class="changes-stat-card compact"><span>Найдено</span><strong>—</strong></article>
+      <article class="changes-stat-card compact"><span>Добавлено</span><strong>—</strong></article>
+      <article class="changes-stat-card compact"><span>Удалено</span><strong>—</strong></article>
+    `;
+  }
+
+  const issueChip = latest.hasSourceIssues
+    ? `<article class="changes-stat-card compact issue"><span>Проблемы источника</span><strong>${escapeHtml(String(sourceIssues.length))}</strong></article>`
+    : "";
 
   return `
-    <div class="changes-event changes-event-${escapeHtml(severity)}">
-      <p class="changes-event-title">${escapeHtml(title)}</p>
-      <p class="changes-event-desc">${escapeHtml(description)}</p>
-      ${suffix ? `<p class="changes-event-meta">${escapeHtml(suffix)}</p>` : ""}
-    </div>
+    <article class="changes-stat-card compact"><span>Найдено</span><strong>${escapeHtml(String(summary.total || 0))}</strong></article>
+    <article class="changes-stat-card compact"><span>Добавлено</span><strong>${escapeHtml(String(summary.added || 0))}</strong></article>
+    <article class="changes-stat-card compact"><span>Удалено</span><strong>${escapeHtml(String(summary.removed || 0))}</strong></article>
+    <article class="changes-stat-card compact"><span>Изменено</span><strong>${escapeHtml(String(summary.updated || 0))}</strong></article>
+    ${issueChip}
   `;
+}
+
+function renderLatestChangesComparison(entry) {
+  if (entry.baseline) {
+    return `<p class="changes-compare-empty">Это стартовый снимок. «Было / стало» появится после первого изменения на сайте.</p>`;
+  }
+
+  const sourceIssues = Array.isArray(entry.sourceIssues) ? entry.sourceIssues : [];
+  const events = Array.isArray(entry.events) ? entry.events.filter((event) => !String(event?.type || "").startsWith("source_")) : [];
+  const compareItems = (entry.hasChanges ? events : sourceIssues).slice(0, SITE_CHANGES_COMPARE_LIMIT);
+  if (!compareItems.length) {
+    return `<p class="changes-compare-empty">${
+      entry.hasChanges
+        ? "Изменения зафиксированы, но детальных блоков пока нет."
+        : entry.hasSourceIssues
+          ? "Источник временно недоступен. Как только связь восстановится, сравнение появится автоматически."
+          : "Сейчас изменений нет, сайт совпадает с предыдущей проверкой."
+    }</p>`;
+  }
+
+  const cardsHtml = compareItems.map((event) => renderChangeComparisonCard(event)).join("");
+  const totalItems = entry.hasChanges ? events.length : sourceIssues.length;
+  const more = Math.max(0, totalItems - compareItems.length);
+
+  return `
+    <div class="changes-compare-grid">${cardsHtml}</div>
+    ${more ? `<p class="changes-compare-more">И ещё ${escapeHtml(String(more))} изменений в этой проверке.</p>` : ""}
+  `;
+}
+
+function renderChangeComparisonCard(event) {
+  const severity = event?.severity || "info";
+  const title = String(event?.title || "Изменение");
+  const beforeText = normalizeChangeSideText(event?.beforeText, "Нет данных до изменения.");
+  const afterText = normalizeChangeSideText(event?.afterText || event?.description, "Нет данных после изменения.");
+  const dateText = event?.date ? formatMonthDayShort(event.date) : "";
+  const facility = String(event?.facilityName || "");
+  const suffix = [facility, dateText].filter(Boolean).join(" · ");
+
+  return `
+    <article class="changes-compare-card changes-event-${escapeHtml(severity)}">
+      <div class="changes-compare-head">
+        <h3>${escapeHtml(title)}</h3>
+        ${suffix ? `<p class="changes-compare-meta">${escapeHtml(suffix)}</p>` : ""}
+      </div>
+      <div class="changes-compare-columns">
+        <div class="changes-compare-col before">
+          <span>Было</span>
+          <p>${escapeHtml(beforeText)}</p>
+        </div>
+        <div class="changes-compare-col after">
+          <span>Стало</span>
+          <p>${escapeHtml(afterText)}</p>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function getChangesEntryPreviewText(entry, events, sourceIssues) {
+  if (entry.baseline) {
+    return "Создан базовый снимок для будущего сравнения.";
+  }
+
+  if (entry.hasChanges) {
+    const leadEvent = events[0] || null;
+    if (!leadEvent) {
+      return entry.hasSourceIssues
+        ? "Изменения зафиксированы, но часть источников работает нестабильно."
+        : "Изменения зафиксированы.";
+    }
+
+    const dateHint = leadEvent.date ? formatMonthDayShort(leadEvent.date) : "";
+    const facilityHint = leadEvent.facilityName ? String(leadEvent.facilityName) : "";
+    const prefix = [facilityHint, dateHint].filter(Boolean).join(" · ");
+    const leadText = `${prefix ? `${prefix}: ` : ""}${String(leadEvent.title || "Изменение")} — ${String(
+      leadEvent.afterText || leadEvent.description || "детали обновлены"
+    )}`;
+    if (!entry.hasSourceIssues) {
+      return leadText;
+    }
+    return `${leadText} (есть проблемы источника)`;
+  }
+
+  if (entry.hasSourceIssues) {
+    return String(sourceIssues[0]?.description || "Источник временно недоступен.");
+  }
+
+  if (!entry.hasChanges) {
+    return "Изменения не обнаружены.";
+  }
+  return "Изменения зафиксированы.";
+}
+
+function renderChangesEntryChips(entry, summary, eventsCount, sourceIssuesCount) {
+  if (entry.hasSourceIssues && !entry.hasChanges) {
+    return `<span class="changes-feed-chip warn">Источник: ${escapeHtml(String(sourceIssuesCount))}</span>`;
+  }
+
+  if (entry.baseline) {
+    return `<span class="changes-feed-chip">Старт</span>`;
+  }
+
+  if (!entry.hasChanges) {
+    return `<span class="changes-feed-chip">Без изменений</span>`;
+  }
+
+  return [
+    `<span class="changes-feed-chip">Событий: ${escapeHtml(String(eventsCount))}</span>`,
+    `<span class="changes-feed-chip positive">+${escapeHtml(String(summary.added || 0))}</span>`,
+    `<span class="changes-feed-chip warn">-${escapeHtml(String(summary.removed || 0))}</span>`,
+    `<span class="changes-feed-chip info">~${escapeHtml(String(summary.updated || 0))}</span>`,
+    entry.hasSourceIssues ? `<span class="changes-feed-chip warn">Источник: ${escapeHtml(String(sourceIssuesCount))}</span>` : "",
+  ].join("");
+}
+
+function normalizeChangeSideText(value, fallback = "—") {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text || fallback;
 }
 
 function handleMyEditorShiftListClick(event) {
@@ -2625,10 +2741,16 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
         summary: { total: 0, added: 0, removed: 0, updated: 0 },
         events: [],
         sourceIssues: sourceIssues.slice(0, 8),
+        signature: buildSiteChangesSignature(
+          { total: 0, added: 0, removed: 0, updated: 0 },
+          [],
+          sourceIssues,
+          { hasChanges: false, hasSourceIssues: true, entryType: "source_error" }
+        ),
       };
       if (!hasSameSourceIssueSignature(history[0], sourceIssues)) {
         history.unshift(issueEntry);
-        state.siteChangesHistory = history.slice(0, 30);
+        state.siteChangesHistory = history.slice(0, SITE_CHANGES_HISTORY_LIMIT);
         saveSiteChangesHistory();
       }
       return;
@@ -2651,6 +2773,12 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
       summary: { total: 0, added: 0, removed: 0, updated: 0 },
       events: [],
       sourceIssues: [],
+      signature: buildSiteChangesSignature(
+        { total: 0, added: 0, removed: 0, updated: 0 },
+        [],
+        [],
+        { hasChanges: false, hasSourceIssues: false, entryType: "baseline" }
+      ),
     };
     state.siteChangesHistory = [baselineEntry];
     saveSiteChangesHistory();
@@ -2661,11 +2789,21 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
   const summary = summarizeChangeEvents(events);
   const hasChanges = summary.total > 0;
 
-  if (!hasChanges && !hasSourceIssues && source === "auto") {
+  if (!hasChanges && !hasSourceIssues) {
     return;
   }
 
   if (!hasChanges && hasSourceIssues && hasSameSourceIssueSignature(history[0], sourceIssues)) {
+    return;
+  }
+
+  const entryType = hasSourceIssues ? (hasChanges ? "schedule_with_source_issues" : "source_error") : "schedule_diff";
+  const signature = buildSiteChangesSignature(summary, events, sourceIssues, {
+    hasChanges,
+    hasSourceIssues,
+    entryType,
+  });
+  if (history[0]?.signature && history[0].signature === signature) {
     return;
   }
 
@@ -2676,16 +2814,17 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
     source,
     forced: Boolean(forced),
     baseline: false,
-    entryType: hasSourceIssues ? (hasChanges ? "schedule_with_source_issues" : "source_error") : "schedule_diff",
+    entryType,
     hasChanges,
     hasSourceIssues,
     summary,
-    events: events.slice(0, 60),
+    events: events.slice(0, SITE_CHANGES_EVENTS_LIMIT),
     sourceIssues: sourceIssues.slice(0, 8),
+    signature,
   };
 
   history.unshift(entry);
-  state.siteChangesHistory = history.slice(0, 30);
+  state.siteChangesHistory = history.slice(0, SITE_CHANGES_HISTORY_LIMIT);
   saveSiteChangesHistory();
 }
 
@@ -2713,6 +2852,8 @@ function diffSchedulePayload(previousPayload, nextPayload) {
         date: null,
         title: "Добавлен объект",
         description: `Объект «${facilityName}» появился в данных расписания.`,
+        beforeText: "Объект отсутствовал в расписании.",
+        afterText: `Объект «${facilityName}» добавлен.`,
       });
       continue;
     }
@@ -2726,6 +2867,8 @@ function diffSchedulePayload(previousPayload, nextPayload) {
         date: null,
         title: "Удалён объект",
         description: `Объект «${facilityName}» пропал из данных расписания.`,
+        beforeText: `Объект «${facilityName}» присутствовал в расписании.`,
+        afterText: "Объект удалён из расписания.",
       });
       continue;
     }
@@ -2740,6 +2883,9 @@ function diffSchedulePayload(previousPayload, nextPayload) {
 
       if (!previousDay && nextDay) {
         const sessionsCount = Array.isArray(nextDay.sessions) ? nextDay.sessions.length : 0;
+        const addedDayText = nextDay.closedReason
+          ? `Добавлен статус закрытия: ${nextDay.closedReason}.`
+          : `Добавлено сеансов: ${sessionsCount}.`;
         events.push({
           type: "day_added",
           severity: "positive",
@@ -2750,12 +2896,17 @@ function diffSchedulePayload(previousPayload, nextPayload) {
           description: nextDay.closedReason
             ? "Для даты добавлен статус закрытия."
             : `Новых сеансов: ${sessionsCount}.`,
+          beforeText: "Дата отсутствовала.",
+          afterText: addedDayText,
         });
         continue;
       }
 
       if (previousDay && !nextDay) {
         const sessionsCount = Array.isArray(previousDay.sessions) ? previousDay.sessions.length : 0;
+        const removedDayText = previousDay.closedReason
+          ? `Дата была закрыта (${previousDay.closedReason}).`
+          : `Было сеансов: ${sessionsCount}.`;
         events.push({
           type: "day_removed",
           severity: "warning",
@@ -2764,6 +2915,8 @@ function diffSchedulePayload(previousPayload, nextPayload) {
           date,
           title: "Удалены сутки",
           description: `Дата удалена из расписания (было сеансов: ${sessionsCount}).`,
+          beforeText: removedDayText,
+          afterText: "Дата удалена из расписания.",
         });
         continue;
       }
@@ -2791,6 +2944,8 @@ function diffSchedulePayload(previousPayload, nextPayload) {
           date,
           title,
           description,
+          beforeText: previousClosed ? `Было: ${previousClosed}.` : "Было: объект открыт.",
+          afterText: nextClosed ? `Стало: ${nextClosed}.` : "Стало: объект открыт.",
         });
       }
 
@@ -2803,7 +2958,7 @@ function diffSchedulePayload(previousPayload, nextPayload) {
         const nextSession = nextSessions.get(sessionKey) || null;
 
         if (!previousSession && nextSession) {
-          const label = `${nextSession.start} — ${nextSession.end}`;
+          const label = formatSessionSnapshot(nextSession);
           events.push({
             type: "session_added",
             severity: "positive",
@@ -2811,13 +2966,15 @@ function diffSchedulePayload(previousPayload, nextPayload) {
             facilityName,
             date,
             title: "Добавлен сеанс",
-            description: `${label}${nextSession.activity ? ` · ${nextSession.activity}` : ""}`,
+            description: label,
+            beforeText: "Сеанс отсутствовал.",
+            afterText: label,
           });
           continue;
         }
 
         if (previousSession && !nextSession) {
-          const label = `${previousSession.start} — ${previousSession.end}`;
+          const label = formatSessionSnapshot(previousSession);
           events.push({
             type: "session_removed",
             severity: "warning",
@@ -2825,7 +2982,9 @@ function diffSchedulePayload(previousPayload, nextPayload) {
             facilityName,
             date,
             title: "Удалён сеанс",
-            description: `${label}${previousSession.activity ? ` · ${previousSession.activity}` : ""}`,
+            description: label,
+            beforeText: label,
+            afterText: "Сеанс удалён.",
           });
           continue;
         }
@@ -2835,6 +2994,8 @@ function diffSchedulePayload(previousPayload, nextPayload) {
         const previousNote = normalizeDiffText(previousSession?.note);
         const nextNote = normalizeDiffText(nextSession?.note);
         if (previousActivity !== nextActivity || previousNote !== nextNote) {
+          const beforeSessionText = formatSessionSnapshot(previousSession);
+          const afterSessionText = formatSessionSnapshot(nextSession);
           events.push({
             type: "session_updated",
             severity: "info",
@@ -2843,6 +3004,8 @@ function diffSchedulePayload(previousPayload, nextPayload) {
             date,
             title: "Изменён сеанс",
             description: `${nextSession.start} — ${nextSession.end} · обновлено описание/тип.`,
+            beforeText: beforeSessionText,
+            afterText: afterSessionText,
           });
         }
       }
@@ -2873,6 +3036,8 @@ function collectSourceIssueEvents(previousPayload, nextPayload) {
       date: null,
       title: "Ошибка источника",
       description: issueText || "Источник временно недоступен.",
+      beforeText: "Источник работал штатно.",
+      afterText: issueText || "Источник временно недоступен.",
     });
   }
 
@@ -2935,6 +3100,28 @@ function buildSourceIssueSignature(sourceIssues) {
     .map((item) => `${String(item.facilityId || "")}:${normalizeDiffText(item.description || item.title || "")}`)
     .sort()
     .join("|");
+}
+
+function buildSiteChangesSignature(summary, events, sourceIssues, options = {}) {
+  const { hasChanges = false, hasSourceIssues = false, entryType = "" } = options;
+  const summaryPart = `${Number(summary?.total || 0)}:${Number(summary?.added || 0)}:${Number(summary?.removed || 0)}:${Number(
+    summary?.updated || 0
+  )}`;
+  const issuePart = buildSourceIssueSignature(sourceIssues);
+  const eventPart = (events || [])
+    .slice(0, 10)
+    .map((event) =>
+      [
+        String(event?.type || ""),
+        String(event?.facilityId || ""),
+        String(event?.date || ""),
+        normalizeDiffText(event?.beforeText || ""),
+        normalizeDiffText(event?.afterText || event?.description || ""),
+      ].join(":")
+    )
+    .join("|");
+
+  return `${String(entryType)}#${hasChanges ? "1" : "0"}#${hasSourceIssues ? "1" : "0"}#${summaryPart}#${issuePart}#${eventPart}`;
 }
 
 function compareSiteChangeEvent(a, b) {
@@ -3016,6 +3203,20 @@ function toSessionMap(sessions) {
     });
   }
   return map;
+}
+
+function formatSessionSnapshot(session) {
+  if (!session) {
+    return "Сеанс не указан.";
+  }
+
+  const start = normalizeTime(String(session.start || ""));
+  const end = normalizeTime(String(session.end || ""));
+  const timeLabel = start && end ? `${start} — ${end}` : "Время не указано";
+  const activity = String(session.activity || "").replace(/\s+/g, " ").trim();
+  const note = String(session.note || "").replace(/\s+/g, " ").trim();
+  const details = [activity, note].filter(Boolean).join(" · ");
+  return details ? `${timeLabel} · ${details}` : timeLabel;
 }
 
 function normalizeDiffText(value) {
@@ -3292,14 +3493,26 @@ function loadSiteChangesHistory() {
     }
     return parsed
       .filter((item) => item && typeof item === "object" && typeof item.checkedAt === "string")
-      .slice(0, 30);
+      .map((item) => ({
+        ...item,
+        events: Array.isArray(item.events) ? item.events.slice(0, SITE_CHANGES_EVENTS_LIMIT) : [],
+        sourceIssues: Array.isArray(item.sourceIssues) ? item.sourceIssues.slice(0, 8) : [],
+      }))
+      .slice(0, SITE_CHANGES_HISTORY_LIMIT);
   } catch {
     return [];
   }
 }
 
 function saveSiteChangesHistory() {
-  localStorage.setItem(STORAGE.siteChanges, JSON.stringify(state.siteChangesHistory.slice(0, 30)));
+  const compact = (Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [])
+    .map((entry) => ({
+      ...entry,
+      events: Array.isArray(entry.events) ? entry.events.slice(0, SITE_CHANGES_EVENTS_LIMIT) : [],
+      sourceIssues: Array.isArray(entry.sourceIssues) ? entry.sourceIssues.slice(0, 8) : [],
+    }))
+    .slice(0, SITE_CHANGES_HISTORY_LIMIT);
+  localStorage.setItem(STORAGE.siteChanges, JSON.stringify(compact));
 }
 
 function escapeHtml(value) {
