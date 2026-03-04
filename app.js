@@ -17,6 +17,22 @@ const FACILITY_ICON = {
   rowing_base: "fitness_center",
 };
 
+const SELF_INSTRUCTOR_NAME = "Сыцевич Н.В.";
+const DEFAULT_INSTRUCTORS = [
+  { id: "lapchuk_as", name: "Липчук А.С." },
+  { id: "krylychuk_ps", name: "Крыльчук П.С." },
+  { id: "melnikova_ov", name: "Мельникова О.В." },
+  { id: "ivshin_my", name: "Ившина М.Ю." },
+  { id: "moiseenko_vv", name: "Моисеенко В.В." },
+  { id: "karavaychik_kv", name: "Каравайчик К.В." },
+];
+
+const MY_SCHEDULE_RANGE = {
+  DAY: "day",
+  WEEK: "week",
+  FULL: "full",
+};
+
 const state = {
   data: null,
   selectedFacilityId: null,
@@ -26,7 +42,7 @@ const state = {
   myShifts: loadMyShifts(),
   siteChangesHistory: loadSiteChangesHistory(),
   myScheduleFocusDate: null,
-  myScheduleShowAll: false,
+  myScheduleRangeMode: MY_SCHEDULE_RANGE.DAY,
   myEditingShiftId: null,
   autoRefreshTimer: null,
   updatedAtTicker: null,
@@ -85,20 +101,26 @@ const el = {
   myDayTitle: document.getElementById("myDayTitle"),
   myDaySummary: document.getElementById("myDaySummary"),
   myShowAllButton: document.getElementById("myShowAllButton"),
+  myCollapseRangeButton: document.getElementById("myCollapseRangeButton"),
+  myOpenFullRangeButton: document.getElementById("myOpenFullRangeButton"),
+  myDayInlineActions: document.getElementById("myDayInlineActions"),
   myTimelineTitle: document.getElementById("myTimelineTitle"),
   myShiftForm: document.getElementById("myShiftForm"),
   myShiftDateInput: document.getElementById("myShiftDateInput"),
   myShiftFacilitySelect: document.getElementById("myShiftFacilitySelect"),
+  myShiftInstructorsList: document.getElementById("myShiftInstructorsList"),
   myShiftStartInput: document.getElementById("myShiftStartInput"),
   myShiftEndInput: document.getElementById("myShiftEndInput"),
   myShiftNoteInput: document.getElementById("myShiftNoteInput"),
   myScheduleNotice: document.getElementById("myScheduleNotice"),
   myScheduleTimeline: document.getElementById("myScheduleTimeline"),
+  myEditorLaunchWrap: document.getElementById("myEditorLaunchWrap"),
   myEditorShiftList: document.getElementById("myEditorShiftList"),
   myEditorTitle: document.getElementById("myEditorTitle"),
   myEditorSummary: document.getElementById("myEditorSummary"),
   myShiftSubmitButton: document.getElementById("myShiftSubmitButton"),
   myShiftCancelEditButton: document.getElementById("myShiftCancelEditButton"),
+  myDeleteHistoryButton: document.getElementById("myDeleteHistoryButton"),
   myChangesSummaryCard: document.getElementById("myChangesSummaryCard"),
   myChangesSummaryContent: document.getElementById("myChangesSummaryContent"),
   changesLatestCard: document.getElementById("changesLatestCard"),
@@ -153,13 +175,31 @@ function bindEvents() {
 
   if (el.myShowAllButton) {
     el.myShowAllButton.addEventListener("click", () => {
-      state.myScheduleShowAll = !state.myScheduleShowAll;
+      state.myScheduleRangeMode = MY_SCHEDULE_RANGE.WEEK;
+      renderMySchedule();
+    });
+  }
+
+  if (el.myCollapseRangeButton) {
+    el.myCollapseRangeButton.addEventListener("click", () => {
+      state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
+      renderMySchedule();
+    });
+  }
+
+  if (el.myOpenFullRangeButton) {
+    el.myOpenFullRangeButton.addEventListener("click", () => {
+      state.myScheduleRangeMode = MY_SCHEDULE_RANGE.FULL;
       renderMySchedule();
     });
   }
 
   if (el.myShiftForm) {
     el.myShiftForm.addEventListener("submit", handleMyShiftSubmit);
+  }
+
+  if (el.myShiftInstructorsList) {
+    el.myShiftInstructorsList.addEventListener("change", syncInstructorChipState);
   }
 
   if (el.myScheduleTimeline) {
@@ -180,6 +220,10 @@ function bindEvents() {
       resetMyShiftForm();
       renderMyScheduleEditor();
     });
+  }
+
+  if (el.myDeleteHistoryButton) {
+    el.myDeleteHistoryButton.addEventListener("click", handleDeleteMyShiftsHistory);
   }
 
   if (el.exportMyShiftsButton) {
@@ -245,7 +289,7 @@ function setView(view) {
 
   if (showMySchedule) {
     state.myScheduleFocusDate = todayIso();
-    state.myScheduleShowAll = false;
+    state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
     if (el.myShiftDateInput) {
       el.myShiftDateInput.value = state.myScheduleFocusDate;
     }
@@ -1157,6 +1201,7 @@ function hydrateMyScheduleUI() {
   }
 
   renderMyScheduleFacilityOptions();
+  renderMyInstructorOptions();
 
   if (!el.myShiftDateInput.value) {
     el.myShiftDateInput.value = state.myScheduleFocusDate;
@@ -1175,6 +1220,14 @@ function hydrateMyScheduleUI() {
   renderMyScheduleEditor();
 }
 
+function getMyScheduleRangeMode() {
+  const mode = String(state.myScheduleRangeMode || "");
+  if (mode === MY_SCHEDULE_RANGE.DAY || mode === MY_SCHEDULE_RANGE.WEEK || mode === MY_SCHEDULE_RANGE.FULL) {
+    return mode;
+  }
+  return MY_SCHEDULE_RANGE.DAY;
+}
+
 function renderMySchedule() {
   if (!el.myScheduleTimeline) {
     return;
@@ -1185,6 +1238,11 @@ function renderMySchedule() {
   }
 
   renderMyScheduleFacilityOptions();
+  const rangeMode = getMyScheduleRangeMode();
+  if (el.myEditorLaunchWrap) {
+    el.myEditorLaunchWrap.hidden = !state.myShifts.length;
+  }
+
   const allShiftChecks = state.myShifts
     .slice()
     .sort(compareMyShift)
@@ -1202,39 +1260,21 @@ function renderMySchedule() {
   }
 
   const focusDate = state.myScheduleFocusDate;
-  let datesToRender = [focusDate];
-  if (state.myScheduleShowAll) {
-    const futureShiftDates = Array.from(groupedByDate.keys())
-      .filter((date) => date >= focusDate)
-      .sort((a, b) => a.localeCompare(b));
-    const lastDate = futureShiftDates.length ? futureShiftDates[futureShiftDates.length - 1] : focusDate;
-    datesToRender = [];
-    let cursor = focusDate;
-    while (cursor <= lastDate) {
-      datesToRender.push(cursor);
-      cursor = addDays(cursor, 1);
-    }
-  }
-
-  const visibleShiftChecks = state.myScheduleShowAll
-    ? allShiftChecks.filter((item) => item.shift.date >= focusDate)
-    : groupedByDate.get(focusDate) || [];
+  const datesToRender = getMyScheduleDatesToRender(focusDate, groupedByDate, rangeMode);
   const focusShiftChecks = groupedByDate.get(focusDate) || [];
   const focusStats = summarizeShiftChecks(focusShiftChecks);
 
-  updateMyScheduleHeader(focusDate, datesToRender.length, focusStats);
-
-  if (el.myShowAllButton) {
-    el.myShowAllButton.classList.toggle("is-active", state.myScheduleShowAll);
-    el.myShowAllButton.innerHTML = state.myScheduleShowAll
-      ? '<span class="material-symbols-outlined">unfold_less</span><span>Свернуть</span>'
-      : '<span class="material-symbols-outlined">unfold_more</span><span>Показать всё</span>';
-  }
+  updateMyScheduleHeader(focusDate, datesToRender.length, focusStats, rangeMode);
+  updateMyScheduleRangeControls(rangeMode, state.myShifts.length > 0);
 
   if (el.myTimelineTitle) {
-    el.myTimelineTitle.textContent = state.myScheduleShowAll
-      ? "Выбранные и следующие сутки"
-      : "График на выбранные сутки";
+    if (rangeMode === MY_SCHEDULE_RANGE.WEEK) {
+      el.myTimelineTitle.textContent = "Выбранные сутки + 7 дней";
+    } else if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
+      el.myTimelineTitle.textContent = "Полный график";
+    } else {
+      el.myTimelineTitle.textContent = "График на выбранные сутки";
+    }
   }
 
   if (!state.myShifts.length) {
@@ -1246,14 +1286,77 @@ function renderMySchedule() {
   el.myScheduleTimeline.innerHTML = datesToRender
     .map((date) =>
       renderMyScheduleDay(date, groupedByDate.get(date) || [], {
-        spotlight: !state.myScheduleShowAll && date === focusDate,
+        spotlight: rangeMode === MY_SCHEDULE_RANGE.DAY && date === focusDate,
       })
     )
     .join("");
   renderMyChangesSummary();
 }
 
-function updateMyScheduleHeader(focusDate, dayCount, focusStats) {
+function getMyScheduleDatesToRender(focusDate, groupedByDate, rangeMode) {
+  if (rangeMode === MY_SCHEDULE_RANGE.WEEK) {
+    return Array.from({ length: 8 }, (_, index) => addDays(focusDate, index));
+  }
+
+  if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
+    const futureShiftDates = Array.from(groupedByDate.keys())
+      .filter((date) => date >= focusDate)
+      .sort((a, b) => a.localeCompare(b));
+    const lastDate = futureShiftDates.length ? futureShiftDates[futureShiftDates.length - 1] : focusDate;
+    const dates = [];
+    let cursor = focusDate;
+    while (cursor <= lastDate) {
+      dates.push(cursor);
+      cursor = addDays(cursor, 1);
+    }
+    return dates;
+  }
+
+  return [focusDate];
+}
+
+function updateMyScheduleRangeControls(rangeMode, hasHistory) {
+  if (el.myDayInlineActions) {
+    el.myDayInlineActions.hidden = !hasHistory;
+  }
+
+  if (!hasHistory) {
+    return;
+  }
+
+  if (el.myShowAllButton) {
+    el.myShowAllButton.hidden = rangeMode !== MY_SCHEDULE_RANGE.DAY;
+  }
+
+  if (el.myCollapseRangeButton) {
+    el.myCollapseRangeButton.hidden = rangeMode === MY_SCHEDULE_RANGE.DAY;
+  }
+
+  if (el.myOpenFullRangeButton) {
+    if (rangeMode === MY_SCHEDULE_RANGE.WEEK) {
+      el.myOpenFullRangeButton.hidden = false;
+      el.myOpenFullRangeButton.disabled = false;
+      el.myOpenFullRangeButton.innerHTML =
+        '<span class="material-symbols-outlined">open_in_full</span><span>Открыть полный график</span>';
+      return;
+    }
+
+    if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
+      el.myOpenFullRangeButton.hidden = false;
+      el.myOpenFullRangeButton.disabled = true;
+      el.myOpenFullRangeButton.innerHTML =
+        '<span class="material-symbols-outlined">check_circle</span><span>Полный график открыт</span>';
+      return;
+    }
+
+    el.myOpenFullRangeButton.hidden = true;
+    el.myOpenFullRangeButton.disabled = false;
+    el.myOpenFullRangeButton.innerHTML =
+      '<span class="material-symbols-outlined">open_in_full</span><span>Открыть полный график</span>';
+  }
+}
+
+function updateMyScheduleHeader(focusDate, dayCount, focusStats, rangeMode) {
   if (el.myDayTitle) {
     el.myDayTitle.textContent = focusDate === todayIso() ? `Текущие сутки · ${formatMonthDayShort(focusDate)}` : formatMyDayHeading(focusDate);
   }
@@ -1262,29 +1365,31 @@ function updateMyScheduleHeader(focusDate, dayCount, focusStats) {
     return;
   }
 
-  if (state.myScheduleShowAll) {
+  if (rangeMode === MY_SCHEDULE_RANGE.WEEK) {
+    el.myDaySummary.textContent = "Режим «Показать всё»: выбранные сутки и ещё 7 дней вперёд.";
+    return;
+  }
+
+  if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
     const tailCount = Math.max(0, dayCount - 1);
     el.myDaySummary.textContent = tailCount
-      ? `Режим «Показать всё»: сначала выбранные сутки, ниже ещё ${tailCount} следующих дней.`
-      : "Показываем только выбранные сутки: следующих дней со сменами пока нет.";
+      ? `Показываем полный график: выбранные сутки и ещё ${tailCount} следующих дней.`
+      : "Полный график сейчас совпадает с выбранными сутками.";
     return;
   }
 
   if (!focusStats.planned) {
-    el.myDaySummary.textContent = "На выбранные сутки смен пока нет. Откройте «Управление», чтобы добавить первую запись.";
+    el.myDaySummary.textContent = "На выбранные сутки смен пока нет. Добавьте запись или импортируйте историю.";
     return;
   }
 
-  const confirmedText = focusStats.confirmedMinutes ? formatDuration(focusStats.confirmedMinutes) : "0ч";
-  el.myDaySummary.textContent =
-    `${focusStats.planned} смен · подтверждено ${confirmedText}` +
-    (focusStats.partial ? ` · частично ${focusStats.partial}` : "") +
-    (focusStats.missing ? ` · не найдено ${focusStats.missing}` : "");
+  el.myDaySummary.textContent = `${focusStats.planned} смен · всего ${formatDuration(focusStats.plannedMinutes)}`;
 }
 
 function summarizeShiftChecks(shiftChecks) {
   return {
     planned: shiftChecks.length,
+    plannedMinutes: shiftChecks.reduce((sum, item) => sum + (toMinutes(item.shift.end) - toMinutes(item.shift.start)), 0),
     confirmedMinutes: shiftChecks.reduce((sum, item) => sum + item.verification.confirmedMinutes, 0),
     missing: shiftChecks.filter((item) => item.verification.status === "missing").length,
     partial: shiftChecks.filter((item) => item.verification.status === "partial").length,
@@ -1304,12 +1409,13 @@ function renderMyScheduleEmptyState() {
       ></lottie-player>
       <h4 class="my-empty-title">График пока пуст</h4>
       <p class="my-empty-text">
-        Перейдите в управление сменами, добавьте первую запись по дате и времени.
-        После сохранения здесь сразу появится подробный график на выбранные сутки.
+        Импортируйте готовую историю смен или добавьте первую запись вручную.
+        После этого здесь появится график на выбранные сутки.
       </p>
-      <button type="button" class="my-empty-cta" data-open-editor>
-        Открыть управление сменами
-      </button>
+      <div class="my-empty-actions">
+        <button type="button" class="my-empty-cta" data-import-history>Импорт истории</button>
+        <button type="button" class="my-empty-cta secondary" data-open-editor>Добавить вручную</button>
+      </div>
     </section>
   `;
 }
@@ -1349,6 +1455,73 @@ function getMyFacilityOptions() {
   ];
 }
 
+function getMyInstructorOptions() {
+  const map = new Map(DEFAULT_INSTRUCTORS.map((item) => [normalizeDiffText(item.name), item.name]));
+
+  for (const shift of state.myShifts || []) {
+    for (const name of shift.coworkers || []) {
+      const normalized = normalizeDiffText(name);
+      if (!normalized || normalized === normalizeDiffText(SELF_INSTRUCTOR_NAME)) {
+        continue;
+      }
+      if (!map.has(normalized)) {
+        map.set(normalized, name);
+      }
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.localeCompare(b, "ru"));
+}
+
+function renderMyInstructorOptions(selectedNames = []) {
+  if (!el.myShiftInstructorsList) {
+    return;
+  }
+
+  const selectedSet = new Set(normalizeCoworkers(selectedNames).map((name) => normalizeDiffText(name)));
+  const options = getMyInstructorOptions();
+
+  el.myShiftInstructorsList.innerHTML = options
+    .map((name) => {
+      const checked = selectedSet.has(normalizeDiffText(name));
+      return `
+        <label class="my-instructor-chip ${checked ? "is-active" : ""}">
+          <input
+            type="checkbox"
+            value="${escapeHtml(name)}"
+            data-instructor-name="${escapeHtml(name)}"
+            ${checked ? "checked" : ""}
+          />
+          <span>${escapeHtml(name)}</span>
+        </label>
+      `;
+    })
+    .join("");
+}
+
+function syncInstructorChipState() {
+  if (!el.myShiftInstructorsList) {
+    return;
+  }
+  const chips = Array.from(el.myShiftInstructorsList.querySelectorAll(".my-instructor-chip"));
+  chips.forEach((chip) => {
+    const input = chip.querySelector("input[type='checkbox']");
+    chip.classList.toggle("is-active", Boolean(input?.checked));
+  });
+}
+
+function getSelectedMyShiftInstructors() {
+  if (!el.myShiftInstructorsList) {
+    return [];
+  }
+
+  const values = Array.from(
+    el.myShiftInstructorsList.querySelectorAll("input[type='checkbox'][data-instructor-name]:checked")
+  ).map((input) => String(input.value || input.dataset.instructorName || ""));
+
+  return normalizeCoworkers(values);
+}
+
 function handleMyShiftSubmit(event) {
   event.preventDefault();
 
@@ -1357,6 +1530,7 @@ function handleMyShiftSubmit(event) {
   const start = normalizeTime(String(el.myShiftStartInput.value || ""));
   const end = normalizeTime(String(el.myShiftEndInput.value || ""));
   const note = String(el.myShiftNoteInput.value || "").trim();
+  const coworkers = getSelectedMyShiftInstructors();
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     setMyScheduleNotice("Выберите корректную дату смены.", "error");
@@ -1390,6 +1564,7 @@ function handleMyShiftSubmit(event) {
     start,
     end,
     note,
+    coworkers,
     createdAt: editingShift?.createdAt || new Date().toISOString(),
   };
 
@@ -1403,7 +1578,7 @@ function handleMyShiftSubmit(event) {
   saveMyShifts();
 
   state.myScheduleFocusDate = date;
-  state.myScheduleShowAll = false;
+  state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
   state.myEditingShiftId = null;
   resetMyShiftForm({ preserveDate: date });
   setMyScheduleNotice(editingShift ? "Смена обновлена." : "Смена добавлена в график.", "success");
@@ -1422,6 +1597,7 @@ function resetMyShiftForm(options = {}) {
   el.myShiftStartInput.value = "08:00";
   el.myShiftEndInput.value = "10:00";
   renderMyScheduleFacilityOptions();
+  renderMyInstructorOptions();
   syncMyShiftEditorFormState();
 }
 
@@ -1436,6 +1612,7 @@ function syncMyShiftEditorFormState() {
     el.myShiftStartInput.value = editingShift.start;
     el.myShiftEndInput.value = editingShift.end;
     el.myShiftNoteInput.value = editingShift.note || "";
+    renderMyInstructorOptions(editingShift.coworkers || []);
 
     if (el.myEditorTitle) {
       el.myEditorTitle.textContent = "Редактирование смены";
@@ -1464,6 +1641,7 @@ function syncMyShiftEditorFormState() {
   if (el.myShiftCancelEditButton) {
     el.myShiftCancelEditButton.hidden = true;
   }
+  renderMyInstructorOptions();
 }
 
 function renderMyScheduleEditor() {
@@ -1473,6 +1651,9 @@ function renderMyScheduleEditor() {
 
   renderMyScheduleFacilityOptions();
   syncMyShiftEditorFormState();
+  if (el.myDeleteHistoryButton) {
+    el.myDeleteHistoryButton.hidden = !state.myShifts.length;
+  }
 
   if (!state.myShifts.length) {
     el.myEditorShiftList.innerHTML = `
@@ -1494,7 +1675,9 @@ function renderMyScheduleEditor() {
 
 function renderMyEditorShiftCard(shift, verification) {
   const labelDate = formatMyDayHeading(shift.date);
-  const noteHtml = shift.note ? `<p class="my-editor-shift-note">${escapeHtml(shift.note)}</p>` : "";
+  const note = normalizeShiftNote(shift.note);
+  const noteHtml = note ? `<p class="my-editor-shift-note">${escapeHtml(note)}</p>` : "";
+  const coworkersHtml = renderShiftCoworkersLine(shift, "my-editor-shift-coworkers");
 
   return `
     <article class="my-editor-shift-card">
@@ -1502,9 +1685,9 @@ function renderMyEditorShiftCard(shift, verification) {
         <p class="my-editor-shift-date">${escapeHtml(labelDate)}</p>
         <h4 class="my-editor-shift-title">${escapeHtml(`${shift.start} — ${shift.end}`)}</h4>
         <p class="my-editor-shift-place">${escapeHtml(resolveShiftFacilityName(shift))}</p>
+        ${coworkersHtml}
         ${noteHtml}
         <div class="my-editor-shift-meta">
-          <span class="my-shift-verify ${escapeHtml(verification.badgeClass)}">${escapeHtml(verification.label)}</span>
           <span class="my-shift-duration">${escapeHtml(formatDuration(verification.confirmedMinutes))}</span>
         </div>
       </div>
@@ -1733,7 +1916,35 @@ function handleMyEditorShiftListClick(event) {
   renderMyScheduleEditor();
 }
 
+function handleDeleteMyShiftsHistory() {
+  if (!state.myShifts.length) {
+    setMyScheduleNotice("История уже пустая.", "info");
+    return;
+  }
+
+  const confirmed = window.confirm("Удалить всю историю смен? Это действие нельзя отменить.");
+  if (!confirmed) {
+    return;
+  }
+
+  state.myShifts = [];
+  saveMyShifts();
+  state.myEditingShiftId = null;
+  state.myScheduleFocusDate = todayIso();
+  state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
+  resetMyShiftForm({ preserveDate: state.myScheduleFocusDate });
+  setMyScheduleNotice("История смен удалена.", "info");
+  renderMySchedule();
+  renderMyScheduleEditor();
+}
+
 function handleMyScheduleTimelineClick(event) {
+  const importHistoryButton = event.target.closest("button[data-import-history]");
+  if (importHistoryButton && el.importMyShiftsInput) {
+    el.importMyShiftsInput.click();
+    return;
+  }
+
   const openEditorButton = event.target.closest("button[data-open-editor]");
   if (!openEditorButton) {
     return;
@@ -1746,7 +1957,7 @@ function handleMyScheduleTimelineClick(event) {
 
 function renderMyScheduleDay(date, shiftChecks, options = {}) {
   const { spotlight = false } = options;
-  const dayTotalMinutes = shiftChecks.reduce((sum, item) => sum + item.verification.confirmedMinutes, 0);
+  const dayTotalMinutes = shiftChecks.reduce((sum, item) => sum + (toMinutes(item.shift.end) - toMinutes(item.shift.start)), 0);
   const dayClasses = ["my-timeline-day"];
   if (spotlight) {
     dayClasses.push("is-spotlight");
@@ -1839,23 +2050,44 @@ function renderMyChangesSummary() {
 function renderMyShiftCard(shift, verification = getShiftVerification(shift)) {
   const status = getMyShiftStatus(shift);
   const duration = formatDuration(verification.confirmedMinutes);
-  const noteHtml = shift.note ? `<p class="my-shift-note">${escapeHtml(shift.note)}</p>` : "";
+  const coworkersHtml = renderShiftCoworkersLine(shift, "my-shift-coworkers");
+  const note = normalizeShiftNote(shift.note);
+  const noteHtml = note ? `<p class="my-shift-note">${escapeHtml(note)}</p>` : "";
   const strikeClass = verification.strike ? "my-shift-text-missing" : "";
   const siteSessionsHtml = verification.status === "partial" ? renderMyShiftSiteTimeline(shift, verification) : "";
+  const missingBadgeHtml =
+    verification.status === "missing"
+      ? `
+        <span class="my-shift-site-missing-badge" title="${escapeHtml(verification.label)}">
+          <span class="material-symbols-outlined">warning</span>
+          <span>Нет на сайте</span>
+        </span>
+      `
+      : "";
 
   return `
     <article class="my-shift-card ${escapeHtml(status.className)} ${escapeHtml(verification.cardClass)}">
       <div class="my-shift-time ${strikeClass}">${escapeHtml(`${shift.start} — ${shift.end}`)}</div>
       <div class="my-shift-place ${strikeClass}">${escapeHtml(resolveShiftFacilityName(shift))}</div>
+      ${coworkersHtml}
       ${noteHtml}
       ${siteSessionsHtml}
       <div class="my-shift-meta">
-        <span class="my-shift-verify ${escapeHtml(verification.badgeClass)}">${escapeHtml(verification.label)}</span>
+        ${missingBadgeHtml}
         <span class="my-shift-status">${escapeHtml(status.label)}</span>
         <span class="my-shift-duration">${escapeHtml(duration)}</span>
       </div>
     </article>
   `;
+}
+
+function renderShiftCoworkersLine(shift, className) {
+  const coworkers = normalizeCoworkers(shift?.coworkers || []);
+  if (!coworkers.length) {
+    return "";
+  }
+
+  return `<p class="${escapeHtml(className)}">С кем: ${escapeHtml(coworkers.join(", "))}</p>`;
 }
 
 function renderMyShiftSiteTimeline(shift, verification) {
@@ -2171,7 +2403,7 @@ function setMyShiftsDataNotice(message, type = "info") {
 
 function exportMyShiftsHistory() {
   const payload = {
-    version: 1,
+    version: 2,
     app: "Расписание",
     exportedAt: new Date().toISOString(),
     timezone: state.data?.timezone || "Europe/Minsk",
@@ -2225,7 +2457,7 @@ async function handleMyShiftsImport(event) {
     saveMyShifts();
 
     state.myScheduleFocusDate = state.myShifts.length ? state.myShifts[0].date : todayIso();
-    state.myScheduleShowAll = false;
+    state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
     state.myEditingShiftId = null;
     resetMyShiftForm();
 
@@ -2948,6 +3180,37 @@ function shortFacilityLabel(name) {
   return name;
 }
 
+function normalizeCoworkers(value) {
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[;,]/)
+      : value && typeof value === "object" && Array.isArray(value.names)
+        ? value.names
+        : [];
+
+  const normalized = values
+    .map((item) => String(item || "").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .filter((name) => normalizeDiffText(name) !== normalizeDiffText(SELF_INSTRUCTOR_NAME))
+    .slice(0, 8);
+
+  return Array.from(new Set(normalized)).sort((a, b) => a.localeCompare(b, "ru"));
+}
+
+function normalizeShiftNote(value) {
+  const note = String(value || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  if (!note) {
+    return "";
+  }
+
+  if (/^считано\s+из\s+графика/i.test(note)) {
+    return "";
+  }
+
+  return note;
+}
+
 function normalizeShiftRecords(records) {
   if (!Array.isArray(records)) {
     return [];
@@ -2962,7 +3225,16 @@ function normalizeShiftRecords(records) {
       facilityName: String(item.facilityName || ""),
       start: normalizeTime(String(item.start || "")),
       end: normalizeTime(String(item.end || "")),
-      note: String(item.note || "").slice(0, 80),
+      note: normalizeShiftNote(item.note),
+      coworkers: normalizeCoworkers(
+        item.coworkers ||
+          item.instructors ||
+          item.withWhom ||
+          item.with_whom ||
+          item.coworker ||
+          item.coworkersText ||
+          ""
+      ),
       createdAt: String(item.createdAt || ""),
     }))
     .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item.date) && item.start && item.end && toMinutes(item.end) > toMinutes(item.start))

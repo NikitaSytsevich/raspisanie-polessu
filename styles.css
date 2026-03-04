@@ -1413,6 +1413,11 @@ body::before {
   transform: scale(0.995);
 }
 
+.my-day-control-btn[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .my-day-spotlight {
   flex: 0 1 auto;
   min-height: min(56vh, 560px);
@@ -1432,6 +1437,8 @@ body::before {
   padding-top: 12px;
   display: flex;
   justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .my-day-inline-actions .my-day-control-btn {
@@ -1472,6 +1479,48 @@ body::before {
 
 .my-field input::placeholder {
   color: #94a3b8;
+}
+
+.my-field-hint {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.my-instructors-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.my-instructor-chip {
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.46);
+  color: #cbd5e1;
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.my-instructor-chip input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.my-instructor-chip.is-active {
+  border-color: rgba(59, 130, 246, 0.55);
+  background: rgba(37, 99, 235, 0.26);
+  color: #dbeafe;
 }
 
 .my-time-row {
@@ -1590,6 +1639,21 @@ body::before {
   transform: scale(0.99);
 }
 
+.my-empty-actions {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.my-empty-cta.secondary {
+  border-color: rgba(148, 163, 184, 0.4);
+  background: rgba(71, 85, 105, 0.24);
+  color: #cbd5e1;
+}
+
 .my-editor-form-card,
 .my-editor-list-card {
   border-radius: 20px;
@@ -1613,6 +1677,25 @@ body::before {
   line-height: 1.4;
   font-weight: 600;
   color: #cbd5e1;
+}
+
+.my-editor-history-delete-btn {
+  margin-top: 10px;
+  border: 1px solid rgba(248, 113, 113, 0.44);
+  background: rgba(248, 113, 113, 0.15);
+  color: #fecaca;
+  border-radius: 12px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.my-editor-history-delete-btn:active {
+  transform: scale(0.99);
 }
 
 .my-editor-form-actions {
@@ -1694,6 +1777,14 @@ body::before {
   line-height: 1.35;
   font-weight: 600;
   color: #94a3b8;
+}
+
+.my-editor-shift-coworkers {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #bae6fd;
 }
 
 .my-editor-shift-meta {
@@ -1904,6 +1995,14 @@ body::before {
   color: #94a3b8;
 }
 
+.my-shift-coworkers {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 700;
+  color: #bae6fd;
+}
+
 .my-shift-site-strip {
   margin-top: 8px;
   padding-top: 8px;
@@ -1981,6 +2080,7 @@ body::before {
 .my-shift-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 7px;
 }
@@ -2000,6 +2100,27 @@ body::before {
   border: 1px solid rgba(148, 163, 184, 0.32);
   color: #e2e8f0;
   background: rgba(148, 163, 184, 0.12);
+}
+
+.my-shift-site-missing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 9999px;
+  border: 1px solid rgba(248, 113, 113, 0.44);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.24), rgba(127, 29, 29, 0.3));
+  color: #fee2e2;
+  padding: 3px 8px 3px 7px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.my-shift-site-missing-badge .material-symbols-outlined {
+  font-size: 13px;
+  line-height: 1;
 }
 
 .my-shift-verify {
@@ -2653,6 +2774,10 @@ html.light .my-day-control-btn {
   color: #1e293b;
 }
 
+html.light .my-day-control-btn[disabled] {
+  opacity: 0.72;
+}
+
 html.light .my-day-control-btn.is-active {
   border-color: rgba(37, 99, 235, 0.44);
   background: rgba(37, 99, 235, 0.12);
@@ -2678,6 +2803,12 @@ html.light .my-empty-cta {
   color: #1d4ed8;
 }
 
+html.light .my-empty-cta.secondary {
+  border-color: rgba(148, 163, 184, 0.45);
+  background: rgba(226, 232, 240, 0.9);
+  color: #334155;
+}
+
 html.light .my-field span {
   color: #2563eb;
 }
@@ -2691,6 +2822,22 @@ html.light .my-field select {
 
 html.light .my-field input::placeholder {
   color: #64748b;
+}
+
+html.light .my-field-hint {
+  color: #64748b;
+}
+
+html.light .my-instructor-chip {
+  border-color: rgba(148, 163, 184, 0.5);
+  background: rgba(241, 245, 249, 0.9);
+  color: #334155;
+}
+
+html.light .my-instructor-chip.is-active {
+  border-color: rgba(37, 99, 235, 0.48);
+  background: rgba(219, 234, 254, 0.92);
+  color: #1d4ed8;
 }
 
 html.light .my-shift-submit-btn {
@@ -2721,6 +2868,12 @@ html.light .my-editor-head p {
   color: #334155;
 }
 
+html.light .my-editor-history-delete-btn {
+  border-color: rgba(220, 38, 38, 0.35);
+  background: rgba(254, 226, 226, 0.92);
+  color: #991b1b;
+}
+
 html.light .my-editor-shift-card {
   border-color: rgba(148, 163, 184, 0.45);
   background: #ffffff;
@@ -2740,6 +2893,10 @@ html.light .my-editor-shift-place {
 
 html.light .my-editor-shift-note {
   color: #64748b;
+}
+
+html.light .my-editor-shift-coworkers {
+  color: #0369a1;
 }
 
 html.light .my-editor-action-btn {
@@ -2869,6 +3026,10 @@ html.light .my-shift-note {
   color: #64748b;
 }
 
+html.light .my-shift-coworkers {
+  color: #0369a1;
+}
+
 html.light .my-shift-site-strip {
   border-top-color: rgba(148, 163, 184, 0.4);
 }
@@ -2904,6 +3065,12 @@ html.light .my-shift-status {
   border-color: rgba(148, 163, 184, 0.42);
   color: #334155;
   background: rgba(148, 163, 184, 0.14);
+}
+
+html.light .my-shift-site-missing-badge {
+  border-color: rgba(220, 38, 38, 0.38);
+  background: linear-gradient(180deg, rgba(254, 226, 226, 0.98), rgba(254, 205, 211, 0.92));
+  color: #991b1b;
 }
 
 html.light .my-shift-verify.verify-matched {

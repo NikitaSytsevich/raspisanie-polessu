@@ -266,10 +266,18 @@
             <h3 id="myTimelineTitle">График на выбранные сутки</h3>
           </div>
           <div id="myScheduleTimeline"></div>
-          <div class="my-day-inline-actions">
+          <div id="myDayInlineActions" class="my-day-inline-actions">
             <button id="myShowAllButton" type="button" class="my-day-control-btn">
               <span class="material-symbols-outlined">unfold_more</span>
               <span>Показать всё</span>
+            </button>
+            <button id="myCollapseRangeButton" type="button" class="my-day-control-btn" hidden>
+              <span class="material-symbols-outlined">unfold_less</span>
+              <span>Скрыть</span>
+            </button>
+            <button id="myOpenFullRangeButton" type="button" class="my-day-control-btn" hidden>
+              <span class="material-symbols-outlined">open_in_full</span>
+              <span>Открыть полный график</span>
             </button>
           </div>
         </section>
@@ -278,7 +286,7 @@
           <div id="myChangesSummaryContent"></div>
         </button>
 
-        <section class="my-editor-launch-wrap">
+        <section id="myEditorLaunchWrap" class="my-editor-launch-wrap">
           <button
             id="openMyEditorButton"
             type="button"
@@ -333,6 +341,12 @@
               <select id="myShiftFacilitySelect" required></select>
             </label>
 
+            <label class="my-field">
+              <span>С кем работаю</span>
+              <div id="myShiftInstructorsList" class="my-instructors-list" role="group" aria-label="Выбор инструкторов"></div>
+              <small class="my-field-hint">Можно выбрать одного или нескольких инструкторов.</small>
+            </label>
+
             <div class="my-time-row">
               <label class="my-field">
                 <span>Начало</span>
@@ -370,6 +384,9 @@
             <h3>Все смены</h3>
             <p>Нажмите «Изменить», чтобы поправить запись, или «Удалить», чтобы убрать её.</p>
           </div>
+          <button id="myDeleteHistoryButton" type="button" class="my-editor-history-delete-btn">
+            Удалить историю
+          </button>
           <div id="myEditorShiftList" class="my-editor-shift-list"></div>
         </section>
       </main>
