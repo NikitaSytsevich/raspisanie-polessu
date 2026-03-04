@@ -916,6 +916,23 @@ body::before {
   padding: 9px;
 }
 
+.changes-compare-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.changes-compare-link .changes-compare-card {
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 160ms ease;
+}
+
+.changes-compare-link:hover .changes-compare-card,
+.changes-compare-link:focus-visible .changes-compare-card {
+  border-color: rgba(125, 211, 252, 0.52);
+  box-shadow: 0 12px 20px rgba(2, 6, 23, 0.28);
+  transform: translateY(-1px);
+}
+
 .changes-compare-head h3 {
   margin: 0;
   font-size: 13px;
@@ -1481,6 +1498,52 @@ body::before {
   line-height: 1.3;
   font-weight: 800;
   color: #cbd5e1;
+}
+
+.my-changes-last-block {
+  margin-top: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.38);
+  padding: 8px 10px;
+}
+
+.my-changes-last-block.is-empty {
+  border-style: dashed;
+}
+
+.my-changes-last-label {
+  display: block;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.my-changes-last-title {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.my-changes-last-text {
+  margin: 5px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.my-changes-last-meta {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #93c5fd;
 }
 
 .my-editor-launch-btn {
@@ -2921,6 +2984,12 @@ html.light .changes-compare-card {
   background: rgba(255, 255, 255, 0.92);
 }
 
+html.light .changes-compare-link:hover .changes-compare-card,
+html.light .changes-compare-link:focus-visible .changes-compare-card {
+  border-color: rgba(37, 99, 235, 0.44);
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.14);
+}
+
 html.light .changes-compare-head h3 {
   color: #0f172a;
 }
@@ -2986,6 +3055,24 @@ html.light .my-changes-head p {
 html.light .my-changes-time,
 html.light .my-changes-open-hint {
   color: #2563eb;
+}
+
+html.light .my-changes-last-block {
+  border-color: rgba(148, 163, 184, 0.38);
+  background: rgba(248, 250, 252, 0.9);
+}
+
+html.light .my-changes-last-label,
+html.light .my-changes-last-meta {
+  color: #2563eb;
+}
+
+html.light .my-changes-last-title {
+  color: #0f172a;
+}
+
+html.light .my-changes-last-text {
+  color: #334155;
 }
 
 html.light .my-editor-launch-btn {

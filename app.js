@@ -35,8 +35,7 @@ const MY_SCHEDULE_RANGE = {
 
 const SITE_CHANGES_HISTORY_LIMIT = 20;
 const SITE_CHANGES_EVENTS_LIMIT = 24;
-const SITE_CHANGES_PREVIEW_LIMIT = 20;
-const SITE_CHANGES_COMPARE_LIMIT = 4;
+const SITE_CHANGES_LATEST_EVENTS_LIMIT = 8;
 
 const state = {
   data: null,
@@ -129,8 +128,7 @@ const el = {
   myChangesSummaryCard: document.getElementById("myChangesSummaryCard"),
   myChangesSummaryContent: document.getElementById("myChangesSummaryContent"),
   changesLatestCard: document.getElementById("changesLatestCard"),
-  changesStats: document.getElementById("changesStats"),
-  changesList: document.getElementById("changesList"),
+  changesUpdatesCard: document.getElementById("changesUpdatesCard"),
 };
 
 init();
@@ -1705,13 +1703,13 @@ function renderMyEditorShiftCard(shift, verification) {
 }
 
 function renderChangesView() {
-  if (!el.changesLatestCard || !el.changesList) {
+  if (!el.changesLatestCard || !el.changesUpdatesCard) {
     return;
   }
 
   const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [];
   const latest = history[0] || null;
-  const latestChangedEntry = history.find((entry) => entry && !entry.baseline && entry.hasChanges) || null;
+  const latestChangedEntry = getLatestChangedEntry(history);
 
   if (el.changesUpdatedAt) {
     if (latest?.checkedAt) {
@@ -1736,45 +1734,42 @@ function renderChangesView() {
   if (!latest) {
     el.changesLatestCard.innerHTML = `
       <div class="changes-empty-state">
-        <h2>Изменений пока нет</h2>
+        <h2>Проверок пока нет</h2>
         <p>Нажмите «Проверить», чтобы получить первый снимок и начать отслеживание изменений на сайте.</p>
       </div>
     `;
-    if (el.changesStats) {
-      el.changesStats.innerHTML = "";
-    }
-    el.changesList.innerHTML = "";
+    el.changesUpdatesCard.innerHTML = `
+      <div class="changes-list-head">
+        <h2>Последние изменения на сайте</h2>
+        <p>Сейчас обновлений нет.</p>
+      </div>
+    `;
     return;
   }
 
-  const latestBadge = latest.baseline
-    ? '<span class="changes-check-badge baseline">Базовый снимок</span>'
-    : latest.hasChanges && Array.isArray(latest.sourceIssues) && latest.sourceIssues.length
-      ? '<span class="changes-check-badge changed">Есть изменения · источник нестабилен</span>'
-      : Array.isArray(latest.sourceIssues) && latest.sourceIssues.length
-      ? '<span class="changes-check-badge changed">Ошибка источника</span>'
-      : latest.hasChanges
-      ? '<span class="changes-check-badge changed">Есть изменения</span>'
-      : '<span class="changes-check-badge stable">Без изменений</span>';
-  const latestTime = formatChangesDateTime(latest.checkedAt);
-  const latestChangedTime = latestChangedEntry?.checkedAt ? formatChangesDateTime(latestChangedEntry.checkedAt) : "Изменения ещё не зафиксированы";
-  const summary = latest.summary || { total: 0, added: 0, removed: 0, updated: 0 };
   const sourceIssues = Array.isArray(latest.sourceIssues) ? latest.sourceIssues : [];
-  const hasSourceIssues = sourceIssues.length > 0;
-  const sourceIssueText = hasSourceIssues
+  const hasSourceIssues = Boolean(latest.hasSourceIssues || sourceIssues.length);
+  const latestBadge = hasSourceIssues && !latest.hasChanges
+    ? '<span class="changes-check-badge changed">Ошибка источника</span>'
+    : latestChangedEntry
+      ? '<span class="changes-check-badge changed">Есть изменения</span>'
+      : latest.baseline
+        ? '<span class="changes-check-badge baseline">Базовый снимок</span>'
+        : '<span class="changes-check-badge stable">Без изменений</span>';
+  const latestTime = formatChangesDateTime(latest.checkedAt);
+  const latestChangedTime = latestChangedEntry?.checkedAt ? formatChangesDateTime(latestChangedEntry.checkedAt) : "Сейчас обновлений нет";
+  const sourceIssueText = sourceIssues.length
     ? `${sourceIssues[0]?.facilityName ? `${sourceIssues[0].facilityName}: ` : ""}${
         sourceIssues[0]?.description || "Обнаружена проблема с источником данных."
       }`
     : "";
-  const latestText = latest.baseline
+  const latestText = hasSourceIssues && !latest.hasChanges
+    ? sourceIssueText
+    : latest.baseline
     ? "Создан первый снимок расписания для сравнения будущих обновлений."
-    : latest.hasChanges
-      ? `Найдено ${summary.total} изменений. Ниже показаны ключевые блоки «было / стало».${
-          hasSourceIssues ? " Часть источников работает нестабильно." : ""
-        }`
-      : hasSourceIssues
-      ? sourceIssueText
-      : "После последней проверки изменений не обнаружено.";
+    : latestChangedEntry
+      ? "Показаны последние зафиксированные изменения. Нажмите на карточку, чтобы открыть официальный источник."
+      : "Сейчас обновлений нет.";
 
   el.changesLatestCard.innerHTML = `
     <article class="changes-latest-inner">
@@ -1788,108 +1783,134 @@ function renderChangesView() {
         <strong class="changes-last-change-value">${escapeHtml(latestChangedTime)}</strong>
       </div>
       <p class="changes-latest-text">${escapeHtml(latestText)}</p>
-      ${renderLatestChangesComparison(latest)}
     </article>
   `;
 
-  if (el.changesStats) {
-    el.changesStats.innerHTML = renderChangesStatsCompact(latest, summary, sourceIssues);
-  }
-
-  const visibleHistory = history.slice(0, SITE_CHANGES_PREVIEW_LIMIT);
-  el.changesList.innerHTML = visibleHistory.map((entry) => renderChangesCheckCard(entry)).join("");
-}
-
-function renderChangesCheckCard(entry) {
-  const summary = entry.summary || { total: 0, added: 0, removed: 0, updated: 0 };
-  const sourceIssues = Array.isArray(entry.sourceIssues) ? entry.sourceIssues : [];
-  const hasSourceIssues = sourceIssues.length > 0;
-  const headline = entry.baseline
-    ? "Базовый снимок"
-    : entry.hasChanges
-      ? hasSourceIssues
-        ? `Изменений: ${summary.total} · источник нестабилен`
-        : `Изменений: ${summary.total}`
-      : hasSourceIssues
-      ? `Ошибка источника (${sourceIssues.length})`
-      : "Изменений не найдено";
-  const badge = entry.baseline
-    ? '<span class="changes-check-badge baseline">Снимок</span>'
-    : entry.hasChanges && hasSourceIssues
-      ? '<span class="changes-check-badge changed">Обновлено + источник</span>'
-    : hasSourceIssues
-      ? '<span class="changes-check-badge changed">Источник</span>'
-      : entry.hasChanges
-      ? '<span class="changes-check-badge changed">Обновлено</span>'
-      : '<span class="changes-check-badge stable">Стабильно</span>';
-  const events = Array.isArray(entry.events) ? entry.events : [];
-  const previewText = getChangesEntryPreviewText(entry, events, sourceIssues);
-  const chipsHtml = renderChangesEntryChips(entry, summary, events.length, sourceIssues.length);
-
-  return `
-    <article class="changes-feed-card">
-      <div class="changes-feed-top">
-        <div>
-          <h3 class="changes-feed-title">${escapeHtml(headline)}</h3>
-          <p class="changes-feed-time">${escapeHtml(formatChangesDateTime(entry.checkedAt))}</p>
-        </div>
-        ${badge}
+  if (!latestChangedEntry) {
+    el.changesUpdatesCard.innerHTML = `
+      <div class="changes-list-head">
+        <h2>Последние изменения на сайте</h2>
+        <p>Сейчас обновлений нет.</p>
       </div>
-      <p class="changes-feed-line">${escapeHtml(previewText)}</p>
-      <div class="changes-feed-chips">${chipsHtml}</div>
-    </article>
-  `;
-}
-
-function renderChangesStatsCompact(latest, summary, sourceIssues) {
-  if (latest.hasSourceIssues && !latest.hasChanges) {
-    return `
-      <article class="changes-stat-card compact issue"><span>Проблемы источника</span><strong>${escapeHtml(String(sourceIssues.length))}</strong></article>
-      <article class="changes-stat-card compact"><span>Найдено</span><strong>—</strong></article>
-      <article class="changes-stat-card compact"><span>Добавлено</span><strong>—</strong></article>
-      <article class="changes-stat-card compact"><span>Удалено</span><strong>—</strong></article>
     `;
+    return;
   }
 
-  const issueChip = latest.hasSourceIssues
-    ? `<article class="changes-stat-card compact issue"><span>Проблемы источника</span><strong>${escapeHtml(String(sourceIssues.length))}</strong></article>`
-    : "";
+  const allEvents = getEntryDisplayEvents(latestChangedEntry);
+  const visibleEvents = allEvents.slice(0, SITE_CHANGES_LATEST_EVENTS_LIMIT);
+  const moreCount = Math.max(0, allEvents.length - visibleEvents.length);
 
-  return `
-    <article class="changes-stat-card compact"><span>Найдено</span><strong>${escapeHtml(String(summary.total || 0))}</strong></article>
-    <article class="changes-stat-card compact"><span>Добавлено</span><strong>${escapeHtml(String(summary.added || 0))}</strong></article>
-    <article class="changes-stat-card compact"><span>Удалено</span><strong>${escapeHtml(String(summary.removed || 0))}</strong></article>
-    <article class="changes-stat-card compact"><span>Изменено</span><strong>${escapeHtml(String(summary.updated || 0))}</strong></article>
-    ${issueChip}
+  if (!visibleEvents.length) {
+    el.changesUpdatesCard.innerHTML = `
+      <div class="changes-list-head">
+        <h2>Последние изменения на сайте</h2>
+        <p>Изменения зафиксированы, но подробные карточки пока недоступны.</p>
+      </div>
+    `;
+    return;
+  }
+
+  el.changesUpdatesCard.innerHTML = `
+    <div class="changes-list-head">
+      <h2>Последние изменения на сайте</h2>
+      <p>Как было и как стало. Нажмите на изменение, чтобы открыть официальный источник.</p>
+    </div>
+    <p class="changes-latest-time">${escapeHtml(formatChangesDateTime(latestChangedEntry.checkedAt))}</p>
+    <div class="changes-compare-grid">
+      ${visibleEvents.map((event) => renderInteractiveChangeComparisonCard(event)).join("")}
+    </div>
+    ${moreCount ? `<p class="changes-compare-more">И ещё ${escapeHtml(String(moreCount))} изменений в этой проверке.</p>` : ""}
   `;
 }
 
-function renderLatestChangesComparison(entry) {
-  if (entry.baseline) {
-    return `<p class="changes-compare-empty">Это стартовый снимок. «Было / стало» появится после первого изменения на сайте.</p>`;
+function getLatestChangedEntry(history) {
+  if (!Array.isArray(history)) {
+    return null;
+  }
+  return history.find((entry) => entry && !entry.baseline && entry.hasChanges) || null;
+}
+
+function getEntryDisplayEvents(entry) {
+  if (!entry || !Array.isArray(entry.events)) {
+    return [];
+  }
+  return entry.events.filter((event) => !String(event?.type || "").startsWith("source_"));
+}
+
+function renderInteractiveChangeComparisonCard(event) {
+  const cardHtml = renderChangeComparisonCard(event);
+  const sourceUrl = resolveSiteChangeEventUrl(event);
+  if (!sourceUrl) {
+    return cardHtml;
   }
 
-  const sourceIssues = Array.isArray(entry.sourceIssues) ? entry.sourceIssues : [];
-  const events = Array.isArray(entry.events) ? entry.events.filter((event) => !String(event?.type || "").startsWith("source_")) : [];
-  const compareItems = (entry.hasChanges ? events : sourceIssues).slice(0, SITE_CHANGES_COMPARE_LIMIT);
-  if (!compareItems.length) {
-    return `<p class="changes-compare-empty">${
-      entry.hasChanges
-        ? "Изменения зафиксированы, но детальных блоков пока нет."
-        : entry.hasSourceIssues
-          ? "Источник временно недоступен. Как только связь восстановится, сравнение появится автоматически."
-          : "Сейчас изменений нет, сайт совпадает с предыдущей проверкой."
-    }</p>`;
-  }
-
-  const cardsHtml = compareItems.map((event) => renderChangeComparisonCard(event)).join("");
-  const totalItems = entry.hasChanges ? events.length : sourceIssues.length;
-  const more = Math.max(0, totalItems - compareItems.length);
-
+  const title = String(event?.title || "Открыть изменение на сайте");
   return `
-    <div class="changes-compare-grid">${cardsHtml}</div>
-    ${more ? `<p class="changes-compare-more">И ещё ${escapeHtml(String(more))} изменений в этой проверке.</p>` : ""}
+    <a
+      class="changes-compare-link"
+      href="${escapeHtml(sourceUrl)}"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="${escapeHtml(`${title}: открыть официальный сайт`)}"
+    >
+      ${cardHtml}
+    </a>
   `;
+}
+
+function resolveSiteChangeEventUrl(event) {
+  const direct = sanitizeHttpUrl(event?.sourceUrl);
+  if (direct) {
+    return direct;
+  }
+
+  const byFacility = resolveFacilitySourceUrl(event?.facilityId);
+  if (byFacility) {
+    return byFacility;
+  }
+
+  return resolveFallbackSourceUrl();
+}
+
+function resolveFacilitySourceUrl(facilityId) {
+  const targetId = String(facilityId || "").trim();
+  if (!targetId || !Array.isArray(state.data?.facilities)) {
+    return "";
+  }
+
+  const facility = state.data.facilities.find((item) => String(item?.id || "") === targetId) || null;
+  return sanitizeHttpUrl(facility?.sourceUrl);
+}
+
+function resolveFallbackSourceUrl() {
+  if (!Array.isArray(state.data?.facilities)) {
+    return "";
+  }
+
+  for (const facility of state.data.facilities) {
+    const sourceUrl = sanitizeHttpUrl(facility?.sourceUrl);
+    if (sourceUrl) {
+      return sourceUrl;
+    }
+  }
+  return "";
+}
+
+function sanitizeHttpUrl(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(text);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "";
+    }
+    return parsed.toString();
+  } catch {
+    return "";
+  }
 }
 
 function renderChangeComparisonCard(event) {
@@ -1919,63 +1940,6 @@ function renderChangeComparisonCard(event) {
       </div>
     </article>
   `;
-}
-
-function getChangesEntryPreviewText(entry, events, sourceIssues) {
-  if (entry.baseline) {
-    return "Создан базовый снимок для будущего сравнения.";
-  }
-
-  if (entry.hasChanges) {
-    const leadEvent = events[0] || null;
-    if (!leadEvent) {
-      return entry.hasSourceIssues
-        ? "Изменения зафиксированы, но часть источников работает нестабильно."
-        : "Изменения зафиксированы.";
-    }
-
-    const dateHint = leadEvent.date ? formatMonthDayShort(leadEvent.date) : "";
-    const facilityHint = leadEvent.facilityName ? String(leadEvent.facilityName) : "";
-    const prefix = [facilityHint, dateHint].filter(Boolean).join(" · ");
-    const leadText = `${prefix ? `${prefix}: ` : ""}${String(leadEvent.title || "Изменение")} — ${String(
-      leadEvent.afterText || leadEvent.description || "детали обновлены"
-    )}`;
-    if (!entry.hasSourceIssues) {
-      return leadText;
-    }
-    return `${leadText} (есть проблемы источника)`;
-  }
-
-  if (entry.hasSourceIssues) {
-    return String(sourceIssues[0]?.description || "Источник временно недоступен.");
-  }
-
-  if (!entry.hasChanges) {
-    return "Изменения не обнаружены.";
-  }
-  return "Изменения зафиксированы.";
-}
-
-function renderChangesEntryChips(entry, summary, eventsCount, sourceIssuesCount) {
-  if (entry.hasSourceIssues && !entry.hasChanges) {
-    return `<span class="changes-feed-chip warn">Источник: ${escapeHtml(String(sourceIssuesCount))}</span>`;
-  }
-
-  if (entry.baseline) {
-    return `<span class="changes-feed-chip">Старт</span>`;
-  }
-
-  if (!entry.hasChanges) {
-    return `<span class="changes-feed-chip">Без изменений</span>`;
-  }
-
-  return [
-    `<span class="changes-feed-chip">Событий: ${escapeHtml(String(eventsCount))}</span>`,
-    `<span class="changes-feed-chip positive">+${escapeHtml(String(summary.added || 0))}</span>`,
-    `<span class="changes-feed-chip warn">-${escapeHtml(String(summary.removed || 0))}</span>`,
-    `<span class="changes-feed-chip info">~${escapeHtml(String(summary.updated || 0))}</span>`,
-    entry.hasSourceIssues ? `<span class="changes-feed-chip warn">Источник: ${escapeHtml(String(sourceIssuesCount))}</span>` : "",
-  ].join("");
 }
 
 function normalizeChangeSideText(value, fallback = "—") {
@@ -2116,7 +2080,9 @@ function renderMyChangesSummary() {
     return;
   }
 
-  const latest = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory[0] || null : null;
+  const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [];
+  const latest = history[0] || null;
+  const latestChangedEntry = getLatestChangedEntry(history);
   if (!latest) {
     el.myChangesSummaryContent.innerHTML = `
       <div class="my-changes-head">
@@ -2127,6 +2093,10 @@ function renderMyChangesSummary() {
         <span class="my-changes-badge is-baseline">Нет данных</span>
       </div>
       <p class="my-changes-time">Нажмите карточку, чтобы открыть страницу «Изменения на сайте».</p>
+      <div class="my-changes-last-block is-empty">
+        <span class="my-changes-last-label">Последнее изменение</span>
+        <p class="my-changes-last-title">Сейчас обновлений нет</p>
+      </div>
     `;
     return;
   }
@@ -2135,20 +2105,20 @@ function renderMyChangesSummary() {
   const checkedText = Number.isNaN(checkedAt.getTime())
     ? "Время проверки неизвестно"
     : `${checkedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} · ${formatRelativeAge(checkedAt, { compact: false })}`;
-  const summary = latest.summary || { total: 0, added: 0, removed: 0, updated: 0 };
   const sourceIssues = Array.isArray(latest.sourceIssues) ? latest.sourceIssues : [];
   const hasSourceIssues = sourceIssues.length > 0;
-  const badgeClass = latest.baseline ? "is-baseline" : hasSourceIssues || latest.hasChanges ? "is-changed" : "is-stable";
-  const badgeText = latest.baseline ? "Базовый снимок" : hasSourceIssues ? "Ошибка источника" : latest.hasChanges ? "Есть изменения" : "Без изменений";
-  const summaryText = latest.baseline
+  const badgeClass = latest.baseline ? "is-baseline" : hasSourceIssues || latestChangedEntry ? "is-changed" : "is-stable";
+  const badgeText = latest.baseline ? "Базовый снимок" : hasSourceIssues ? "Ошибка источника" : latestChangedEntry ? "Есть изменения" : "Без изменений";
+  const summaryText = hasSourceIssues && !latest.hasChanges
+    ? `${sourceIssues[0]?.facilityName ? `${sourceIssues[0].facilityName}: ` : ""}${
+        sourceIssues[0]?.description || "Источник временно недоступен, изменения расписания сейчас не рассчитываются."
+      }`
+    : latest.baseline
     ? "Создан базовый снимок для отслеживания будущих изменений."
-    : hasSourceIssues
-      ? `${sourceIssues[0]?.facilityName ? `${sourceIssues[0].facilityName}: ` : ""}${
-          sourceIssues[0]?.description || "Источник временно недоступен, изменения расписания сейчас не рассчитываются."
-        }`
-      : latest.hasChanges
-      ? `Найдено ${summary.total} изменений.`
-      : "После последней проверки изменений не обнаружено.";
+    : latestChangedEntry
+      ? "Доступно краткое описание последнего изменения."
+      : "Сейчас обновлений нет.";
+  const latestChangeBlock = renderMyLatestSiteChangeBlock(latestChangedEntry);
 
   el.myChangesSummaryContent.innerHTML = `
     <div class="my-changes-head">
@@ -2159,7 +2129,40 @@ function renderMyChangesSummary() {
       <span class="my-changes-badge ${badgeClass}">${escapeHtml(badgeText)}</span>
     </div>
     <p class="my-changes-time">${escapeHtml(checkedText)}</p>
-    <p class="my-changes-open-hint">Нажмите карточку, чтобы открыть детальную ленту изменений.</p>
+    ${latestChangeBlock}
+    <p class="my-changes-open-hint">Нажмите карточку, чтобы открыть последние изменения.</p>
+  `;
+}
+
+function renderMyLatestSiteChangeBlock(entry) {
+  if (!entry) {
+    return `
+      <div class="my-changes-last-block is-empty">
+        <span class="my-changes-last-label">Последнее изменение</span>
+        <p class="my-changes-last-title">Сейчас обновлений нет</p>
+      </div>
+    `;
+  }
+
+  const events = getEntryDisplayEvents(entry);
+  const leadEvent = events[0] || null;
+  const title = leadEvent ? String(leadEvent.title || "Изменение расписания") : "Изменение расписания";
+  const details = leadEvent
+    ? normalizeChangeSideText(leadEvent.afterText || leadEvent.description, "Детали изменения обновлены.")
+    : "Есть обновление расписания.";
+  const dateHint = leadEvent?.date ? formatMonthDayShort(leadEvent.date) : "";
+  const facilityHint = leadEvent?.facilityName ? String(leadEvent.facilityName) : "";
+  const metaPrefix = [facilityHint, dateHint].filter(Boolean).join(" · ");
+  const changedAt = formatChangesDateTime(entry.checkedAt);
+  const meta = metaPrefix ? `${metaPrefix} · ${changedAt}` : changedAt;
+
+  return `
+    <div class="my-changes-last-block">
+      <span class="my-changes-last-label">Последнее изменение</span>
+      <p class="my-changes-last-title">${escapeHtml(title)}</p>
+      <p class="my-changes-last-text">${escapeHtml(details)}</p>
+      <p class="my-changes-last-meta">${escapeHtml(meta)}</p>
+    </div>
   `;
 }
 
@@ -2838,6 +2841,7 @@ function diffSchedulePayload(previousPayload, nextPayload) {
     const previousFacility = previousFacilities.get(facilityId) || null;
     const nextFacility = nextFacilities.get(facilityId) || null;
     const facilityName = String(nextFacility?.name || previousFacility?.name || facilityId);
+    const sourceUrl = sanitizeHttpUrl(nextFacility?.sourceUrl || previousFacility?.sourceUrl);
 
     if (hasFacilityBrokenData(previousFacility) || hasFacilityBrokenData(nextFacility)) {
       continue;
@@ -2849,6 +2853,7 @@ function diffSchedulePayload(previousPayload, nextPayload) {
         severity: "positive",
         facilityId,
         facilityName,
+        sourceUrl,
         date: null,
         title: "Добавлен объект",
         description: `Объект «${facilityName}» появился в данных расписания.`,
@@ -2864,6 +2869,7 @@ function diffSchedulePayload(previousPayload, nextPayload) {
         severity: "warning",
         facilityId,
         facilityName,
+        sourceUrl,
         date: null,
         title: "Удалён объект",
         description: `Объект «${facilityName}» пропал из данных расписания.`,
@@ -2891,6 +2897,7 @@ function diffSchedulePayload(previousPayload, nextPayload) {
           severity: "positive",
           facilityId,
           facilityName,
+          sourceUrl,
           date,
           title: "Добавлены сутки",
           description: nextDay.closedReason
@@ -2912,6 +2919,7 @@ function diffSchedulePayload(previousPayload, nextPayload) {
           severity: "warning",
           facilityId,
           facilityName,
+          sourceUrl,
           date,
           title: "Удалены сутки",
           description: `Дата удалена из расписания (было сеансов: ${sessionsCount}).`,
@@ -2941,6 +2949,7 @@ function diffSchedulePayload(previousPayload, nextPayload) {
           severity,
           facilityId,
           facilityName,
+          sourceUrl,
           date,
           title,
           description,
@@ -2964,6 +2973,7 @@ function diffSchedulePayload(previousPayload, nextPayload) {
             severity: "positive",
             facilityId,
             facilityName,
+            sourceUrl,
             date,
             title: "Добавлен сеанс",
             description: label,
@@ -2980,6 +2990,7 @@ function diffSchedulePayload(previousPayload, nextPayload) {
             severity: "warning",
             facilityId,
             facilityName,
+            sourceUrl,
             date,
             title: "Удалён сеанс",
             description: label,
@@ -3001,6 +3012,7 @@ function diffSchedulePayload(previousPayload, nextPayload) {
             severity: "info",
             facilityId,
             facilityName,
+            sourceUrl,
             date,
             title: "Изменён сеанс",
             description: `${nextSession.start} — ${nextSession.end} · обновлено описание/тип.`,
@@ -3023,6 +3035,7 @@ function collectSourceIssueEvents(previousPayload, nextPayload) {
   for (const [facilityId, nextFacility] of nextFacilities.entries()) {
     const previousFacility = previousFacilities.get(facilityId) || null;
     const facilityName = String(nextFacility?.name || previousFacility?.name || facilityId);
+    const sourceUrl = sanitizeHttpUrl(nextFacility?.sourceUrl || previousFacility?.sourceUrl);
     if (!isFacilitySourceUnavailable(nextFacility)) {
       continue;
     }
@@ -3033,6 +3046,7 @@ function collectSourceIssueEvents(previousPayload, nextPayload) {
       severity: "warning",
       facilityId,
       facilityName,
+      sourceUrl,
       date: null,
       title: "Ошибка источника",
       description: issueText || "Источник временно недоступен.",
@@ -3495,7 +3509,7 @@ function loadSiteChangesHistory() {
       .filter((item) => item && typeof item === "object" && typeof item.checkedAt === "string")
       .map((item) => ({
         ...item,
-        events: Array.isArray(item.events) ? item.events.slice(0, SITE_CHANGES_EVENTS_LIMIT) : [],
+        events: normalizeSiteChangeEvents(item.events),
         sourceIssues: Array.isArray(item.sourceIssues) ? item.sourceIssues.slice(0, 8) : [],
       }))
       .slice(0, SITE_CHANGES_HISTORY_LIMIT);
@@ -3508,11 +3522,21 @@ function saveSiteChangesHistory() {
   const compact = (Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [])
     .map((entry) => ({
       ...entry,
-      events: Array.isArray(entry.events) ? entry.events.slice(0, SITE_CHANGES_EVENTS_LIMIT) : [],
+      events: normalizeSiteChangeEvents(entry.events),
       sourceIssues: Array.isArray(entry.sourceIssues) ? entry.sourceIssues.slice(0, 8) : [],
     }))
     .slice(0, SITE_CHANGES_HISTORY_LIMIT);
   localStorage.setItem(STORAGE.siteChanges, JSON.stringify(compact));
+}
+
+function normalizeSiteChangeEvents(events) {
+  if (!Array.isArray(events)) {
+    return [];
+  }
+  return events.slice(0, SITE_CHANGES_EVENTS_LIMIT).map((event) => ({
+    ...(event && typeof event === "object" ? event : {}),
+    sourceUrl: sanitizeHttpUrl(event?.sourceUrl),
+  }));
 }
 
 function escapeHtml(value) {
