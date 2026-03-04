@@ -3,6 +3,7 @@ const STORAGE = {
   cache: "polessu_schedule_cache_v2",
   myShifts: "polessu_schedule_my_shifts_v1",
   siteChanges: "polessu_site_changes_v1",
+  siteChangesLastCheckedAt: "polessu_site_changes_last_checked_at_v1",
 };
 
 const DEFAULT_SETTINGS = {
@@ -45,6 +46,7 @@ const state = {
   settings: loadSettings(),
   myShifts: loadMyShifts(),
   siteChangesHistory: loadSiteChangesHistory(),
+  siteChangesLastCheckedAt: loadSiteChangesLastCheckedAt(),
   myScheduleFocusDate: null,
   myScheduleRangeMode: MY_SCHEDULE_RANGE.DAY,
   myEditingShiftId: null,
@@ -134,6 +136,11 @@ const el = {
 init();
 
 function init() {
+  if (!state.siteChangesLastCheckedAt && state.siteChangesHistory[0]?.checkedAt) {
+    state.siteChangesLastCheckedAt = String(state.siteChangesHistory[0].checkedAt);
+    saveSiteChangesLastCheckedAt();
+  }
+
   applyTheme(state.settings.theme);
   hydrateSettingsUI();
   bindEvents();
@@ -412,6 +419,7 @@ async function fetchSchedule(force, options = {}) {
   const isMyScheduleRefresh = source === "my_schedule" || source === "my_schedule_global";
   const isChangesRefresh = source === "changes";
   const checkSiteChanges = source === "my_schedule_global";
+  const shouldTrackSiteCheck = checkSiteChanges || isChangesRefresh;
 
   if (state.fetchInFlight) {
     if (isHeaderRefresh) {
@@ -461,6 +469,10 @@ async function fetchSchedule(force, options = {}) {
 
     const payload = await response.json();
     const previousPayload = state.data ? clonePayload(state.data) : null;
+    if (shouldTrackSiteCheck) {
+      state.siteChangesLastCheckedAt = new Date().toISOString();
+      saveSiteChangesLastCheckedAt();
+    }
     registerSiteChanges(previousPayload, payload, { source: checkSiteChanges ? "changes" : source, forced: force });
     state.data = payload;
 
@@ -670,7 +682,7 @@ function renderHeader() {
     el.myScheduleUpdatedAt.textContent = freshness.shortText;
     el.myScheduleUpdatedAt.title = freshness.tooltip;
   }
-  if (el.changesUpdatedAt) {
+  if (el.changesUpdatedAt && state.view !== "changes") {
     el.changesUpdatedAt.textContent = freshness.shortText;
     el.changesUpdatedAt.title = freshness.tooltip;
   }
@@ -693,6 +705,12 @@ function setupUpdatedAtTicker() {
       return;
     }
     renderHeader();
+    if (state.view === "changes") {
+      renderChangesView();
+    }
+    if (state.view === "my_schedule") {
+      renderMyChangesSummary();
+    }
   }, 60_000);
 }
 
@@ -1710,20 +1728,27 @@ function renderChangesView() {
   const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [];
   const latest = history[0] || null;
   const latestChangedEntry = getLatestChangedEntry(history);
+  const lastCheckedAtIso = state.siteChangesLastCheckedAt || latest?.checkedAt || null;
 
   if (el.changesUpdatedAt) {
-    if (latest?.checkedAt) {
-      const checkedAt = new Date(latest.checkedAt);
-      const relative = formatRelativeAge(checkedAt, { compact: true });
-      const checkedText = checkedAt.toLocaleTimeString("ru-RU", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      el.changesUpdatedAt.textContent = relative ? `${checkedText} · ${relative}` : checkedText;
-      const lastChangedTitle = latestChangedEntry?.checkedAt
-        ? `Последние изменения: ${new Date(latestChangedEntry.checkedAt).toLocaleString("ru-RU")}`
-        : "Изменения пока не зафиксированы";
-      el.changesUpdatedAt.title = `Проверено ${checkedAt.toLocaleString("ru-RU")} · ${lastChangedTitle}`;
+    if (lastCheckedAtIso) {
+      const checkedAt = new Date(lastCheckedAtIso);
+      if (!Number.isNaN(checkedAt.getTime())) {
+        const relative = formatRelativeAge(checkedAt, { compact: true });
+        const checkedText = checkedAt.toLocaleTimeString("ru-RU", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        el.changesUpdatedAt.textContent = relative ? `${checkedText} · ${relative}` : checkedText;
+        const lastChangedTitle = latestChangedEntry?.checkedAt
+          ? `Последние изменения: ${new Date(latestChangedEntry.checkedAt).toLocaleString("ru-RU")}`
+          : "Изменения пока не зафиксированы";
+        el.changesUpdatedAt.title = `Проверено ${checkedAt.toLocaleString("ru-RU")} · ${lastChangedTitle}`;
+      } else {
+        const freshness = buildScheduleFreshnessState(state.data?.generatedAt);
+        el.changesUpdatedAt.textContent = freshness.shortText;
+        el.changesUpdatedAt.title = freshness.tooltip;
+      }
     } else {
       const freshness = buildScheduleFreshnessState(state.data?.generatedAt);
       el.changesUpdatedAt.textContent = freshness.shortText;
@@ -1732,11 +1757,24 @@ function renderChangesView() {
   }
 
   if (!latest) {
+    const lastCheckedText = lastCheckedAtIso ? formatChangesDateTime(lastCheckedAtIso) : "Проверок пока нет";
     el.changesLatestCard.innerHTML = `
-      <div class="changes-empty-state">
-        <h2>Проверок пока нет</h2>
-        <p>Нажмите «Проверить», чтобы получить первый снимок и начать отслеживание изменений на сайте.</p>
-      </div>
+      <article class="changes-latest-inner">
+        <div class="changes-latest-top">
+          <h2>Последняя проверка</h2>
+          <span class="changes-check-badge stable">Без изменений</span>
+        </div>
+        <p class="changes-latest-time">${escapeHtml(lastCheckedText)}</p>
+        <div class="changes-last-change-row">
+          <span class="changes-last-change-label">Дата последних изменений на сайте</span>
+          <strong class="changes-last-change-value">Сейчас обновлений нет</strong>
+        </div>
+        <p class="changes-latest-text">${
+          lastCheckedAtIso
+            ? "Проверка выполнена. Обновлений на сайте не найдено."
+            : "Нажмите «Проверить», чтобы получить первый снимок и начать отслеживание изменений на сайте."
+        }</p>
+      </article>
     `;
     el.changesUpdatesCard.innerHTML = `
       <div class="changes-list-head">
@@ -1756,7 +1794,7 @@ function renderChangesView() {
       : latest.baseline
         ? '<span class="changes-check-badge baseline">Базовый снимок</span>'
         : '<span class="changes-check-badge stable">Без изменений</span>';
-  const latestTime = formatChangesDateTime(latest.checkedAt);
+  const latestTime = formatChangesDateTime(lastCheckedAtIso || latest.checkedAt);
   const latestChangedTime = latestChangedEntry?.checkedAt ? formatChangesDateTime(latestChangedEntry.checkedAt) : "Сейчас обновлений нет";
   const sourceIssueText = sourceIssues.length
     ? `${sourceIssues[0]?.facilityName ? `${sourceIssues[0].facilityName}: ` : ""}${
@@ -2083,7 +2121,34 @@ function renderMyChangesSummary() {
   const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [];
   const latest = history[0] || null;
   const latestChangedEntry = getLatestChangedEntry(history);
+  const lastCheckedAtIso = state.siteChangesLastCheckedAt || latest?.checkedAt || "";
+  const lastCheckedAt = lastCheckedAtIso ? new Date(lastCheckedAtIso) : null;
+  const hasValidLastCheckedAt = Boolean(lastCheckedAt && !Number.isNaN(lastCheckedAt.getTime()));
+
   if (!latest) {
+    if (hasValidLastCheckedAt) {
+      const checkedText = `${lastCheckedAt.toLocaleTimeString("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })} · ${formatRelativeAge(lastCheckedAt, { compact: false })}`;
+      el.myChangesSummaryContent.innerHTML = `
+        <div class="my-changes-head">
+          <div>
+            <h3>Изменения на сайте</h3>
+            <p>Последняя проверка выполнена, обновлений на сайте не найдено.</p>
+          </div>
+          <span class="my-changes-badge is-stable">Без изменений</span>
+        </div>
+        <p class="my-changes-time">${escapeHtml(checkedText)}</p>
+        <div class="my-changes-last-block is-empty">
+          <span class="my-changes-last-label">Последнее изменение</span>
+          <p class="my-changes-last-title">Сейчас обновлений нет</p>
+        </div>
+        <p class="my-changes-open-hint">Нажмите карточку, чтобы открыть последние изменения.</p>
+      `;
+      return;
+    }
+
     el.myChangesSummaryContent.innerHTML = `
       <div class="my-changes-head">
         <div>
@@ -2101,7 +2166,7 @@ function renderMyChangesSummary() {
     return;
   }
 
-  const checkedAt = new Date(latest.checkedAt);
+  const checkedAt = hasValidLastCheckedAt ? lastCheckedAt : new Date(latest.checkedAt);
   const checkedText = Number.isNaN(checkedAt.getTime())
     ? "Время проверки неизвестно"
     : `${checkedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} · ${formatRelativeAge(checkedAt, { compact: false })}`;
@@ -3493,6 +3558,36 @@ function loadSettings() {
 
 function saveSettings() {
   localStorage.setItem(STORAGE.settings, JSON.stringify(state.settings));
+}
+
+function loadSiteChangesLastCheckedAt() {
+  try {
+    const raw = localStorage.getItem(STORAGE.siteChangesLastCheckedAt);
+    if (!raw) {
+      return "";
+    }
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+    return date.toISOString();
+  } catch {
+    return "";
+  }
+}
+
+function saveSiteChangesLastCheckedAt() {
+  if (!state.siteChangesLastCheckedAt) {
+    localStorage.removeItem(STORAGE.siteChangesLastCheckedAt);
+    return;
+  }
+
+  const date = new Date(state.siteChangesLastCheckedAt);
+  if (Number.isNaN(date.getTime())) {
+    localStorage.removeItem(STORAGE.siteChangesLastCheckedAt);
+    return;
+  }
+  localStorage.setItem(STORAGE.siteChangesLastCheckedAt, date.toISOString());
 }
 
 function loadSiteChangesHistory() {
