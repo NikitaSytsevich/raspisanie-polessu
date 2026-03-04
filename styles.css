@@ -993,28 +993,25 @@ body::before {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .my-schedule-brand {
-  min-height: 44px;
+  width: 44px;
+  height: 44px;
   border-radius: 14px;
   border: 1px solid rgba(96, 165, 250, 0.35);
   background: rgba(37, 99, 235, 0.2);
-  color: #dbeafe;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 11px;
-  font-size: 11px;
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  justify-content: center;
   flex-shrink: 0;
 }
 
-.my-schedule-brand .material-symbols-outlined {
-  font-size: 20px;
+.my-schedule-brand-logo {
+  width: 27px;
+  height: 27px;
+  display: block;
 }
 
 .my-schedule-back-btn {
@@ -1041,7 +1038,7 @@ body::before {
 }
 
 .my-schedule-status-chip {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   border-radius: 14px;
   border: 1px solid rgba(148, 163, 184, 0.22);
@@ -1059,9 +1056,11 @@ body::before {
 }
 
 .my-schedule-status-text {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  overflow: hidden;
 }
 
 .my-schedule-status-label {
@@ -1075,6 +1074,8 @@ body::before {
 
 .my-schedule-updated-at {
   margin: 3px 0 0;
+  display: block;
+  max-width: 100%;
   font-size: 12px;
   line-height: 1.15;
   font-weight: 800;
@@ -1103,6 +1104,7 @@ body::before {
   font-weight: 900;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .my-schedule-refresh-btn .material-symbols-outlined {
@@ -3370,8 +3372,14 @@ html.dark #settingsMain .source-item .source-cta .material-symbols-outlined {
   }
 
   .my-schedule-brand {
-    min-height: 42px;
-    padding: 0 9px;
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+  }
+
+  .my-schedule-brand-logo {
+    width: 24px;
+    height: 24px;
   }
 
   .my-schedule-status-chip {
@@ -3387,8 +3395,13 @@ html.dark #settingsMain .source-item .source-cta .material-symbols-outlined {
   }
 
   .my-schedule-refresh-btn {
+    width: 42px;
     min-height: 42px;
-    padding: 0 10px;
+    padding: 0;
+  }
+
+  .my-schedule-refresh-label {
+    display: none;
   }
 
   .changes-topbar {
