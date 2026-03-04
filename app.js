@@ -12,13 +12,6 @@ const DEFAULT_SETTINGS = {
   autoRefreshMins: 0,
 };
 
-const FACILITY_ICON = {
-  ice_arena: "ac_unit",
-  sports_pool: "pool",
-  small_pool: "waves",
-  rowing_base: "fitness_center",
-};
-
 const SELF_INSTRUCTOR_NAME = "Сыцевич Н.В.";
 const DEFAULT_INSTRUCTORS = [
   { id: "lapchuk_as", name: "Липчук А.С." },
@@ -41,8 +34,6 @@ const SITE_CHANGES_LATEST_EVENTS_LIMIT = 8;
 
 const state = {
   data: null,
-  selectedFacilityId: null,
-  selectedDate: null,
   view: "my_schedule",
   settings: loadSettings(),
   myShifts: loadMyShifts(),
@@ -54,12 +45,8 @@ const state = {
   myEditingShiftId: null,
   autoRefreshTimer: null,
   updatedAtTicker: null,
-  expandedTimelineByFacility: {},
-  scrollSpyRafId: null,
-  initialDaySnapDone: false,
   fetchInFlight: false,
   refreshFeedbackTimers: {
-    header: null,
     mySchedule: null,
     changes: null,
   },
@@ -67,38 +54,22 @@ const state = {
 };
 
 const el = {
-  scheduleView: document.getElementById("scheduleView"),
   settingsView: document.getElementById("settingsView"),
   myScheduleView: document.getElementById("myScheduleView"),
   myScheduleEditorView: document.getElementById("myScheduleEditorView"),
   changesView: document.getElementById("changesView"),
   changesMain: document.getElementById("changesMain"),
-  facilityDock: document.getElementById("facilityDock"),
-  facilityMeta: document.getElementById("facilityMeta"),
-  updatedAt: document.getElementById("updatedAt"),
   myScheduleUpdatedAt: document.getElementById("myScheduleUpdatedAt"),
   changesUpdatedAt: document.getElementById("changesUpdatedAt"),
-  livePill: document.getElementById("livePill"),
-  liveText: document.getElementById("liveText"),
-  refreshButton: document.getElementById("refreshButton"),
-  refreshIcon: document.getElementById("refreshIcon"),
   myScheduleRefreshButton: document.getElementById("myScheduleRefreshButton"),
   myScheduleRefreshIcon: document.getElementById("myScheduleRefreshIcon"),
   changesRefreshButton: document.getElementById("changesRefreshButton"),
   changesRefreshIcon: document.getElementById("changesRefreshIcon"),
   openSettingsButton: document.getElementById("openSettingsButton"),
-  openMyScheduleButton: document.getElementById("openMyScheduleButton"),
-  openChangesButton: document.getElementById("openChangesButton"),
   openMyEditorButton: document.getElementById("openMyEditorButton"),
   backFromSettingsButton: document.getElementById("backFromSettingsButton"),
-  backFromMyScheduleButton: document.getElementById("backFromMyScheduleButton"),
   backFromChangesButton: document.getElementById("backFromChangesButton"),
   backFromMyEditorButton: document.getElementById("backFromMyEditorButton"),
-  facilityTabs: document.getElementById("facilityTabs"),
-  dateTabs: document.getElementById("dateTabs"),
-  closureBanner: document.getElementById("closureBanner"),
-  timeline: document.getElementById("timeline"),
-  emptyState: document.getElementById("emptyState"),
   themeSelector: document.getElementById("themeSelector"),
   autoRefreshSelect: document.getElementById("autoRefreshSelect"),
   settingsRefreshButton: document.getElementById("settingsRefreshButton"),
@@ -107,8 +78,6 @@ const el = {
   importMyShiftsInput: document.getElementById("importMyShiftsInput"),
   myShiftsDataNotice: document.getElementById("myShiftsDataNotice"),
   sourceList: document.getElementById("sourceList"),
-  myDayTitle: document.getElementById("myDayTitle"),
-  myDaySummary: document.getElementById("myDaySummary"),
   myShowAllButton: document.getElementById("myShowAllButton"),
   myCollapseRangeButton: document.getElementById("myCollapseRangeButton"),
   myOpenFullRangeButton: document.getElementById("myOpenFullRangeButton"),
@@ -156,8 +125,9 @@ function init() {
 }
 
 function bindEvents() {
-  el.refreshButton.addEventListener("click", () => fetchSchedule(true, { source: "header" }));
-  el.settingsRefreshButton.addEventListener("click", () => fetchSchedule(true, { source: "settings" }));
+  if (el.settingsRefreshButton) {
+    el.settingsRefreshButton.addEventListener("click", () => fetchSchedule(true, { source: "settings" }));
+  }
   if (el.myScheduleRefreshButton) {
     el.myScheduleRefreshButton.addEventListener("click", () => fetchSchedule(true, { source: "my_schedule_global" }));
   }
@@ -168,10 +138,8 @@ function bindEvents() {
     el.changesMain.addEventListener("click", handleChangesMainClick);
   }
 
-  el.openSettingsButton.addEventListener("click", () => setView("settings"));
-  el.openMyScheduleButton.addEventListener("click", () => setView("my_schedule"));
-  if (el.openChangesButton) {
-    el.openChangesButton.addEventListener("click", () => setView("changes"));
+  if (el.openSettingsButton) {
+    el.openSettingsButton.addEventListener("click", () => setView("settings"));
   }
   if (el.openMyEditorButton) {
     el.openMyEditorButton.addEventListener("click", () => {
@@ -180,10 +148,11 @@ function bindEvents() {
       setView("my_schedule_editor");
     });
   }
-  el.backFromSettingsButton.addEventListener("click", () => setView("schedule"));
-  el.backFromMyScheduleButton.addEventListener("click", () => setView("schedule"));
+  if (el.backFromSettingsButton) {
+    el.backFromSettingsButton.addEventListener("click", () => setView("my_schedule"));
+  }
   if (el.backFromChangesButton) {
-    el.backFromChangesButton.addEventListener("click", () => setView("schedule"));
+    el.backFromChangesButton.addEventListener("click", () => setView("my_schedule"));
   }
   if (el.backFromMyEditorButton) {
     el.backFromMyEditorButton.addEventListener("click", () => setView("my_schedule"));
@@ -256,23 +225,27 @@ function bindEvents() {
     el.importMyShiftsInput.addEventListener("change", handleMyShiftsImport);
   }
 
-  el.autoRefreshSelect.addEventListener("change", () => {
-    state.settings.autoRefreshMins = Number(el.autoRefreshSelect.value || 0);
-    saveSettings();
-    setupAutoRefresh();
-  });
+  if (el.autoRefreshSelect) {
+    el.autoRefreshSelect.addEventListener("change", () => {
+      state.settings.autoRefreshMins = Number(el.autoRefreshSelect.value || 0);
+      saveSettings();
+      setupAutoRefresh();
+    });
+  }
 
-  el.themeSelector.addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-theme]");
-    if (!button) {
-      return;
-    }
+  if (el.themeSelector) {
+    el.themeSelector.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-theme]");
+      if (!button) {
+        return;
+      }
 
-    state.settings.theme = button.dataset.theme;
-    saveSettings();
-    applyTheme(state.settings.theme);
-    hydrateThemeButtons();
-  });
+      state.settings.theme = button.dataset.theme;
+      saveSettings();
+      applyTheme(state.settings.theme);
+      hydrateThemeButtons();
+    });
+  }
 
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
     if (state.settings.theme === "system") {
@@ -280,28 +253,31 @@ function bindEvents() {
     }
   });
 
-  window.addEventListener("scroll", handleScheduleScroll, { passive: true });
 }
 
 function setView(view) {
+  if (view === "schedule") {
+    view = "my_schedule";
+  }
   state.view = view;
 
-  const showSchedule = view === "schedule";
   const showSettings = view === "settings";
   const showMySchedule = view === "my_schedule";
   const showMyScheduleEditor = view === "my_schedule_editor";
   const showChanges = view === "changes";
 
-  el.scheduleView.hidden = !showSchedule;
-  el.settingsView.hidden = !showSettings;
-  el.myScheduleView.hidden = !showMySchedule;
+  if (el.settingsView) {
+    el.settingsView.hidden = !showSettings;
+  }
+  if (el.myScheduleView) {
+    el.myScheduleView.hidden = !showMySchedule;
+  }
   if (el.changesView) {
     el.changesView.hidden = !showChanges;
   }
   if (el.myScheduleEditorView) {
     el.myScheduleEditorView.hidden = !showMyScheduleEditor;
   }
-  el.facilityDock.hidden = !showSchedule;
 
   if (showMySchedule) {
     state.myScheduleFocusDate = todayIso();
@@ -322,78 +298,6 @@ function setView(view) {
   window.scrollTo({ top: 0, behavior: "auto" });
 }
 
-function handleScheduleScroll() {
-  if (state.view !== "schedule") {
-    return;
-  }
-
-  const facility = getSelectedFacility();
-  if (!facility) {
-    return;
-  }
-
-  if (isTimelineExpanded(facility.id)) {
-    requestActiveDateSync();
-    return;
-  }
-
-  if (window.scrollY < 180) {
-    return;
-  }
-
-  if (facility.days.length <= 1) {
-    return;
-  }
-
-  state.expandedTimelineByFacility[facility.id] = true;
-  renderDateTabs({ scrollBehavior: "auto" });
-  renderTimeline();
-  requestActiveDateSync();
-}
-
-function requestActiveDateSync() {
-  if (state.scrollSpyRafId) {
-    return;
-  }
-
-  state.scrollSpyRafId = window.requestAnimationFrame(() => {
-    state.scrollSpyRafId = null;
-    syncActiveDateByScroll();
-  });
-}
-
-function syncActiveDateByScroll() {
-  const facility = getSelectedFacility();
-  if (!facility || !isTimelineExpanded(facility.id)) {
-    return;
-  }
-
-  const sections = Array.from(el.timeline.querySelectorAll(".day-section[id^='day-']"));
-  if (!sections.length) {
-    return;
-  }
-
-  const header = document.getElementById("scheduleHeader");
-  const markerOffset = (header ? header.getBoundingClientRect().height : 0) + 24;
-  const markerY = window.scrollY + markerOffset;
-
-  let activeSection = sections[0];
-  for (const section of sections) {
-    const sectionTop = section.getBoundingClientRect().top + window.scrollY;
-    if (sectionTop <= markerY) {
-      activeSection = section;
-      continue;
-    }
-    break;
-  }
-
-  const activeDate = activeSection.id.replace(/^day-/, "");
-  if (activeDate && activeDate !== state.selectedDate) {
-    state.selectedDate = activeDate;
-    updateDateChipSelection("smooth");
-  }
-}
-
 function loadFromLocalCache() {
   const raw = localStorage.getItem(STORAGE.cache);
   if (!raw) {
@@ -407,13 +311,7 @@ function loadFromLocalCache() {
     }
 
     state.data = parsed.payload;
-    initializeSelection();
     renderAll();
-    if (!state.initialDaySnapDone) {
-      focusCurrentDateInTimeline({ behavior: "auto", block: "center" });
-      state.initialDaySnapDone = true;
-    }
-    setLiveText("Показаны сохраненные данные", false);
   } catch {
     // ignore cache parse errors
   }
@@ -421,16 +319,12 @@ function loadFromLocalCache() {
 
 async function fetchSchedule(force, options = {}) {
   const { source = "auto" } = options;
-  const isHeaderRefresh = source === "header";
   const isMyScheduleRefresh = source === "my_schedule" || source === "my_schedule_global";
   const isChangesRefresh = source === "changes";
   const checkSiteChanges = source === "my_schedule_global";
   const shouldTrackSiteCheck = checkSiteChanges || isChangesRefresh;
 
   if (state.fetchInFlight) {
-    if (isHeaderRefresh) {
-      pulseRefreshButton(el.refreshButton);
-    }
     if (isMyScheduleRefresh) {
       pulseRefreshButton(el.myScheduleRefreshButton);
     }
@@ -441,12 +335,6 @@ async function fetchSchedule(force, options = {}) {
   }
 
   state.fetchInFlight = true;
-  if (isHeaderRefresh) {
-    setRefreshButtonLoading(true, {
-      button: el.refreshButton,
-      icon: el.refreshIcon,
-    });
-  }
   if (isMyScheduleRefresh) {
     setRefreshButtonLoading(true, {
       button: el.myScheduleRefreshButton,
@@ -459,8 +347,6 @@ async function fetchSchedule(force, options = {}) {
       icon: el.changesRefreshIcon,
     });
   }
-
-  setLiveText(checkSiteChanges ? "Обновляем расписание и проверяем изменения…" : "Обновляем расписание…", true);
 
   const query = force ? "?refresh=1" : "";
 
@@ -482,12 +368,7 @@ async function fetchSchedule(force, options = {}) {
     registerSiteChanges(previousPayload, payload, { source: checkSiteChanges ? "changes" : source, forced: force });
     state.data = payload;
 
-    initializeSelection();
     renderAll();
-    if (!state.initialDaySnapDone) {
-      focusCurrentDateInTimeline({ behavior: "auto", block: "center" });
-      state.initialDaySnapDone = true;
-    }
 
     localStorage.setItem(
       STORAGE.cache,
@@ -497,13 +378,6 @@ async function fetchSchedule(force, options = {}) {
       })
     );
 
-    setLiveText(payload.meta?.cached ? "Получено из кэша сервера" : "Данные актуальны", false);
-    if (isHeaderRefresh) {
-      showRefreshResult("success", {
-        button: el.refreshButton,
-        timerKey: "header",
-      });
-    }
     if (isMyScheduleRefresh) {
       showRefreshResult("success", {
         button: el.myScheduleRefreshButton,
@@ -517,13 +391,6 @@ async function fetchSchedule(force, options = {}) {
       });
     }
   } catch (error) {
-    setLiveText("Ошибка обновления", false);
-    if (isHeaderRefresh) {
-      showRefreshResult("error", {
-        button: el.refreshButton,
-        timerKey: "header",
-      });
-    }
     if (isMyScheduleRefresh) {
       showRefreshResult("error", {
         button: el.myScheduleRefreshButton,
@@ -541,12 +408,6 @@ async function fetchSchedule(force, options = {}) {
     }
   } finally {
     state.fetchInFlight = false;
-    if (isHeaderRefresh) {
-      setRefreshButtonLoading(false, {
-        button: el.refreshButton,
-        icon: el.refreshIcon,
-      });
-    }
     if (isMyScheduleRefresh) {
       setRefreshButtonLoading(false, {
         button: el.myScheduleRefreshButton,
@@ -562,119 +423,8 @@ async function fetchSchedule(force, options = {}) {
   }
 }
 
-function initializeSelection() {
-  if (!state.data?.facilities?.length) {
-    return;
-  }
-
-  const selectedExists = state.data.facilities.some((f) => f.id === state.selectedFacilityId);
-  if (!selectedExists) {
-    state.selectedFacilityId = state.data.facilities[0].id;
-  }
-
-  const facility = getSelectedFacility();
-  if (!facility) {
-    return;
-  }
-
-  const dateExists = facility.days.some((day) => day.date === state.selectedDate);
-  if (!dateExists) {
-    state.selectedDate = pickDefaultDate(facility);
-  }
-
-  if (state.expandedTimelineByFacility[facility.id] === undefined) {
-    state.expandedTimelineByFacility[facility.id] = true;
-  }
-}
-
-function isTimelineExpanded(facilityId) {
-  return Boolean(state.expandedTimelineByFacility[facilityId]);
-}
-
-function scrollToDaySection(isoDate, options = {}) {
-  const { behavior = "smooth", block = "start" } = options;
-  const target = document.getElementById(`day-${isoDate}`);
-  if (!target) {
-    return;
-  }
-
-  target.scrollIntoView({ behavior, block });
-}
-
-function focusCurrentDateInTimeline(options = {}) {
-  const { behavior = "auto", block = "center" } = options;
-  const facility = getSelectedFacility();
-  if (!facility) {
-    return;
-  }
-
-  const today = todayIso();
-  const targetDate = facility.days.some((day) => day.date === today) ? today : state.selectedDate;
-  if (!targetDate) {
-    return;
-  }
-
-  if (state.selectedDate !== targetDate) {
-    state.selectedDate = targetDate;
-    renderDateTabs({ scrollBehavior: "auto" });
-    renderTimeline();
-  }
-
-  scrollToDaySection(targetDate, { behavior, block });
-  requestActiveDateSync();
-}
-
-function ensureActiveDateChipVisible(behavior = "auto") {
-  if (!el.dateTabs || !state.selectedDate) {
-    return;
-  }
-
-  const activeChip = el.dateTabs.querySelector(`button[data-date="${state.selectedDate}"]`);
-  if (!activeChip) {
-    return;
-  }
-
-  const containerWidth = el.dateTabs.clientWidth;
-  if (!containerWidth) {
-    return;
-  }
-
-  const targetLeft = activeChip.offsetLeft - (containerWidth - activeChip.offsetWidth) / 2;
-  const maxScroll = Math.max(0, el.dateTabs.scrollWidth - containerWidth);
-  const clampedLeft = Math.min(maxScroll, Math.max(0, targetLeft));
-
-  el.dateTabs.scrollTo({
-    left: clampedLeft,
-    behavior,
-  });
-}
-
-function updateDateChipSelection(scrollBehavior = "auto") {
-  const chips = Array.from(el.dateTabs.querySelectorAll("button[data-date]"));
-  if (!chips.length) {
-    return;
-  }
-
-  let hasActiveChip = false;
-
-  chips.forEach((chip) => {
-    const isActive = chip.dataset.date === state.selectedDate;
-    chip.classList.toggle("active", isActive);
-    chip.setAttribute("aria-selected", String(isActive));
-    chip.tabIndex = isActive ? 0 : -1;
-    hasActiveChip = hasActiveChip || isActive;
-  });
-
-  if (hasActiveChip) {
-    ensureActiveDateChipVisible(scrollBehavior);
-  }
-}
-
 function renderAll() {
-  renderFacilityTabs();
-  renderDateTabs({ scrollBehavior: "auto" });
   renderHeader();
-  renderTimeline();
   renderSources();
   renderMySchedule();
   renderMyScheduleEditor();
@@ -683,7 +433,6 @@ function renderAll() {
 
 function renderHeader() {
   const freshness = buildScheduleFreshnessState(state.data?.generatedAt);
-  el.updatedAt.textContent = freshness.mainText;
   if (el.myScheduleUpdatedAt) {
     el.myScheduleUpdatedAt.textContent = freshness.shortText;
     el.myScheduleUpdatedAt.title = freshness.tooltip;
@@ -692,13 +441,6 @@ function renderHeader() {
     el.changesUpdatedAt.textContent = freshness.shortText;
     el.changesUpdatedAt.title = freshness.tooltip;
   }
-
-  const facility = getSelectedFacility();
-  if (!facility) {
-    return;
-  }
-
-  el.facilityMeta.textContent = facility.name;
 }
 
 function setupUpdatedAtTicker() {
@@ -774,357 +516,6 @@ function formatRelativeAge(date, options = {}) {
   return compact ? `${days}д` : `${days} д назад`;
 }
 
-function renderFacilityTabs() {
-  if (!state.data?.facilities) {
-    el.facilityTabs.innerHTML = "";
-    return;
-  }
-
-  el.facilityTabs.innerHTML = state.data.facilities
-    .map((facility) => {
-      const active = facility.id === state.selectedFacilityId;
-      const icon = FACILITY_ICON[facility.id] || "event";
-      const shortLabel = shortFacilityLabel(facility.name);
-
-      return `
-        <button class="facility-btn ${active ? "active" : ""}" type="button" data-facility="${escapeHtml(
-          facility.id
-        )}">
-          <span class="material-symbols-outlined">${escapeHtml(icon)}</span>
-          <span class="facility-label">${escapeHtml(shortLabel)}</span>
-        </button>
-      `;
-    })
-    .join("");
-
-  el.facilityTabs.querySelectorAll("button[data-facility]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.selectedFacilityId = button.dataset.facility;
-      const facility = getSelectedFacility();
-      state.selectedDate = facility ? pickDefaultDate(facility) : null;
-      if (facility) {
-        state.expandedTimelineByFacility[facility.id] = true;
-      }
-      renderAll();
-      focusCurrentDateInTimeline({ behavior: "auto", block: "center" });
-    });
-  });
-}
-
-function renderDateTabs(options = {}) {
-  const { scrollBehavior = "auto" } = options;
-  const facility = getSelectedFacility();
-  if (!facility) {
-    el.dateTabs.innerHTML = "";
-    return;
-  }
-
-  const expanded = isTimelineExpanded(facility.id);
-  const visibleDays = expanded
-    ? facility.days
-    : facility.days.filter((day) => day.date === state.selectedDate).slice(0, 1);
-
-  el.dateTabs.innerHTML = visibleDays
-    .map((day) => {
-      const active = day.date === state.selectedDate;
-      return `
-        <button
-          type="button"
-          data-date="${escapeHtml(day.date)}"
-          aria-selected="${active ? "true" : "false"}"
-          class="date-chip h-9 px-4 rounded-lg text-[13px] whitespace-nowrap ${active ? "active" : ""}"
-        >
-          ${escapeHtml(formatDateChip(day.date, day.weekday))}
-        </button>
-      `;
-    })
-    .join("");
-
-  el.dateTabs.querySelectorAll("button[data-date]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const nextDate = button.dataset.date;
-      if (!nextDate) {
-        return;
-      }
-
-      const changed = state.selectedDate !== nextDate;
-      state.selectedDate = nextDate;
-
-      if (changed) {
-        updateDateChipSelection("smooth");
-      } else {
-        ensureActiveDateChipVisible("smooth");
-      }
-
-      if (expanded) {
-        scrollToDaySection(nextDate, { behavior: "smooth", block: "start" });
-      } else if (changed) {
-        renderTimeline();
-      }
-    });
-  });
-
-  updateDateChipSelection(scrollBehavior);
-}
-
-function renderTimeline() {
-  const facility = getSelectedFacility();
-  if (!facility) {
-    el.timeline.classList.remove("timeline-desktop-grid");
-    el.timeline.innerHTML = "";
-    el.emptyState.hidden = false;
-    updateClosureBanner(null);
-    return;
-  }
-
-  const expanded = isTimelineExpanded(facility.id);
-  const day = facility.days.find((item) => item.date === state.selectedDate) || facility.days[0];
-  if (!day) {
-    el.timeline.classList.remove("timeline-desktop-grid");
-    el.timeline.innerHTML = "";
-    el.emptyState.hidden = false;
-    updateClosureBanner(null);
-    return;
-  }
-
-  if (expanded) {
-    el.timeline.classList.remove("timeline-desktop-grid");
-    updateClosureBanner(null);
-
-    el.timeline.innerHTML = facility.days.map((item) => renderDaySection(item, facility.id)).join("");
-    el.emptyState.hidden = facility.days.length > 0;
-    return;
-  }
-
-  updateClosureBanner(day.closedReason);
-
-  const sessions = [...day.sessions].sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
-
-  if (!sessions.length) {
-    el.timeline.classList.remove("timeline-desktop-grid");
-    el.timeline.innerHTML = "";
-    el.emptyState.hidden = false;
-    return;
-  }
-
-  const hasOverlaps = sessions.some((session, index) => {
-    if (index === 0) {
-      return false;
-    }
-    return toMinutes(session.start) < toMinutes(sessions[index - 1].end);
-  });
-
-  const useDesktopGrid = facility.id !== "rowing_base" && sessions.length >= 4 && !hasOverlaps;
-  el.timeline.classList.toggle("timeline-desktop-grid", useDesktopGrid);
-
-  el.emptyState.hidden = true;
-  let timelineHtml = buildTimelineMarkup(sessions, facility.id, day.date);
-  if (facility.days.length > 1) {
-    timelineHtml += renderExpandHint();
-  }
-  el.timeline.innerHTML = timelineHtml;
-
-  const expandButton = document.getElementById("expandTimelineButton");
-  if (expandButton) {
-    expandButton.addEventListener("click", () => {
-      state.expandedTimelineByFacility[facility.id] = true;
-      renderDateTabs({ scrollBehavior: "smooth" });
-      renderTimeline();
-    });
-  }
-}
-
-function buildTimelineMarkup(sessions, facilityId, isoDate) {
-  const nextIndex = findNextUpcomingIndex(sessions, isoDate);
-  const rows = [];
-
-  for (let i = 0; i < sessions.length; i += 1) {
-    const session = sessions[i];
-    const status = getSessionStatus(session, isoDate, i === nextIndex);
-    rows.push(renderSession(session, status));
-
-    const next = sessions[i + 1];
-    if (!next) {
-      continue;
-    }
-
-    const breakMins = toMinutes(next.start) - toMinutes(session.end);
-    if (breakMins > 0) {
-      rows.push(renderBreak(breakMins, facilityId));
-    } else if (breakMins === 0 && facilityId === "rowing_base") {
-      rows.push(renderNoGapDivider());
-    }
-  }
-
-  return rows.join("");
-}
-
-function renderDaySection(day, facilityId) {
-  const sessions = [...day.sessions].sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
-  const title = formatDayHeading(day.date, day.weekday);
-  const dayTag = formatDayTag(day.date);
-  const countLabel = sessions.length ? formatSessionCount(sessions.length) : "Без сеансов";
-  const isWeekendClosed = isWeekendClosure(day.closedReason);
-  const closedCountClass = isWeekendClosed ? "day-count day-count-weekend" : "day-count day-count-muted";
-  const sectionClass = [
-    "day-section",
-    day.date === todayIso() ? "day-section-current" : "",
-    isWeekendClosed ? "day-section-weekend" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  if (day.closedReason) {
-    return `
-      <section id="day-${day.date}" class="${sectionClass} day-closed">
-        <div class="day-header">
-          <div class="day-header-left">
-            <p class="day-kicker">${escapeHtml(dayTag)}</p>
-            <h3 class="day-title">${escapeHtml(title)}</h3>
-          </div>
-          <span class="${closedCountClass}">${escapeHtml(countLabel)}</span>
-        </div>
-        <div class="day-divider"></div>
-        <div class="ice-card rounded-2xl p-4 day-state-card">
-          <p class="text-sm font-bold ${isWeekendClosed ? "day-weekend-note" : "text-red-300"}">${escapeHtml(day.closedReason)}</p>
-        </div>
-      </section>
-    `;
-  }
-
-  if (!sessions.length) {
-    return `
-      <section id="day-${day.date}" class="${sectionClass} day-empty">
-        <div class="day-header">
-          <div class="day-header-left">
-            <p class="day-kicker">${escapeHtml(dayTag)}</p>
-            <h3 class="day-title">${escapeHtml(title)}</h3>
-          </div>
-          <span class="day-count day-count-muted">${escapeHtml(countLabel)}</span>
-        </div>
-        <div class="day-divider"></div>
-        <div class="ice-card rounded-2xl p-4 day-state-card">
-          <p class="text-sm font-semibold text-gray-400">На эту дату сеансов нет.</p>
-        </div>
-      </section>
-    `;
-  }
-
-  return `
-    <section id="day-${day.date}" class="${sectionClass}">
-      <div class="day-header">
-        <div class="day-header-left">
-          <p class="day-kicker">${escapeHtml(dayTag)}</p>
-          <h3 class="day-title">${escapeHtml(title)}</h3>
-        </div>
-        <span class="day-count">${escapeHtml(countLabel)}</span>
-      </div>
-      <div class="day-divider"></div>
-      <div class="day-content">${buildTimelineMarkup(sessions, facilityId, day.date)}</div>
-    </section>
-  `;
-}
-
-function renderExpandHint() {
-  return `
-    <div class="expand-hint">
-      <p class="expand-hint-text">Прокрутите вниз или нажмите кнопку, чтобы увидеть все даты расписания</p>
-      <button id="expandTimelineButton" type="button" class="expand-hint-btn">Показать все даты</button>
-    </div>
-  `;
-}
-
-function renderSession(session, status) {
-  const activity = session.activity || session.note || "Сеанс";
-  const note = session.note && session.note !== activity ? session.note : "";
-  const isLive = status.className === "live";
-  const isUpcoming = status.className === "upcoming";
-  const isPast = status.className === "past";
-  const stateClass = isLive
-    ? "session-card session-card-live relative overflow-hidden"
-    : isUpcoming
-      ? "session-card session-card-upcoming"
-      : isPast
-        ? "session-card session-card-past"
-        : "session-card";
-
-  const labelClass =
-    isLive
-      ? "bg-emerald-500/12 text-emerald-300 border border-emerald-400/30"
-      : isUpcoming
-        ? "bg-blue-500/12 text-blue-300 border border-blue-400/30"
-        : isPast
-          ? "bg-slate-500/10 text-slate-400 border border-slate-500/25"
-        : "bg-slate-500/10 text-slate-300 border border-slate-500/20";
-
-  return `
-    <div class="ice-card rounded-2xl p-4 flex items-center justify-between ${stateClass}">
-      ${isLive ? '<div class="absolute top-0 left-0 w-1.5 h-full bg-emerald-400"></div>' : ""}
-      <div class="flex flex-col gap-1">
-        <div class="flex items-center gap-1.5">
-          <span class="text-xl font-black ${
-            isPast ? "text-gray-500" : "text-white"
-          } tracking-tight">${escapeHtml(session.start)}</span>
-          <span class="${isPast ? "text-gray-600" : "text-gray-700"} font-bold">—</span>
-          <span class="text-base font-bold ${
-            isPast ? "text-gray-600" : "text-gray-500"
-          } tracking-tight">${escapeHtml(session.end)}</span>
-        </div>
-        <p class="text-sm font-bold ${isPast ? "text-gray-400" : "text-white"}">${escapeHtml(activity)}</p>
-        ${
-          note
-            ? `<div class="mt-0.5"><span class="px-2 py-0.5 rounded text-[8px] font-black ${labelClass} uppercase tracking-[0.05em]">${escapeHtml(
-                note
-              )}</span></div>`
-            : ""
-        }
-      </div>
-      <div class="flex flex-col items-end gap-1.5">
-        <span class="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${labelClass}">${escapeHtml(
-          status.label
-        )}</span>
-      </div>
-    </div>
-  `;
-}
-
-function renderBreak(minutes, facilityId) {
-  return `
-    <div class="break-line">
-      <div class="break-badge">${escapeHtml(formatDuration(minutes))} ${escapeHtml(classifyBreak(minutes, facilityId))}</div>
-    </div>
-  `;
-}
-
-function renderNoGapDivider() {
-  return `
-    <div class="break-line break-line-tight">
-      <div class="break-badge">без перерыва</div>
-    </div>
-  `;
-}
-
-function updateClosureBanner(reason) {
-  if (!el.closureBanner) {
-    return;
-  }
-
-  if (!reason) {
-    el.closureBanner.hidden = true;
-    el.closureBanner.textContent = "";
-    return;
-  }
-
-  const weekend = isWeekendClosure(reason);
-  el.closureBanner.hidden = false;
-  el.closureBanner.textContent = reason;
-  el.closureBanner.className = `closure-banner ${weekend ? "closure-banner-weekend" : "closure-banner-alert"} mb-4 rounded-2xl border px-4 py-3 text-sm font-bold`;
-}
-
-function isWeekendClosure(reason) {
-  return Boolean(reason) && /выход/i.test(String(reason));
-}
-
 function classifyBreak(minutes, facilityId) {
   if (facilityId === "ice_arena" && minutes >= 20 && minutes <= 90) {
     return "заливка льда";
@@ -1139,45 +530,6 @@ function classifyBreak(minutes, facilityId) {
   }
 
   return "переход";
-}
-
-function findNextUpcomingIndex(sessions, isoDate) {
-  if (!isToday(isoDate)) {
-    return 0;
-  }
-
-  const now = nowInMinutes();
-  for (let i = 0; i < sessions.length; i += 1) {
-    if (toMinutes(sessions[i].start) > now) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-
-function getSessionStatus(session, isoDate, isNext) {
-  if (isToday(isoDate)) {
-    const now = nowInMinutes();
-    const start = toMinutes(session.start);
-    const end = toMinutes(session.end);
-
-    if (now >= end) {
-      return { label: "Прошёл", className: "past" };
-    }
-
-    if (now >= start && now < end) {
-      return { label: "Сейчас", className: "live" };
-    }
-
-    if (isNext) {
-      return { label: "Скоро", className: "upcoming" };
-    }
-
-    return { label: "Сегодня", className: "upcoming" };
-  }
-
-  return { label: "По графику", className: "neutral" };
 }
 
 function renderSources() {
@@ -1288,10 +640,6 @@ function renderMySchedule() {
 
   const focusDate = state.myScheduleFocusDate;
   const datesToRender = getMyScheduleDatesToRender(focusDate, groupedByDate, rangeMode);
-  const focusShiftChecks = groupedByDate.get(focusDate) || [];
-  const focusStats = summarizeShiftChecks(focusShiftChecks);
-
-  updateMyScheduleHeader(focusDate, datesToRender.length, focusStats, rangeMode);
   updateMyScheduleRangeControls(rangeMode, state.myShifts.length > 0);
 
   if (el.myTimelineTitle) {
@@ -1381,46 +729,6 @@ function updateMyScheduleRangeControls(rangeMode, hasHistory) {
     el.myOpenFullRangeButton.innerHTML =
       '<span class="material-symbols-outlined">open_in_full</span><span>Открыть полный график</span>';
   }
-}
-
-function updateMyScheduleHeader(focusDate, dayCount, focusStats, rangeMode) {
-  if (el.myDayTitle) {
-    el.myDayTitle.textContent = focusDate === todayIso() ? `Текущие сутки · ${formatMonthDayShort(focusDate)}` : formatMyDayHeading(focusDate);
-  }
-
-  if (!el.myDaySummary) {
-    return;
-  }
-
-  if (rangeMode === MY_SCHEDULE_RANGE.WEEK) {
-    el.myDaySummary.textContent = "Режим «Показать всё»: выбранные сутки и ещё 7 дней вперёд.";
-    return;
-  }
-
-  if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
-    const tailCount = Math.max(0, dayCount - 1);
-    el.myDaySummary.textContent = tailCount
-      ? `Показываем полный график: выбранные сутки и ещё ${tailCount} следующих дней.`
-      : "Полный график сейчас совпадает с выбранными сутками.";
-    return;
-  }
-
-  if (!focusStats.planned) {
-    el.myDaySummary.textContent = "На выбранные сутки смен пока нет. Добавьте запись или импортируйте историю.";
-    return;
-  }
-
-  el.myDaySummary.textContent = `${focusStats.planned} смен · всего ${formatDuration(focusStats.plannedMinutes)}`;
-}
-
-function summarizeShiftChecks(shiftChecks) {
-  return {
-    planned: shiftChecks.length,
-    plannedMinutes: shiftChecks.reduce((sum, item) => sum + (toMinutes(item.shift.end) - toMinutes(item.shift.start)), 0),
-    confirmedMinutes: shiftChecks.reduce((sum, item) => sum + item.verification.confirmedMinutes, 0),
-    missing: shiftChecks.filter((item) => item.verification.status === "missing").length,
-    partial: shiftChecks.filter((item) => item.verification.status === "partial").length,
-  };
 }
 
 function renderMyScheduleEmptyState() {
@@ -2815,12 +2123,7 @@ function applyThemeColor(resolvedTheme) {
   metaTheme.setAttribute("content", resolvedTheme === "dark" ? "#0a0a0a" : "#edf2f8");
 }
 
-function setLiveText(text, busy) {
-  el.liveText.textContent = text;
-  el.livePill.style.opacity = busy ? "0.8" : "1";
-}
-
-function pulseRefreshButton(button = el.refreshButton) {
+function pulseRefreshButton(button = null) {
   if (!button) {
     return;
   }
@@ -2835,7 +2138,7 @@ function pulseRefreshButton(button = el.refreshButton) {
 }
 
 function setRefreshButtonLoading(loading, options = {}) {
-  const { button = el.refreshButton, icon = el.refreshIcon } = options;
+  const { button = null, icon = null } = options;
   if (!button) {
     return;
   }
@@ -2854,7 +2157,7 @@ function setRefreshButtonLoading(loading, options = {}) {
 }
 
 function showRefreshResult(type, options = {}) {
-  const { button = el.refreshButton, timerKey = "header" } = options;
+  const { button = null, timerKey = "mySchedule" } = options;
   if (!button) {
     return;
   }
@@ -2877,14 +2180,16 @@ function showRefreshResult(type, options = {}) {
 }
 
 function showErrorEmpty(error) {
-  el.timeline.innerHTML = "";
-  el.emptyState.hidden = false;
-  el.emptyState.innerHTML = `
-    <h2 class="text-xl font-black text-white">Ошибка загрузки</h2>
-    <p class="mt-2 text-sm font-semibold text-gray-400">${escapeHtml(
-      error instanceof Error ? error.message : String(error)
-    )}</p>
-  `;
+  const message = `Ошибка обновления: ${error instanceof Error ? error.message : String(error)}`;
+  setMyScheduleNotice(message, "error");
+  if (el.changesUpdatesCard && !state.siteChangesHistory.length) {
+    el.changesUpdatesCard.innerHTML = `
+      <div class="changes-list-head">
+        <h2>Последние изменения на сайте</h2>
+        <p>${escapeHtml(message)}</p>
+      </div>
+    `;
+  }
 }
 
 function registerSiteChanges(previousPayload, nextPayload, options = {}) {
@@ -3432,39 +2737,6 @@ function formatChangesDateTime(value) {
   return relative ? `${text} · ${relative}` : text;
 }
 
-function getSelectedFacility() {
-  return state.data?.facilities?.find((f) => f.id === state.selectedFacilityId) || null;
-}
-
-function pickDefaultDate(facility) {
-  const today = todayIso();
-  const hasToday = facility.days.find((item) => item.date === today);
-  if (hasToday) {
-    return hasToday.date;
-  }
-  return facility.days[0]?.date || null;
-}
-
-function formatDateChip(isoDate, weekday) {
-  if (isoDate === todayIso()) {
-    return "Сегодня";
-  }
-
-  if (isoDate === addDays(todayIso(), 1)) {
-    return "Завтра";
-  }
-
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-
-  const formatted = new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "short",
-  }).format(date);
-
-  return `${capitalize(weekday)} ${formatted}`;
-}
-
 function formatDuration(totalMinutes) {
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
@@ -3494,30 +2766,6 @@ function formatDayTag(isoDate) {
   return "Дата";
 }
 
-function formatDayHeading(isoDate, weekday) {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-  const formatted = new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "long",
-  }).format(date);
-  return `${capitalize(weekday)} · ${formatted}`;
-}
-
-function formatSessionCount(count) {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  let suffix = "сеансов";
-
-  if (mod10 === 1 && mod100 !== 11) {
-    suffix = "сеанс";
-  } else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-    suffix = "сеанса";
-  }
-
-  return `${count} ${suffix}`;
-}
-
 function todayIso() {
   const timezone = state.data?.timezone || "Europe/Minsk";
   return new Intl.DateTimeFormat("en-CA", {
@@ -3526,10 +2774,6 @@ function todayIso() {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
-}
-
-function isToday(isoDate) {
-  return isoDate === todayIso();
 }
 
 function nowInMinutes() {
@@ -3553,15 +2797,6 @@ function addDays(isoDate, delta) {
   const date = new Date(`${isoDate}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + delta);
   return date.toISOString().slice(0, 10);
-}
-
-function shortFacilityLabel(name) {
-  const text = String(name || "").toLowerCase();
-  if (text.includes("лед")) return "Ледовая";
-  if (text.includes("мал")) return "Малый";
-  if (text.includes("басс")) return "Бассейн";
-  if (text.includes("греб")) return "Гребная";
-  return name;
 }
 
 function normalizeCoworkers(value) {

@@ -40,85 +40,7 @@
     </script>
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body class="bg-dark-base min-h-screen antialiased pb-36">
-    <div id="scheduleView">
-      <header id="scheduleHeader" class="sticky top-0 z-50 ios-blur px-5 pt-14 pb-5 border-b border-white/10">
-        <div class="flex flex-col gap-4">
-          <div class="schedule-header-top">
-            <div>
-              <span
-                id="facilityMeta"
-                class="text-[11px] font-black uppercase tracking-[0.25em] text-blue-500 mb-1 block"
-                >Ледовая арена</span
-              >
-              <h1 class="text-3xl font-extrabold tracking-tight text-white leading-none">Сеансы</h1>
-            </div>
-            <div class="flex items-center gap-2.5">
-              <button
-                id="refreshButton"
-                class="size-11 flex items-center justify-center rounded-2xl bg-dark-card border border-white/5 active:bg-dark-card-lighter transition-colors text-white"
-                type="button"
-                title="Обновить"
-              >
-                <span id="refreshIcon" class="material-symbols-outlined text-[24px]">refresh</span>
-              </button>
-              <button
-                id="openSettingsButton"
-                class="size-11 flex items-center justify-center rounded-2xl bg-dark-card border border-white/5 active:bg-dark-card-lighter transition-colors text-white"
-                type="button"
-                title="Настройки"
-              >
-                <span class="material-symbols-outlined text-[24px]">settings</span>
-              </button>
-            </div>
-          </div>
-
-          <button id="openMyScheduleButton" type="button" class="my-schedule-cta">
-            <span class="my-schedule-cta-copy">
-              <span class="my-schedule-cta-kicker">Личный раздел</span>
-              <span class="my-schedule-cta-title">Мой график</span>
-              <span class="my-schedule-cta-subtitle">Смены, часы и метрики на месяц</span>
-            </span>
-            <span class="material-symbols-outlined my-schedule-cta-icon">calendar_month</span>
-          </button>
-
-          <button id="openChangesButton" type="button" class="site-changes-cta">
-            <span class="material-symbols-outlined">monitoring</span>
-            <span>Изменения на сайте</span>
-          </button>
-
-          <div id="dateTabs" class="flex items-center gap-2 overflow-x-auto no-scrollbar"></div>
-        </div>
-      </header>
-
-      <main id="scheduleMain" class="flex-1 px-5 pt-5">
-        <div class="flex items-center justify-between mb-5">
-          <h2 class="text-[11px] font-black text-gray-500 uppercase tracking-[0.15em]">Расписание</h2>
-          <div
-            id="livePill"
-            class="flex items-center gap-1.5 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20"
-          >
-            <div class="size-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
-            <span id="liveText" class="text-[10px] font-bold text-blue-400">Синхронизировано</span>
-          </div>
-        </div>
-
-        <div id="updatedAt" class="text-[11px] font-bold text-gray-500 mb-3">Загрузка...</div>
-
-        <section
-          id="closureBanner"
-          hidden
-          class="closure-banner closure-banner-alert mb-4 rounded-2xl border px-4 py-3 text-sm font-bold"
-        ></section>
-
-        <div id="timeline" class="flex flex-col"></div>
-
-        <section id="emptyState" hidden class="ice-card rounded-2xl p-6 text-center">
-          <h2 class="text-xl font-black text-white">Сеансов нет</h2>
-          <p class="mt-2 text-sm font-semibold text-gray-400">На выбранную дату расписание отсутствует.</p>
-        </section>
-      </main>
-    </div>
+  <body class="bg-dark-base min-h-screen antialiased pb-24">
 
     <div id="settingsView" hidden class="bg-background-light text-black min-h-screen">
       <header id="settingsHeader" class="sticky top-0 z-50 bg-header-tint/95 ios-blur-light px-6 pt-12 pb-4 header-depth">
@@ -243,9 +165,10 @@
     <div id="myScheduleView" hidden class="bg-dark-base min-h-screen">
       <header id="myScheduleHeader" class="sticky top-0 z-50 ios-blur px-5 pt-14 pb-5 border-b border-white/10">
         <div class="my-schedule-topbar">
-          <button id="backFromMyScheduleButton" class="my-schedule-back-btn" type="button" title="Назад к расписанию">
-            <span class="material-symbols-outlined">arrow_back</span>
-          </button>
+          <div class="my-schedule-brand">
+            <span class="material-symbols-outlined">calendar_month</span>
+            <span>Мой график</span>
+          </div>
           <div class="my-schedule-status-chip">
             <span class="material-symbols-outlined">schedule</span>
             <div class="my-schedule-status-text">
@@ -298,6 +221,17 @@
             <span class="my-editor-launch-copy">
               <strong>Добавить или изменить смену</strong>
               <small>Открыть меню управления сменами</small>
+            </span>
+            <span class="material-symbols-outlined">arrow_forward</span>
+          </button>
+        </section>
+
+        <section class="my-settings-launch-wrap">
+          <button id="openSettingsButton" type="button" class="my-settings-launch-btn" aria-label="Открыть настройки" title="Настройки">
+            <span class="material-symbols-outlined">settings</span>
+            <span class="my-settings-launch-copy">
+              <strong>Настройки приложения</strong>
+              <small>Тема, автообновление, импорт и экспорт</small>
             </span>
             <span class="material-symbols-outlined">arrow_forward</span>
           </button>
@@ -395,7 +329,7 @@
     <div id="changesView" hidden class="bg-dark-base min-h-screen">
       <header id="changesHeader" class="sticky top-0 z-50 ios-blur px-5 pt-14 pb-5 border-b border-white/10">
         <div class="changes-topbar">
-          <button id="backFromChangesButton" class="changes-back-btn" type="button" title="Назад к расписанию">
+          <button id="backFromChangesButton" class="changes-back-btn" type="button" title="Назад к моему графику">
             <span class="material-symbols-outlined">arrow_back</span>
           </button>
           <div class="changes-status-chip">
@@ -416,10 +350,6 @@
         <section id="changesLatestCard" class="changes-latest-card"></section>
         <section id="changesUpdatesCard" class="changes-list-card"></section>
       </main>
-    </div>
-
-    <div id="facilityDock" class="fixed bottom-0 left-0 right-0 z-50 px-6 pb-10 pt-4">
-      <nav class="dock-blur rounded-[2.5rem] border border-white/10 p-2 flex items-center justify-between shadow-2xl" id="facilityTabs"></nav>
     </div>
 
     <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
