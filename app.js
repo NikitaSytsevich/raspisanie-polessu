@@ -4,6 +4,7 @@ const STORAGE = {
   myShifts: "polessu_schedule_my_shifts_v1",
   siteChanges: "polessu_site_changes_v1",
   siteChangesLastCheckedAt: "polessu_site_changes_last_checked_at_v1",
+  siteChangesAcknowledgedSignature: "polessu_site_changes_ack_signature_v1",
 };
 
 const DEFAULT_SETTINGS = {
@@ -47,6 +48,7 @@ const state = {
   myShifts: loadMyShifts(),
   siteChangesHistory: loadSiteChangesHistory(),
   siteChangesLastCheckedAt: loadSiteChangesLastCheckedAt(),
+  siteChangesAcknowledgedSignature: loadSiteChangesAcknowledgedSignature(),
   myScheduleFocusDate: null,
   myScheduleRangeMode: MY_SCHEDULE_RANGE.DAY,
   myEditingShiftId: null,
@@ -70,6 +72,7 @@ const el = {
   myScheduleView: document.getElementById("myScheduleView"),
   myScheduleEditorView: document.getElementById("myScheduleEditorView"),
   changesView: document.getElementById("changesView"),
+  changesMain: document.getElementById("changesMain"),
   facilityDock: document.getElementById("facilityDock"),
   facilityMeta: document.getElementById("facilityMeta"),
   updatedAt: document.getElementById("updatedAt"),
@@ -160,6 +163,9 @@ function bindEvents() {
   }
   if (el.changesRefreshButton) {
     el.changesRefreshButton.addEventListener("click", () => fetchSchedule(true, { source: "changes" }));
+  }
+  if (el.changesMain) {
+    el.changesMain.addEventListener("click", handleChangesMainClick);
   }
 
   el.openSettingsButton.addEventListener("click", () => setView("settings"));
@@ -1727,7 +1733,7 @@ function renderChangesView() {
 
   const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [];
   const latest = history[0] || null;
-  const latestChangedEntry = getLatestChangedEntry(history);
+  const latestChangedEntry = getActiveSiteChangeEntry(history);
   const lastCheckedAtIso = state.siteChangesLastCheckedAt || latest?.checkedAt || null;
 
   if (el.changesUpdatedAt) {
@@ -1808,6 +1814,7 @@ function renderChangesView() {
     : latestChangedEntry
       ? "Показаны последние зафиксированные изменения. Нажмите на карточку, чтобы открыть официальный источник."
       : "Сейчас обновлений нет.";
+  const acknowledgeButton = latestChangedEntry ? renderChangesAcknowledgeButton() : "";
 
   el.changesLatestCard.innerHTML = `
     <article class="changes-latest-inner">
@@ -1821,6 +1828,7 @@ function renderChangesView() {
         <strong class="changes-last-change-value">${escapeHtml(latestChangedTime)}</strong>
       </div>
       <p class="changes-latest-text">${escapeHtml(latestText)}</p>
+      ${acknowledgeButton}
     </article>
   `;
 
@@ -1866,6 +1874,69 @@ function getLatestChangedEntry(history) {
     return null;
   }
   return history.find((entry) => entry && !entry.baseline && entry.hasChanges) || null;
+}
+
+function getActiveSiteChangeEntry(history) {
+  const latestChangedEntry = getLatestChangedEntry(history);
+  if (!latestChangedEntry) {
+    return null;
+  }
+  return isSiteChangeEntryAcknowledged(latestChangedEntry) ? null : latestChangedEntry;
+}
+
+function buildSiteChangeAckSignature(entry) {
+  if (!entry || typeof entry !== "object") {
+    return "";
+  }
+  if (entry.signature) {
+    return String(entry.signature);
+  }
+  return `${String(entry.checkedAt || "")}:${String(entry.id || "")}`;
+}
+
+function isSiteChangeEntryAcknowledged(entry) {
+  const savedSignature = String(state.siteChangesAcknowledgedSignature || "").trim();
+  if (!savedSignature) {
+    return false;
+  }
+  const entrySignature = buildSiteChangeAckSignature(entry);
+  return Boolean(entrySignature && entrySignature === savedSignature);
+}
+
+function renderChangesAcknowledgeButton() {
+  return `
+    <div class="changes-ack-row">
+      <button type="button" class="changes-ack-btn" data-acknowledge-changes="1">
+        <span class="material-symbols-outlined">done_all</span>
+        <span>Ознакомлен</span>
+      </button>
+    </div>
+  `;
+}
+
+function handleChangesMainClick(event) {
+  const acknowledgeButton = event.target.closest("button[data-acknowledge-changes]");
+  if (!acknowledgeButton) {
+    return;
+  }
+  acknowledgeLatestSiteChanges();
+}
+
+function acknowledgeLatestSiteChanges() {
+  const latestChangedEntry = getLatestChangedEntry(state.siteChangesHistory);
+  if (!latestChangedEntry) {
+    return;
+  }
+
+  const signature = buildSiteChangeAckSignature(latestChangedEntry);
+  if (!signature) {
+    return;
+  }
+
+  state.siteChangesAcknowledgedSignature = signature;
+  saveSiteChangesAcknowledgedSignature();
+  renderChangesView();
+  renderMyChangesSummary();
 }
 
 function getEntryDisplayEvents(entry) {
@@ -2120,7 +2191,7 @@ function renderMyChangesSummary() {
 
   const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [];
   const latest = history[0] || null;
-  const latestChangedEntry = getLatestChangedEntry(history);
+  const latestChangedEntry = getActiveSiteChangeEntry(history);
   const lastCheckedAtIso = state.siteChangesLastCheckedAt || latest?.checkedAt || "";
   const lastCheckedAt = lastCheckedAtIso ? new Date(lastCheckedAtIso) : null;
   const hasValidLastCheckedAt = Boolean(lastCheckedAt && !Number.isNaN(lastCheckedAt.getTime()));
@@ -2171,10 +2242,16 @@ function renderMyChangesSummary() {
     ? "Время проверки неизвестно"
     : `${checkedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} · ${formatRelativeAge(checkedAt, { compact: false })}`;
   const sourceIssues = Array.isArray(latest.sourceIssues) ? latest.sourceIssues : [];
-  const hasSourceIssues = sourceIssues.length > 0;
-  const badgeClass = latest.baseline ? "is-baseline" : hasSourceIssues || latestChangedEntry ? "is-changed" : "is-stable";
-  const badgeText = latest.baseline ? "Базовый снимок" : hasSourceIssues ? "Ошибка источника" : latestChangedEntry ? "Есть изменения" : "Без изменений";
-  const summaryText = hasSourceIssues && !latest.hasChanges
+  const hasOnlySourceIssues = sourceIssues.length > 0 && !latest.hasChanges;
+  const badgeClass = latest.baseline ? "is-baseline" : hasOnlySourceIssues || latestChangedEntry ? "is-changed" : "is-stable";
+  const badgeText = latest.baseline
+    ? "Базовый снимок"
+    : hasOnlySourceIssues
+      ? "Ошибка источника"
+      : latestChangedEntry
+        ? "Есть изменения"
+        : "Без изменений";
+  const summaryText = hasOnlySourceIssues
     ? `${sourceIssues[0]?.facilityName ? `${sourceIssues[0].facilityName}: ` : ""}${
         sourceIssues[0]?.description || "Источник временно недоступен, изменения расписания сейчас не рассчитываются."
       }`
@@ -2586,12 +2663,27 @@ function setMyShiftsDataNotice(message, type = "info") {
 }
 
 function exportMyShiftsHistory() {
+  const siteChangesHistory = Array.isArray(state.siteChangesHistory)
+    ? state.siteChangesHistory
+        .map((entry) => ({
+          ...entry,
+          events: normalizeSiteChangeEvents(entry.events),
+          sourceIssues: Array.isArray(entry.sourceIssues) ? entry.sourceIssues.slice(0, 8) : [],
+        }))
+        .slice(0, SITE_CHANGES_HISTORY_LIMIT)
+    : [];
+
   const payload = {
-    version: 2,
+    version: 3,
     app: "Расписание",
     exportedAt: new Date().toISOString(),
     timezone: state.data?.timezone || "Europe/Minsk",
     shifts: state.myShifts,
+    siteChanges: {
+      lastCheckedAt: state.siteChangesLastCheckedAt || "",
+      acknowledgedSignature: state.siteChangesAcknowledgedSignature || "",
+      history: siteChangesHistory,
+    },
   };
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -2604,7 +2696,7 @@ function exportMyShiftsHistory() {
   link.click();
   URL.revokeObjectURL(url);
 
-  setMyShiftsDataNotice("История графика экспортирована.", "success");
+  setMyShiftsDataNotice("История графика и изменения на сайте экспортированы.", "success");
 }
 
 async function handleMyShiftsImport(event) {
@@ -2637,8 +2729,19 @@ async function handleMyShiftsImport(event) {
       }
     }
 
+    const importedSiteChanges = normalizeImportedSiteChangesPayload(parsed?.siteChanges);
+
     state.myShifts = normalized;
     saveMyShifts();
+
+    if (importedSiteChanges) {
+      state.siteChangesHistory = importedSiteChanges.history;
+      state.siteChangesLastCheckedAt = importedSiteChanges.lastCheckedAt;
+      state.siteChangesAcknowledgedSignature = importedSiteChanges.acknowledgedSignature;
+      saveSiteChangesHistory();
+      saveSiteChangesLastCheckedAt();
+      saveSiteChangesAcknowledgedSignature();
+    }
 
     state.myScheduleFocusDate = state.myShifts.length ? state.myShifts[0].date : todayIso();
     state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
@@ -2647,6 +2750,7 @@ async function handleMyShiftsImport(event) {
 
     renderMySchedule();
     renderMyScheduleEditor();
+    renderChangesView();
     setMyShiftsDataNotice(`Импортировано смен: ${state.myShifts.length}.`, "success");
   } catch (error) {
     setMyShiftsDataNotice(
@@ -3590,6 +3694,27 @@ function saveSiteChangesLastCheckedAt() {
   localStorage.setItem(STORAGE.siteChangesLastCheckedAt, date.toISOString());
 }
 
+function loadSiteChangesAcknowledgedSignature() {
+  try {
+    const raw = localStorage.getItem(STORAGE.siteChangesAcknowledgedSignature);
+    if (!raw) {
+      return "";
+    }
+    return String(raw).trim().slice(0, 400);
+  } catch {
+    return "";
+  }
+}
+
+function saveSiteChangesAcknowledgedSignature() {
+  const value = String(state.siteChangesAcknowledgedSignature || "").trim();
+  if (!value) {
+    localStorage.removeItem(STORAGE.siteChangesAcknowledgedSignature);
+    return;
+  }
+  localStorage.setItem(STORAGE.siteChangesAcknowledgedSignature, value.slice(0, 400));
+}
+
 function loadSiteChangesHistory() {
   try {
     const raw = localStorage.getItem(STORAGE.siteChanges);
@@ -3632,6 +3757,40 @@ function normalizeSiteChangeEvents(events) {
     ...(event && typeof event === "object" ? event : {}),
     sourceUrl: sanitizeHttpUrl(event?.sourceUrl),
   }));
+}
+
+function normalizeImportedSiteChangesPayload(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const historyRaw = Array.isArray(value.history) ? value.history : [];
+  const history = historyRaw
+    .filter((item) => item && typeof item === "object" && typeof item.checkedAt === "string")
+    .map((item) => ({
+      ...item,
+      events: normalizeSiteChangeEvents(item.events),
+      sourceIssues: Array.isArray(item.sourceIssues) ? item.sourceIssues.slice(0, 8) : [],
+    }))
+    .slice(0, SITE_CHANGES_HISTORY_LIMIT);
+
+  return {
+    history,
+    lastCheckedAt: normalizeOptionalIsoDate(value.lastCheckedAt),
+    acknowledgedSignature: String(value.acknowledgedSignature || "").trim().slice(0, 400),
+  };
+}
+
+function normalizeOptionalIsoDate(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toISOString();
 }
 
 function escapeHtml(value) {

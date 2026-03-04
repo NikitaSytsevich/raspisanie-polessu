@@ -875,6 +875,39 @@ body::before {
   color: #cbd5e1;
 }
 
+.changes-ack-row {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.changes-ack-btn {
+  min-height: 36px;
+  border-radius: 11px;
+  border: 1px solid rgba(52, 211, 153, 0.42);
+  background: rgba(5, 150, 105, 0.2);
+  color: #a7f3d0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.changes-ack-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.changes-ack-btn:active {
+  transform: scale(0.98);
+}
+
 .changes-last-change-row {
   margin-top: 9px;
   border-radius: 12px;
@@ -2897,6 +2930,12 @@ html.light .changes-event-meta {
   color: #2563eb;
 }
 
+html.light .changes-ack-btn {
+  border-color: rgba(22, 163, 74, 0.4);
+  background: rgba(220, 252, 231, 0.9);
+  color: #166534;
+}
+
 html.light .changes-last-change-row {
   border-color: rgba(148, 163, 184, 0.36);
   background: rgba(255, 255, 255, 0.9);
@@ -3829,6 +3868,14 @@ html.dark #settingsMain .source-item .source-cta .material-symbols-outlined {
   .changes-refresh-btn {
     min-height: 42px;
     padding: 0 10px;
+  }
+
+  .changes-ack-row {
+    justify-content: stretch;
+  }
+
+  .changes-ack-btn {
+    width: 100%;
   }
 
   .changes-stats {
