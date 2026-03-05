@@ -31,6 +31,8 @@ const MY_SCHEDULE_RANGE = {
 const SITE_CHANGES_HISTORY_LIMIT = 20;
 const SITE_CHANGES_EVENTS_LIMIT = 24;
 const SITE_CHANGES_LATEST_EVENTS_LIMIT = 8;
+const SITE_CHANGES_HISTORY_PREVIEW_LIMIT = 8;
+const siteChangesUtils = window.SiteChangesUtils || null;
 
 const state = {
   data: null,
@@ -112,6 +114,7 @@ function init() {
     state.siteChangesLastCheckedAt = String(state.siteChangesHistory[0].checkedAt);
     saveSiteChangesLastCheckedAt();
   }
+  migrateLegacyAcknowledgedSiteChanges();
 
   applyTheme(state.settings.theme);
   hydrateSettingsUI();
@@ -321,8 +324,7 @@ async function fetchSchedule(force, options = {}) {
   const { source = "auto" } = options;
   const isMyScheduleRefresh = source === "my_schedule" || source === "my_schedule_global";
   const isChangesRefresh = source === "changes";
-  const checkSiteChanges = source === "my_schedule_global";
-  const shouldTrackSiteCheck = checkSiteChanges || isChangesRefresh;
+  const shouldTrackSiteCheck = true;
 
   if (state.fetchInFlight) {
     if (isMyScheduleRefresh) {
@@ -365,7 +367,7 @@ async function fetchSchedule(force, options = {}) {
       state.siteChangesLastCheckedAt = new Date().toISOString();
       saveSiteChangesLastCheckedAt();
     }
-    registerSiteChanges(previousPayload, payload, { source: checkSiteChanges ? "changes" : source, forced: force });
+    registerSiteChanges(previousPayload, payload, { source, forced: force });
     state.data = payload;
 
     renderAll();
@@ -1041,8 +1043,9 @@ function renderChangesView() {
 
   const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [];
   const latest = history[0] || null;
-  const latestChangedEntry = getActiveSiteChangeEntry(history);
+  const latestChangedEntry = getLatestChangedEntry(history);
   const lastCheckedAtIso = state.siteChangesLastCheckedAt || latest?.checkedAt || null;
+  const overviewModel = buildChangesAttentionModel(history, lastCheckedAtIso);
 
   if (el.changesUpdatedAt) {
     if (lastCheckedAtIso) {
@@ -1070,111 +1073,8 @@ function renderChangesView() {
     }
   }
 
-  if (!latest) {
-    const lastCheckedText = lastCheckedAtIso ? formatChangesDateTime(lastCheckedAtIso) : "Проверок пока нет";
-    el.changesLatestCard.innerHTML = `
-      <article class="changes-latest-inner">
-        <div class="changes-latest-top">
-          <h2>Последняя проверка</h2>
-          <span class="changes-check-badge stable">Без изменений</span>
-        </div>
-        <p class="changes-latest-time">${escapeHtml(lastCheckedText)}</p>
-        <div class="changes-last-change-row">
-          <span class="changes-last-change-label">Дата последних изменений на сайте</span>
-          <strong class="changes-last-change-value">Сейчас обновлений нет</strong>
-        </div>
-        <p class="changes-latest-text">${
-          lastCheckedAtIso
-            ? "Проверка выполнена. Обновлений на сайте не найдено."
-            : "Нажмите «Проверить», чтобы получить первый снимок и начать отслеживание изменений на сайте."
-        }</p>
-      </article>
-    `;
-    el.changesUpdatesCard.innerHTML = `
-      <div class="changes-list-head">
-        <h2>Последние изменения на сайте</h2>
-        <p>Сейчас обновлений нет.</p>
-      </div>
-    `;
-    return;
-  }
-
-  const sourceIssues = Array.isArray(latest.sourceIssues) ? latest.sourceIssues : [];
-  const hasSourceIssues = Boolean(latest.hasSourceIssues || sourceIssues.length);
-  const latestBadge = hasSourceIssues && !latest.hasChanges
-    ? '<span class="changes-check-badge changed">Ошибка источника</span>'
-    : latestChangedEntry
-      ? '<span class="changes-check-badge changed">Есть изменения</span>'
-      : latest.baseline
-        ? '<span class="changes-check-badge baseline">Базовый снимок</span>'
-        : '<span class="changes-check-badge stable">Без изменений</span>';
-  const latestTime = formatChangesDateTime(lastCheckedAtIso || latest.checkedAt);
-  const latestChangedTime = latestChangedEntry?.checkedAt ? formatChangesDateTime(latestChangedEntry.checkedAt) : "Сейчас обновлений нет";
-  const sourceIssueText = sourceIssues.length
-    ? `${sourceIssues[0]?.facilityName ? `${sourceIssues[0].facilityName}: ` : ""}${
-        sourceIssues[0]?.description || "Обнаружена проблема с источником данных."
-      }`
-    : "";
-  const latestText = hasSourceIssues && !latest.hasChanges
-    ? sourceIssueText
-    : latest.baseline
-    ? "Создан первый снимок расписания для сравнения будущих обновлений."
-    : latestChangedEntry
-      ? "Показаны последние зафиксированные изменения. Нажмите на карточку, чтобы открыть официальный источник."
-      : "Сейчас обновлений нет.";
-  const acknowledgeButton = latestChangedEntry ? renderChangesAcknowledgeButton() : "";
-
-  el.changesLatestCard.innerHTML = `
-    <article class="changes-latest-inner">
-      <div class="changes-latest-top">
-        <h2>Последняя проверка</h2>
-        ${latestBadge}
-      </div>
-      <p class="changes-latest-time">${escapeHtml(latestTime)}</p>
-      <div class="changes-last-change-row">
-        <span class="changes-last-change-label">Дата последних изменений на сайте</span>
-        <strong class="changes-last-change-value">${escapeHtml(latestChangedTime)}</strong>
-      </div>
-      <p class="changes-latest-text">${escapeHtml(latestText)}</p>
-      ${acknowledgeButton}
-    </article>
-  `;
-
-  if (!latestChangedEntry) {
-    el.changesUpdatesCard.innerHTML = `
-      <div class="changes-list-head">
-        <h2>Последние изменения на сайте</h2>
-        <p>Сейчас обновлений нет.</p>
-      </div>
-    `;
-    return;
-  }
-
-  const allEvents = getEntryDisplayEvents(latestChangedEntry);
-  const visibleEvents = allEvents.slice(0, SITE_CHANGES_LATEST_EVENTS_LIMIT);
-  const moreCount = Math.max(0, allEvents.length - visibleEvents.length);
-
-  if (!visibleEvents.length) {
-    el.changesUpdatesCard.innerHTML = `
-      <div class="changes-list-head">
-        <h2>Последние изменения на сайте</h2>
-        <p>Изменения зафиксированы, но подробные карточки пока недоступны.</p>
-      </div>
-    `;
-    return;
-  }
-
-  el.changesUpdatesCard.innerHTML = `
-    <div class="changes-list-head">
-      <h2>Последние изменения на сайте</h2>
-      <p>Как было и как стало. Нажмите на изменение, чтобы открыть официальный источник.</p>
-    </div>
-    <p class="changes-latest-time">${escapeHtml(formatChangesDateTime(latestChangedEntry.checkedAt))}</p>
-    <div class="changes-compare-grid">
-      ${visibleEvents.map((event) => renderInteractiveChangeComparisonCard(event)).join("")}
-    </div>
-    ${moreCount ? `<p class="changes-compare-more">И ещё ${escapeHtml(String(moreCount))} изменений в этой проверке.</p>` : ""}
-  `;
+  el.changesLatestCard.innerHTML = renderChangesOverviewCard(overviewModel);
+  el.changesUpdatesCard.innerHTML = latest ? renderChangesDetailSections(overviewModel, history) : renderChangesEmptySections();
 }
 
 function getLatestChangedEntry(history) {
@@ -1184,12 +1084,25 @@ function getLatestChangedEntry(history) {
   return history.find((entry) => entry && !entry.baseline && entry.hasChanges) || null;
 }
 
-function getActiveSiteChangeEntry(history) {
-  const latestChangedEntry = getLatestChangedEntry(history);
-  if (!latestChangedEntry) {
+function getLatestUnreadSiteChangeEntry(history) {
+  if (!Array.isArray(history)) {
     return null;
   }
-  return isSiteChangeEntryAcknowledged(latestChangedEntry) ? null : latestChangedEntry;
+  return history.find((entry) => entry && !entry.baseline && (entry.hasChanges || entry.hasSourceIssues) && !isSiteChangeEntryAcknowledged(entry)) || null;
+}
+
+function getFocusSiteChangeEntry(history) {
+  if (!Array.isArray(history) || !history.length) {
+    return null;
+  }
+  return getLatestUnreadSiteChangeEntry(history) || getLatestSignificantSiteChangeEntry(history) || history[0] || null;
+}
+
+function getLatestSignificantSiteChangeEntry(history) {
+  if (!Array.isArray(history)) {
+    return null;
+  }
+  return history.find((entry) => entry && !entry.baseline && (entry.hasChanges || entry.hasSourceIssues)) || null;
 }
 
 function buildSiteChangeAckSignature(entry) {
@@ -1203,48 +1116,891 @@ function buildSiteChangeAckSignature(entry) {
 }
 
 function isSiteChangeEntryAcknowledged(entry) {
-  const savedSignature = String(state.siteChangesAcknowledgedSignature || "").trim();
-  if (!savedSignature) {
-    return false;
-  }
-  const entrySignature = buildSiteChangeAckSignature(entry);
-  return Boolean(entrySignature && entrySignature === savedSignature);
+  return Boolean(String(entry?.acknowledgedAt || "").trim());
 }
 
-function renderChangesAcknowledgeButton() {
+function renderChangesAcknowledgeButton(entry, label = "Просмотрено") {
   return `
     <div class="changes-ack-row">
-      <button type="button" class="changes-ack-btn" data-acknowledge-changes="1">
+      <button type="button" class="changes-ack-btn" data-acknowledge-entry="${escapeHtml(String(entry?.id || ""))}">
         <span class="material-symbols-outlined">done_all</span>
-        <span>Ознакомлен</span>
+        <span>${escapeHtml(label)}</span>
       </button>
     </div>
   `;
 }
 
 function handleChangesMainClick(event) {
-  const acknowledgeButton = event.target.closest("button[data-acknowledge-changes]");
+  const acknowledgeButton = event.target.closest("button[data-acknowledge-entry]");
   if (!acknowledgeButton) {
     return;
   }
-  acknowledgeLatestSiteChanges();
+  const entryId = String(acknowledgeButton.dataset.acknowledgeEntry || "");
+  if (!entryId) {
+    return;
+  }
+  acknowledgeSiteChangeEntry(entryId);
 }
 
-function acknowledgeLatestSiteChanges() {
-  const latestChangedEntry = getLatestChangedEntry(state.siteChangesHistory);
-  if (!latestChangedEntry) {
+function acknowledgeSiteChangeEntry(entryId) {
+  const normalizedId = String(entryId || "").trim();
+  if (!normalizedId) {
     return;
   }
 
-  const signature = buildSiteChangeAckSignature(latestChangedEntry);
-  if (!signature) {
+  let changed = false;
+  state.siteChangesHistory = (Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : []).map((entry) => {
+    if (!entry || String(entry.id || "") !== normalizedId || entry.acknowledgedAt) {
+      return entry;
+    }
+    changed = true;
+    return {
+      ...entry,
+      acknowledgedAt: new Date().toISOString(),
+    };
+  });
+
+  if (!changed) {
     return;
   }
 
-  state.siteChangesAcknowledgedSignature = signature;
-  saveSiteChangesAcknowledgedSignature();
+  saveSiteChangesHistory();
   renderChangesView();
   renderMyChangesSummary();
+}
+
+function renderChangesEmptySections() {
+  return `
+    <section class="changes-section">
+      <div class="changes-list-head">
+        <h2>Мои смены</h2>
+        <p>Когда появится первый локальный снимок, здесь будет видно, затронуты ли ваши смены.</p>
+      </div>
+    </section>
+    <section class="changes-section">
+      <div class="changes-list-head">
+        <h2>Журнал проверок</h2>
+        <p>Первые записи появятся после успешной синхронизации расписания.</p>
+      </div>
+    </section>
+  `;
+}
+
+function getSiteChangeEntryMetrics(entry) {
+  if (!entry || typeof entry !== "object") {
+    return {
+      affectedFacilityCount: 0,
+      affectedDateCount: 0,
+    };
+  }
+
+  if (Number.isFinite(entry.affectedFacilityCount) || Number.isFinite(entry.affectedDateCount)) {
+    return {
+      affectedFacilityCount: Number(entry.affectedFacilityCount || 0),
+      affectedDateCount: Number(entry.affectedDateCount || 0),
+    };
+  }
+
+  const facilityIds = new Set();
+  const dates = new Set();
+
+  for (const item of [...getEntryDisplayEvents(entry), ...(Array.isArray(entry.sourceIssues) ? entry.sourceIssues : [])]) {
+    const facilityId = String(item?.facilityId || "").trim();
+    const date = String(item?.date || "").trim();
+    if (facilityId) {
+      facilityIds.add(facilityId);
+    }
+    if (date) {
+      dates.add(date);
+    }
+  }
+
+  return {
+    affectedFacilityCount: facilityIds.size,
+    affectedDateCount: dates.size,
+  };
+}
+
+function parseIsoDate(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return null;
+  }
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function hasCheckAfterEntry(lastCheckedAtIso, entry) {
+  const checkedAt = parseIsoDate(lastCheckedAtIso);
+  const entryDate = parseIsoDate(entry?.checkedAt);
+  if (!checkedAt || !entryDate) {
+    return false;
+  }
+  return checkedAt.getTime() > entryDate.getTime();
+}
+
+function pluralizeRu(value, one, few, many) {
+  const count = Math.abs(Number(value) || 0);
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) {
+    return one;
+  }
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return few;
+  }
+  return many;
+}
+
+function resolveChangesToneClass(status) {
+  switch (status) {
+    case "important":
+      return "tone-important";
+    case "changes":
+    case "reviewed_changes":
+      return "tone-info";
+    case "issue":
+    case "reviewed_issue":
+      return "tone-issue";
+    case "stable":
+      return "tone-stable";
+    case "baseline":
+    case "no_data":
+    default:
+      return "tone-baseline";
+  }
+}
+
+function buildChangesAttentionModel(history, lastCheckedAtIso) {
+  const entries = Array.isArray(history) ? history.filter(Boolean) : [];
+  const latest = entries[0] || null;
+  const latestUnreadEntry = getLatestUnreadSiteChangeEntry(entries);
+  const latestSignificantEntry = getLatestSignificantSiteChangeEntry(entries);
+  const baselineEntry = entries.find((entry) => entry?.baseline) || null;
+  const checkedAtIso = String(lastCheckedAtIso || latest?.checkedAt || "").trim();
+  const hasStableCheckAfterSignificant = hasCheckAfterEntry(checkedAtIso, latestSignificantEntry);
+  const hasStableCheckAfterBaseline = hasCheckAfterEntry(checkedAtIso, baselineEntry);
+  const currentSignificantEntry = latestSignificantEntry && !hasStableCheckAfterSignificant ? latestSignificantEntry : null;
+  const currentBaselineEntry = !latestSignificantEntry && baselineEntry && !hasStableCheckAfterBaseline ? baselineEntry : null;
+
+  let status = "no_data";
+  let focusEntry = null;
+  let focusImpact = { total: 0, items: [] };
+
+  if (latestUnreadEntry) {
+    focusEntry = latestUnreadEntry;
+    focusImpact = buildEntryMyShiftImpact(focusEntry);
+    if (focusEntry.hasSourceIssues && !focusEntry.hasChanges) {
+      status = "issue";
+    } else if (focusImpact.total > 0) {
+      status = "important";
+    } else {
+      status = "changes";
+    }
+  } else if (currentSignificantEntry) {
+    focusEntry = currentSignificantEntry;
+    focusImpact = buildEntryMyShiftImpact(focusEntry);
+    status = focusEntry.hasSourceIssues && !focusEntry.hasChanges ? "reviewed_issue" : "reviewed_changes";
+  } else if (currentBaselineEntry) {
+    focusEntry = currentBaselineEntry;
+    status = "baseline";
+  } else if (checkedAtIso) {
+    status = "stable";
+  }
+
+  const lastEventEntry = latestSignificantEntry || baselineEntry || latest || null;
+  const lastEventText = lastEventEntry?.checkedAt ? formatChangesDateTime(lastEventEntry.checkedAt) : "Событий пока не было";
+  const checkedAtText = checkedAtIso ? formatChangesDateTime(checkedAtIso) : "Проверок пока нет";
+  const checkedAtMeta = checkedAtIso ? buildChangesCheckMeta(checkedAtIso) : "Проверка ещё не запускалась";
+  const summary = buildChangesOverviewSummary(status, focusEntry, focusImpact);
+  const footer = buildChangesOverviewFooter(status, lastEventEntry);
+  const metrics = buildChangesOverviewMetrics(status, focusEntry, focusImpact, checkedAtIso, entries);
+
+  return {
+    status,
+    toneClass: resolveChangesToneClass(status),
+    focusEntry,
+    focusImpact,
+    latest,
+    latestUnreadEntry,
+    latestSignificantEntry,
+    lastEventEntry,
+    checkedAtIso,
+    checkedAtText,
+    checkedAtMeta,
+    lastEventText,
+    summary,
+    footer,
+    metrics,
+    headline: buildChangesOverviewHeadline(status),
+    pill: buildChangesOverviewPill(status),
+    icon: buildChangesOverviewIcon(status),
+  };
+}
+
+function buildChangesOverviewHeadline(status) {
+  switch (status) {
+    case "important":
+      return "Есть важное";
+    case "changes":
+      return "Есть новые изменения";
+    case "issue":
+      return "Есть сбой проверки";
+    case "reviewed_changes":
+      return "Последнее событие просмотрено";
+    case "reviewed_issue":
+      return "Последняя проблема просмотрена";
+    case "stable":
+      return "Без новых изменений";
+    case "baseline":
+      return "Проверка готова";
+    case "no_data":
+    default:
+      return "Проверка ещё не запущена";
+  }
+}
+
+function buildChangesOverviewPill(status) {
+  switch (status) {
+    case "important":
+    case "changes":
+      return "Новое";
+    case "issue":
+      return "Сбой";
+    case "reviewed_changes":
+    case "reviewed_issue":
+      return "Просмотрено";
+    case "stable":
+      return "Спокойно";
+    case "baseline":
+      return "Первый снимок";
+    case "no_data":
+    default:
+      return "Нет данных";
+  }
+}
+
+function buildChangesOverviewIcon(status) {
+  switch (status) {
+    case "important":
+      return "priority_high";
+    case "changes":
+      return "notifications";
+    case "issue":
+      return "warning";
+    case "reviewed_changes":
+      return "visibility";
+    case "reviewed_issue":
+      return "fact_check";
+    case "stable":
+      return "task_alt";
+    case "baseline":
+      return "schedule";
+    case "no_data":
+    default:
+      return "hourglass_empty";
+  }
+}
+
+function buildChangesOverviewSummary(status, focusEntry, focusImpact) {
+  const leadIssue = focusEntry?.sourceIssues?.[0] || null;
+  switch (status) {
+    case "important":
+      return `Изменения затронули ${focusImpact.total} ${pluralizeRu(focusImpact.total, "вашу смену", "ваши смены", "ваших смен")}. Сначала проверьте блок ниже.`;
+    case "changes":
+      if (state.myShifts.length) {
+        return "Изменения есть, но ваши смены в этой проверке не затронуты.";
+      }
+      return "Изменения уже найдены. Добавьте свои смены, чтобы видеть личное влияние автоматически.";
+    case "issue":
+      return leadIssue?.description || "Часть источников не ответила. Сравнение может быть неполным.";
+    case "reviewed_changes":
+      if (focusImpact.total > 0) {
+        return `Последнее событие уже просмотрено. Оно затрагивало ${focusImpact.total} ${pluralizeRu(focusImpact.total, "вашу смену", "ваши смены", "ваших смен")}.`;
+      }
+      return "Последнее событие уже просмотрено. Сейчас непросмотренных изменений нет.";
+    case "reviewed_issue":
+      return "Последняя проблема проверки уже просмотрена. Новых непросмотренных событий сейчас нет.";
+    case "stable":
+      if (state.myShifts.length) {
+        return "Последняя проверка не нашла новых изменений. Ваши смены выглядят актуальными.";
+      }
+      return "Последняя проверка не нашла новых изменений.";
+    case "baseline":
+      return "Создан стартовый снимок. Следующая успешная проверка уже сможет показать, что именно поменялось.";
+    case "no_data":
+    default:
+      return "Первый локальный снимок создаётся после первой успешной синхронизации расписания.";
+  }
+}
+
+function buildChangesOverviewFooter(status, lastEventEntry) {
+  if (!lastEventEntry) {
+    return "Локальная проверка работает только в этом браузере.";
+  }
+
+  if (status === "stable" && lastEventEntry.baseline) {
+    return "Пока журнал пуст: сайт ещё не дал ни одного нового события по сравнению с первым снимком.";
+  }
+
+  if (status === "stable") {
+    return `Последнее зафиксированное событие осталось в журнале ниже: ${formatChangesDateTime(lastEventEntry.checkedAt)}.`;
+  }
+
+  if (status === "baseline" || status === "no_data") {
+    return "Локальная проверка работает только в этом браузере.";
+  }
+
+  return `Текущее событие журнала: ${formatChangesDateTime(lastEventEntry.checkedAt)}.`;
+}
+
+function buildChangesCheckMeta(checkedAtIso) {
+  const checkedAt = parseIsoDate(checkedAtIso);
+  if (!checkedAt) {
+    return "Время проверки неизвестно";
+  }
+  const timeText = checkedAt.toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const relative = formatRelativeAge(checkedAt, { compact: false });
+  return relative ? `Проверено ${timeText} · ${relative}` : `Проверено ${timeText}`;
+}
+
+function buildChangesOverviewMetrics(status, focusEntry, focusImpact, checkedAtIso, history) {
+  const metrics = [];
+
+  if (focusEntry?.hasChanges) {
+    const entryMetrics = getSiteChangeEntryMetrics(focusEntry);
+    metrics.push({ label: "Изменений", value: String(focusEntry.summary?.total || 0) });
+    metrics.push({ label: "Объектов", value: String(entryMetrics.affectedFacilityCount) });
+    if (state.myShifts.length) {
+      metrics.push({ label: "Мои смены", value: String(focusImpact.total) });
+    } else if (entryMetrics.affectedDateCount) {
+      metrics.push({ label: "Дат", value: String(entryMetrics.affectedDateCount) });
+    }
+    if (focusEntry.hasSourceIssues) {
+      metrics.push({ label: "Сбоев", value: String(focusEntry.sourceIssues?.length || 0) });
+    }
+  } else if (focusEntry?.hasSourceIssues) {
+    metrics.push({ label: "Сбоев", value: String(focusEntry.sourceIssues?.length || 0) });
+  } else if (checkedAtIso) {
+    const checkedAt = parseIsoDate(checkedAtIso);
+    metrics.push({
+      label: "Проверка",
+      value: checkedAt
+        ? checkedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+        : "сейчас",
+    });
+    if (state.myShifts.length) {
+      metrics.push({ label: "Мои смены", value: String(state.myShifts.length) });
+    }
+  }
+
+  if (Array.isArray(history) && history.length) {
+    metrics.push({ label: "Журнал", value: String(history.length) });
+  }
+
+  return metrics.slice(0, 4);
+}
+
+function renderOverviewMetric(metric, className) {
+  return `
+    <div class="${escapeHtml(className)}">
+      <span>${escapeHtml(metric.label)}</span>
+      <strong>${escapeHtml(metric.value)}</strong>
+    </div>
+  `;
+}
+
+function renderChangesOverviewCard(model) {
+  const metricsHtml = model.metrics.length
+    ? `
+      <div class="changes-overview-metrics">
+        ${model.metrics.map((metric) => renderOverviewMetric(metric, "changes-overview-metric")).join("")}
+      </div>
+    `
+    : "";
+  const acknowledgeButton = model.focusEntry && !model.focusEntry.baseline && !isSiteChangeEntryAcknowledged(model.focusEntry)
+    ? renderChangesAcknowledgeButton(model.focusEntry, "Просмотрено")
+    : "";
+
+  return `
+    <article class="changes-overview-card ${escapeHtml(model.toneClass)}">
+      <div class="changes-overview-top">
+        <div>
+          <p class="changes-overview-kicker">Проверка расписания</p>
+          <p class="changes-overview-meta">${escapeHtml(model.checkedAtMeta)}</p>
+        </div>
+        <span class="changes-state-pill">${escapeHtml(model.pill)}</span>
+      </div>
+      <div class="changes-overview-main">
+        <div class="changes-overview-icon">
+          <span class="material-symbols-outlined">${escapeHtml(model.icon)}</span>
+        </div>
+        <div class="changes-overview-copy">
+          <h2>${escapeHtml(model.headline)}</h2>
+          <p>${escapeHtml(model.summary)}</p>
+        </div>
+      </div>
+      ${metricsHtml}
+      <p class="changes-overview-footer">${escapeHtml(model.footer)}</p>
+      ${acknowledgeButton}
+    </article>
+  `;
+}
+
+function renderChangesDetailSections(model, history) {
+  return [
+    renderMyShiftImpactSection(model),
+    renderFocusEntryDetailsSection(model),
+    model.focusEntry?.hasSourceIssues ? renderSourceIssueSection(model.focusEntry.sourceIssues, { entry: model.focusEntry }) : "",
+    renderChangesHistorySection(history),
+  ].join("");
+}
+
+function renderMyShiftImpactSection(model) {
+  if (!state.myShifts.length) {
+    return `
+      <section class="changes-section">
+        <div class="changes-list-head">
+          <h2>Мои смены</h2>
+          <p>Добавьте свои смены, и здесь появится персональная оценка влияния каждой проверки.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  if (model.status === "stable") {
+    return `
+      <section class="changes-section">
+        <div class="changes-list-head">
+          <h2>Мои смены</h2>
+          <p>Последняя проверка не нашла новых изменений. Ваши смены выглядят актуальными.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  if (!model.focusEntry || model.focusEntry.baseline) {
+    return `
+      <section class="changes-section">
+        <div class="changes-list-head">
+          <h2>Мои смены</h2>
+          <p>Пока нечего сравнивать с вашими сменами. После следующей проверки здесь появится персональная сводка.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  if (!model.focusEntry.hasChanges) {
+    return `
+      <section class="changes-section">
+        <div class="changes-list-head">
+          <h2>Мои смены</h2>
+          <p>Сейчас нельзя надёжно оценить влияние на смены, потому что часть источников не ответила.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  if (!model.focusImpact.total) {
+    return `
+      <section class="changes-section">
+        <div class="changes-list-head">
+          <h2>Мои смены</h2>
+          <p>В этой проверке ваши смены не затронуты.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="changes-section">
+      <div class="changes-list-head">
+        <h2>Мои смены</h2>
+        <p>Показаны ближайшие смены, которые пересекаются с текущим событием локального журнала.</p>
+      </div>
+      <div class="changes-impact-list">
+        ${model.focusImpact.items.map((item) => renderShiftImpactCard(item)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function buildEntryMyShiftImpact(entry) {
+  if (!entry || !entry.hasChanges || !Array.isArray(entry.events) || !state.myShifts.length) {
+    return { total: 0, items: [] };
+  }
+
+  const upcomingShifts = state.myShifts
+    .filter(isShiftRelevantForImpact)
+    .sort(compareMyShift);
+  const items = [];
+
+  for (const shift of upcomingShifts) {
+    const matchedEvents = getEntryDisplayEvents(entry).filter((event) => doesEventAffectShift(event, shift));
+    if (!matchedEvents.length) {
+      continue;
+    }
+
+    items.push({
+      shift,
+      events: matchedEvents.slice(0, 3),
+    });
+  }
+
+  return {
+    total: items.length,
+    items: items.slice(0, SITE_CHANGES_LATEST_EVENTS_LIMIT),
+  };
+}
+
+function isShiftRelevantForImpact(shift) {
+  return Boolean(shift && typeof shift === "object" && String(shift.date || "") >= todayIso());
+}
+
+function doesEventAffectShift(event, shift) {
+  if (!event || !shift) {
+    return false;
+  }
+
+  if (String(event.facilityId || "") !== String(shift.facilityId || "")) {
+    return false;
+  }
+
+  const scope = String(event.scope || "");
+  const eventDate = String(event.date || "").trim();
+  if (eventDate && eventDate !== shift.date) {
+    return false;
+  }
+
+  if ((scope === "session" || scope === "template_session") && event.start && event.end) {
+    return timeRangesOverlap(shift.start, shift.end, event.start, event.end);
+  }
+
+  return true;
+}
+
+function timeRangesOverlap(startA, endA, startB, endB) {
+  const aStart = toMinutes(startA);
+  const aEnd = toMinutes(endA);
+  const bStart = toMinutes(startB);
+  const bEnd = toMinutes(endB);
+
+  if (aStart < 0 || aEnd < 0 || bStart < 0 || bEnd < 0) {
+    return false;
+  }
+
+  return Math.min(aEnd, bEnd) > Math.max(aStart, bStart);
+}
+
+function renderShiftImpactCard(item) {
+  const tone = pickImpactTone(item.events);
+  const eventTitles = Array.from(new Set(item.events.map((event) => String(event?.title || "").trim()).filter(Boolean))).slice(0, 2);
+  const extraCount = Math.max(0, item.events.length - eventTitles.length);
+  const summary = eventTitles.join("; ");
+
+  return `
+    <article class="changes-impact-card">
+      <div class="changes-impact-head">
+        <h3>${escapeHtml(`${formatMonthDayShort(item.shift.date)} · ${item.shift.start} — ${item.shift.end}`)}</h3>
+        <span class="changes-feed-chip ${escapeHtml(tone)}">${escapeHtml(`${item.events.length} событ.`)}</span>
+      </div>
+      <p class="changes-impact-meta">${escapeHtml(resolveShiftFacilityName(item.shift))}</p>
+      <p class="changes-feed-line">${escapeHtml(summary || "Изменение затрагивает смену.")}${
+        extraCount ? ` ${escapeHtml(`И ещё ${extraCount}.`)}` : ""
+      }</p>
+    </article>
+  `;
+}
+
+function pickImpactTone(events) {
+  if ((events || []).some((event) => String(event?.severity || "") === "warning")) {
+    return "warn";
+  }
+  if ((events || []).some((event) => String(event?.severity || "") === "positive")) {
+    return "positive";
+  }
+  return "info";
+}
+
+function renderFocusEntryDetailsSection(model) {
+  const focusEntry = model?.focusEntry || null;
+
+  if (!focusEntry) {
+    return `
+      <section class="changes-section">
+        <div class="changes-list-head">
+          <h2>Что изменилось</h2>
+          <p>Последняя проверка не нашла новых событий. Последние зафиксированные записи остались в журнале ниже.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  if (focusEntry.baseline) {
+    return `
+      <section class="changes-section">
+        <div class="changes-list-head">
+          <h2>Что изменилось</h2>
+          <p>Это стартовый локальный снимок. Следующие проверки будут сравниваться с ним или с более новыми снимками.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  const blocks = [];
+  const entryEvents = getEntryDisplayEvents(focusEntry);
+  if (entryEvents.length) {
+    const groups = groupSiteChangeEvents(entryEvents);
+    blocks.push(`
+      <section class="changes-section">
+        <div class="changes-list-head">
+          <h2>Что изменилось</h2>
+          <p>${
+            isSiteChangeEntryAcknowledged(focusEntry)
+              ? "Это последнее уже просмотренное событие. Нажмите на карточку, чтобы открыть официальный источник."
+              : "Сравнение с предыдущей проверкой на этом устройстве. Нажмите на карточку, чтобы открыть официальный источник."
+          }</p>
+        </div>
+        <div class="changes-list">
+          ${groups.map((group) => renderSiteChangeGroupCard(group)).join("")}
+        </div>
+      </section>
+    `);
+  }
+
+  if (!blocks.length) {
+    blocks.push(`
+      <section class="changes-section">
+        <div class="changes-list-head">
+          <h2>Что изменилось</h2>
+          <p>В этой записи нет карточек расписания. Обычно это означает, что изменился только статус проверки.</p>
+        </div>
+      </section>
+    `);
+  }
+
+  return blocks.join("");
+}
+
+function groupSiteChangeEvents(events) {
+  const groups = new Map();
+
+  for (const event of events || []) {
+    const facilityId = String(event?.facilityId || "");
+    const date = String(event?.date || "");
+    const key = `${facilityId}::${date || "template"}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        facilityName: String(event?.facilityName || "Объект"),
+        facilityId,
+        date,
+        events: [],
+      });
+    }
+    groups.get(key).events.push(event);
+  }
+
+  return Array.from(groups.values());
+}
+
+function renderSiteChangeGroupCard(group) {
+  const dateLabel = group.date ? formatMonthDayShort(group.date) : "Шаблонный источник";
+  return `
+    <article class="changes-feed-card">
+      <div class="changes-feed-top">
+        <div>
+          <h3 class="changes-feed-title">${escapeHtml(`${group.facilityName} · ${dateLabel}`)}</h3>
+          <p class="changes-feed-time">${escapeHtml(`${group.events.length} карточек`)}</p>
+        </div>
+      </div>
+      <div class="changes-compare-grid">
+        ${group.events.map((event) => renderInteractiveChangeComparisonCard(event)).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function renderSourceIssueSection(sourceIssues, options = {}) {
+  const entry = options?.entry || null;
+  const reviewed = Boolean(entry && isSiteChangeEntryAcknowledged(entry));
+  return `
+    <section class="changes-section">
+      <div class="changes-list-head">
+        <h2>Проблемы проверки</h2>
+        <p>${
+          reviewed
+            ? "Последняя просмотренная проверка была неполной: часть источников ответила с ошибкой."
+            : "Часть сайтов ответила с ошибкой. Из-за этого сравнение может быть неполным."
+        }</p>
+      </div>
+      <div class="changes-events">
+        ${sourceIssues.map((issue) => renderSourceIssueCard(issue)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderSourceIssueCard(issue) {
+  return `
+    <article class="changes-event changes-event-warning">
+      <h3 class="changes-event-title">${escapeHtml(issue?.facilityName || "Источник")}</h3>
+      <p class="changes-event-desc">${escapeHtml(issue?.description || "Источник временно недоступен.")}</p>
+      <p class="changes-event-meta">${escapeHtml(String(issue?.fetchState || "error"))}</p>
+    </article>
+  `;
+}
+
+function renderChangesHistorySection(history) {
+  if (!Array.isArray(history) || !history.length) {
+    return `
+      <section class="changes-section">
+        <div class="changes-list-head">
+          <h2>Журнал проверок</h2>
+          <p>Записи появятся после первой успешной проверки.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="changes-section">
+      <div class="changes-list-head">
+        <h2>Журнал проверок</h2>
+        <p>Хранится локально в этом браузере. Просмотренные записи остаются в журнале.</p>
+      </div>
+      <div class="changes-list">
+        ${history.slice(0, SITE_CHANGES_HISTORY_PREVIEW_LIMIT).map((entry) => renderSiteChangeHistoryCard(entry)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderSiteChangeHistoryCard(entry) {
+  const impact = buildEntryMyShiftImpact(entry);
+  const previewEvents = getEntryDisplayEvents(entry).slice(0, 2);
+  const previewIssues = Array.isArray(entry?.sourceIssues) ? entry.sourceIssues.slice(0, 2) : [];
+  const chips = [];
+
+  if (entry.baseline) {
+    chips.push('<span class="changes-feed-chip info">Базовый снимок</span>');
+  } else if (isSiteChangeEntryAcknowledged(entry)) {
+    chips.push('<span class="changes-feed-chip positive">Просмотрено</span>');
+  } else {
+    chips.push('<span class="changes-feed-chip warn">Не просмотрено</span>');
+  }
+
+  if (entry.hasChanges) {
+    chips.push(`<span class="changes-feed-chip info">Событий: ${escapeHtml(String(entry.summary?.total || 0))}</span>`);
+  }
+  if (impact.total > 0) {
+    chips.push(`<span class="changes-feed-chip warn">Мои смены: ${escapeHtml(String(impact.total))}</span>`);
+  }
+  if (previewIssues.length) {
+    chips.push(`<span class="changes-feed-chip warn">Проблемы: ${escapeHtml(String(previewIssues.length))}</span>`);
+  }
+
+  const previewHtml = previewEvents.length
+    ? `
+      <div class="changes-events">
+        ${previewEvents.map((event) => renderHistoryPreviewEvent(event)).join("")}
+      </div>
+    `
+    : previewIssues.length
+      ? `
+        <div class="changes-events">
+          ${previewIssues.map((issue) => renderSourceIssueCard(issue)).join("")}
+        </div>
+      `
+      : "";
+
+  const acknowledgeButton = !entry.baseline && !isSiteChangeEntryAcknowledged(entry)
+    ? `
+      <div class="changes-history-actions">
+        <button type="button" class="changes-ack-btn" data-acknowledge-entry="${escapeHtml(String(entry?.id || ""))}">
+          <span class="material-symbols-outlined">done_all</span>
+          <span>Просмотрено</span>
+        </button>
+      </div>
+    `
+    : "";
+
+  return `
+    <article class="changes-feed-card">
+      <div class="changes-feed-top">
+        <div>
+          <h3 class="changes-feed-title">${escapeHtml(buildHistoryEntryTitle(entry))}</h3>
+          <p class="changes-feed-time">${escapeHtml(formatChangesDateTime(entry.checkedAt))}</p>
+        </div>
+        ${renderHistoryEntryStatus(entry)}
+      </div>
+      <p class="changes-feed-line">${escapeHtml(buildHistoryEntryLine(entry, impact))}</p>
+      <div class="changes-feed-chips">${chips.join("")}</div>
+      ${previewHtml}
+      ${acknowledgeButton}
+    </article>
+  `;
+}
+
+function renderHistoryPreviewEvent(event) {
+  const meta = [event?.facilityName, event?.date ? formatMonthDayShort(event.date) : "шаблон"].filter(Boolean).join(" · ");
+  return `
+    <article class="changes-event changes-event-${escapeHtml(String(event?.severity || "info"))}">
+      <h3 class="changes-event-title">${escapeHtml(String(event?.title || "Изменение"))}</h3>
+      <p class="changes-event-desc">${escapeHtml(normalizeChangeSideText(event?.afterText || event?.description, "Детали обновлены."))}</p>
+      ${meta ? `<p class="changes-event-meta">${escapeHtml(meta)}</p>` : ""}
+    </article>
+  `;
+}
+
+function renderHistoryEntryStatus(entry) {
+  if (entry?.baseline) {
+    return '<span class="changes-check-badge baseline">Старт</span>';
+  }
+  if (!isSiteChangeEntryAcknowledged(entry) && (entry?.hasChanges || entry?.hasSourceIssues)) {
+    return '<span class="changes-check-badge changed">Новое</span>';
+  }
+  return '<span class="changes-check-badge stable">Просмотрено</span>';
+}
+
+function buildHistoryEntryTitle(entry) {
+  if (!entry) {
+    return "Событие";
+  }
+  if (entry.baseline) {
+    return "Создан стартовый снимок";
+  }
+  if (entry.hasSourceIssues && !entry.hasChanges) {
+    return "Проблема проверки";
+  }
+  if (entry.hasChanges) {
+    return "Зафиксированы изменения";
+  }
+  return "Проверка выполнена";
+}
+
+function buildHistoryEntryLine(entry, impact) {
+  if (!entry) {
+    return "Подробности недоступны.";
+  }
+  if (entry.baseline) {
+    return "Это стартовая точка для всех следующих сравнений на этом устройстве.";
+  }
+  if (entry.hasSourceIssues && !entry.hasChanges) {
+    return entry.sourceIssues?.[0]?.description || "Один или несколько источников не ответили корректно.";
+  }
+
+  let text = `Событий: ${entry.summary?.total || 0}.`;
+  if (state.myShifts.length) {
+    text += impact.total ? ` Мои смены затронуты: ${impact.total}.` : " Мои смены не затронуты.";
+  }
+  if (entry.hasSourceIssues) {
+    text += ` Проблем с источниками: ${entry.sourceIssues?.length || 0}.`;
+  }
+  return text;
 }
 
 function getEntryDisplayEvents(entry) {
@@ -1499,121 +2255,51 @@ function renderMyChangesSummary() {
 
   const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [];
   const latest = history[0] || null;
-  const latestChangedEntry = getActiveSiteChangeEntry(history);
   const lastCheckedAtIso = state.siteChangesLastCheckedAt || latest?.checkedAt || "";
-  const lastCheckedAt = lastCheckedAtIso ? new Date(lastCheckedAtIso) : null;
-  const hasValidLastCheckedAt = Boolean(lastCheckedAt && !Number.isNaN(lastCheckedAt.getTime()));
-
-  if (!latest) {
-    if (hasValidLastCheckedAt) {
-      const checkedText = `${lastCheckedAt.toLocaleTimeString("ru-RU", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })} · ${formatRelativeAge(lastCheckedAt, { compact: false })}`;
-      el.myChangesSummaryContent.innerHTML = `
-        <div class="my-changes-head">
-          <div>
-            <h3>Изменения на сайте</h3>
-            <p>Последняя проверка выполнена, обновлений на сайте не найдено.</p>
-          </div>
-          <span class="my-changes-badge is-stable">Без изменений</span>
-        </div>
-        <p class="my-changes-time">${escapeHtml(checkedText)}</p>
-        <div class="my-changes-last-block is-empty">
-          <span class="my-changes-last-label">Последнее изменение</span>
-          <p class="my-changes-last-title">Сейчас обновлений нет</p>
-        </div>
-        <p class="my-changes-open-hint">Нажмите карточку, чтобы открыть последние изменения.</p>
-      `;
-      return;
-    }
-
-    el.myChangesSummaryContent.innerHTML = `
-      <div class="my-changes-head">
-        <div>
-          <h3>Изменения на сайте</h3>
-          <p>Пока нет проверок. Откройте раздел изменений, чтобы сделать первый снимок.</p>
-        </div>
-        <span class="my-changes-badge is-baseline">Нет данных</span>
+  const model = buildChangesAttentionModel(history, lastCheckedAtIso);
+  const highlights = model.metrics.slice(0, 3);
+  const highlightsHtml = highlights.length
+    ? `
+      <div class="my-changes-widget-highlights">
+        ${highlights.map((metric) => renderOverviewMetric(metric, "my-changes-widget-highlight")).join("")}
       </div>
-      <p class="my-changes-time">Нажмите карточку, чтобы открыть страницу «Изменения на сайте».</p>
-      <div class="my-changes-last-block is-empty">
-        <span class="my-changes-last-label">Последнее изменение</span>
-        <p class="my-changes-last-title">Сейчас обновлений нет</p>
-      </div>
-    `;
-    return;
-  }
-
-  const checkedAt = hasValidLastCheckedAt ? lastCheckedAt : new Date(latest.checkedAt);
-  const checkedText = Number.isNaN(checkedAt.getTime())
-    ? "Время проверки неизвестно"
-    : `${checkedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} · ${formatRelativeAge(checkedAt, { compact: false })}`;
-  const sourceIssues = Array.isArray(latest.sourceIssues) ? latest.sourceIssues : [];
-  const hasOnlySourceIssues = sourceIssues.length > 0 && !latest.hasChanges;
-  const badgeClass = latest.baseline ? "is-baseline" : hasOnlySourceIssues || latestChangedEntry ? "is-changed" : "is-stable";
-  const badgeText = latest.baseline
-    ? "Базовый снимок"
-    : hasOnlySourceIssues
-      ? "Ошибка источника"
-      : latestChangedEntry
-        ? "Есть изменения"
-        : "Без изменений";
-  const summaryText = hasOnlySourceIssues
-    ? `${sourceIssues[0]?.facilityName ? `${sourceIssues[0].facilityName}: ` : ""}${
-        sourceIssues[0]?.description || "Источник временно недоступен, изменения расписания сейчас не рассчитываются."
-      }`
-    : latest.baseline
-    ? "Создан базовый снимок для отслеживания будущих изменений."
-    : latestChangedEntry
-      ? "Доступно краткое описание последнего изменения."
-      : "Сейчас обновлений нет.";
-  const latestChangeBlock = renderMyLatestSiteChangeBlock(latestChangedEntry);
+    `
+    : "";
 
   el.myChangesSummaryContent.innerHTML = `
-    <div class="my-changes-head">
-      <div>
-        <h3>Изменения на сайте</h3>
-        <p>${escapeHtml(summaryText)}</p>
+    <div class="my-changes-widget ${escapeHtml(model.toneClass)}">
+      <div class="my-changes-widget-top">
+        <div>
+          <p class="my-changes-kicker">Проверка расписания</p>
+          <h3>${escapeHtml(model.headline)}</h3>
+        </div>
+        <span class="my-changes-state-pill">${escapeHtml(model.pill)}</span>
       </div>
-      <span class="my-changes-badge ${badgeClass}">${escapeHtml(badgeText)}</span>
+      <p class="my-changes-widget-summary">${escapeHtml(model.summary)}</p>
+      <p class="my-changes-widget-time">${escapeHtml(model.checkedAtMeta)}</p>
+      ${highlightsHtml}
+      <div class="my-changes-widget-footer">
+        <span>${escapeHtml(buildMyChangesWidgetFooter(model))}</span>
+        <span class="material-symbols-outlined">arrow_forward</span>
+      </div>
     </div>
-    <p class="my-changes-time">${escapeHtml(checkedText)}</p>
-    ${latestChangeBlock}
-    <p class="my-changes-open-hint">Нажмите карточку, чтобы открыть последние изменения.</p>
   `;
 }
 
-function renderMyLatestSiteChangeBlock(entry) {
-  if (!entry) {
-    return `
-      <div class="my-changes-last-block is-empty">
-        <span class="my-changes-last-label">Последнее изменение</span>
-        <p class="my-changes-last-title">Сейчас обновлений нет</p>
-      </div>
-    `;
+function buildMyChangesWidgetFooter(model) {
+  if (model.status === "no_data") {
+    return "Открыть и запустить проверку";
   }
-
-  const events = getEntryDisplayEvents(entry);
-  const leadEvent = events[0] || null;
-  const title = leadEvent ? String(leadEvent.title || "Изменение расписания") : "Изменение расписания";
-  const details = leadEvent
-    ? normalizeChangeSideText(leadEvent.afterText || leadEvent.description, "Детали изменения обновлены.")
-    : "Есть обновление расписания.";
-  const dateHint = leadEvent?.date ? formatMonthDayShort(leadEvent.date) : "";
-  const facilityHint = leadEvent?.facilityName ? String(leadEvent.facilityName) : "";
-  const metaPrefix = [facilityHint, dateHint].filter(Boolean).join(" · ");
-  const changedAt = formatChangesDateTime(entry.checkedAt);
-  const meta = metaPrefix ? `${metaPrefix} · ${changedAt}` : changedAt;
-
-  return `
-    <div class="my-changes-last-block">
-      <span class="my-changes-last-label">Последнее изменение</span>
-      <p class="my-changes-last-title">${escapeHtml(title)}</p>
-      <p class="my-changes-last-text">${escapeHtml(details)}</p>
-      <p class="my-changes-last-meta">${escapeHtml(meta)}</p>
-    </div>
-  `;
+  if (model.status === "important") {
+    return "Открыть детали";
+  }
+  if (model.status === "issue") {
+    return "Посмотреть проблему";
+  }
+  if (model.lastEventEntry?.checkedAt) {
+    return `Последнее событие: ${formatChangesDateTime(model.lastEventEntry.checkedAt)}`;
+  }
+  return "Открыть детали";
 }
 
 function renderMyShiftCard(shift, verification = getShiftVerification(shift)) {
@@ -1973,23 +2659,19 @@ function setMyShiftsDataNotice(message, type = "info") {
 function exportMyShiftsHistory() {
   const siteChangesHistory = Array.isArray(state.siteChangesHistory)
     ? state.siteChangesHistory
-        .map((entry) => ({
-          ...entry,
-          events: normalizeSiteChangeEvents(entry.events),
-          sourceIssues: Array.isArray(entry.sourceIssues) ? entry.sourceIssues.slice(0, 8) : [],
-        }))
+        .map(normalizeSiteChangeEntry)
         .slice(0, SITE_CHANGES_HISTORY_LIMIT)
     : [];
 
   const payload = {
-    version: 3,
+    version: 4,
     app: "Расписание",
     exportedAt: new Date().toISOString(),
     timezone: state.data?.timezone || "Europe/Minsk",
     shifts: state.myShifts,
     siteChanges: {
       lastCheckedAt: state.siteChangesLastCheckedAt || "",
-      acknowledgedSignature: state.siteChangesAcknowledgedSignature || "",
+      acknowledgedSignature: "",
       history: siteChangesHistory,
     },
   };
@@ -2046,6 +2728,7 @@ async function handleMyShiftsImport(event) {
       state.siteChangesHistory = importedSiteChanges.history;
       state.siteChangesLastCheckedAt = importedSiteChanges.lastCheckedAt;
       state.siteChangesAcknowledgedSignature = importedSiteChanges.acknowledgedSignature;
+      migrateLegacyAcknowledgedSiteChanges();
       saveSiteChangesHistory();
       saveSiteChangesLastCheckedAt();
       saveSiteChangesAcknowledgedSignature();
@@ -2185,7 +2868,7 @@ function showErrorEmpty(error) {
   if (el.changesUpdatesCard && !state.siteChangesHistory.length) {
     el.changesUpdatesCard.innerHTML = `
       <div class="changes-list-head">
-        <h2>Последние изменения на сайте</h2>
+        <h2>Журнал изменений</h2>
         <p>${escapeHtml(message)}</p>
       </div>
     `;
@@ -2200,7 +2883,31 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
   const { source = "auto", forced = false } = options;
   const checkedAt = new Date().toISOString();
   const history = Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory.slice() : [];
-  const sourceIssues = collectSourceIssueEvents(previousPayload, nextPayload);
+  const fallbackEvents = !siteChangesUtils ? diffSchedulePayload(previousPayload, nextPayload) : [];
+  const fallbackSourceIssues = !siteChangesUtils ? collectSourceIssueEvents(previousPayload, nextPayload) : [];
+  const fallbackSummary = !siteChangesUtils ? summarizeChangeEvents(fallbackEvents) : { total: 0, added: 0, removed: 0, updated: 0 };
+  const comparison = siteChangesUtils
+    ? siteChangesUtils.buildScheduleComparison(previousPayload, nextPayload)
+    : {
+        events: fallbackEvents,
+        sourceIssues: fallbackSourceIssues,
+        summary: fallbackSummary,
+        hasChanges: fallbackSummary.total > 0,
+        hasSourceIssues: fallbackSourceIssues.length > 0,
+        entryType: fallbackSourceIssues.length ? (fallbackSummary.total > 0 ? "schedule_with_source_issues" : "source_error") : "schedule_diff",
+        signature: buildSiteChangesSignature(fallbackSummary, fallbackEvents, fallbackSourceIssues, {
+          hasChanges: fallbackSummary.total > 0,
+          hasSourceIssues: fallbackSourceIssues.length > 0,
+          entryType: fallbackSourceIssues.length ? (fallbackSummary.total > 0 ? "schedule_with_source_issues" : "source_error") : "schedule_diff",
+        }),
+        metrics: {
+          affectedFacilityCount: new Set(
+            [...fallbackEvents, ...fallbackSourceIssues].map((item) => String(item?.facilityId || "").trim()).filter(Boolean)
+          ).size,
+          affectedDateCount: new Set(fallbackEvents.map((item) => String(item?.date || "").trim()).filter(Boolean)).size,
+        },
+      };
+  const sourceIssues = comparison.sourceIssues.slice(0, 8);
   const hasSourceIssues = sourceIssues.length > 0;
 
   if (!previousPayload?.facilities?.length) {
@@ -2217,13 +2924,18 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
         hasSourceIssues: true,
         summary: { total: 0, added: 0, removed: 0, updated: 0 },
         events: [],
-        sourceIssues: sourceIssues.slice(0, 8),
-        signature: buildSiteChangesSignature(
-          { total: 0, added: 0, removed: 0, updated: 0 },
-          [],
-          sourceIssues,
-          { hasChanges: false, hasSourceIssues: true, entryType: "source_error" }
-        ),
+        sourceIssues,
+        affectedFacilityCount: Number(comparison.metrics?.affectedFacilityCount || 0),
+        affectedDateCount: Number(comparison.metrics?.affectedDateCount || 0),
+        snapshotHash: String(nextPayload.snapshotHash || ""),
+        acknowledgedAt: "",
+        signature:
+          comparison.signature ||
+          buildSiteChangesSignature({ total: 0, added: 0, removed: 0, updated: 0 }, [], sourceIssues, {
+            hasChanges: false,
+            hasSourceIssues: true,
+            entryType: "source_error",
+          }),
       };
       if (!hasSameSourceIssueSignature(history[0], sourceIssues)) {
         history.unshift(issueEntry);
@@ -2250,6 +2962,10 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
       summary: { total: 0, added: 0, removed: 0, updated: 0 },
       events: [],
       sourceIssues: [],
+      affectedFacilityCount: 0,
+      affectedDateCount: 0,
+      snapshotHash: String(nextPayload.snapshotHash || ""),
+      acknowledgedAt: "",
       signature: buildSiteChangesSignature(
         { total: 0, added: 0, removed: 0, updated: 0 },
         [],
@@ -2262,9 +2978,9 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
     return;
   }
 
-  const events = diffSchedulePayload(previousPayload, nextPayload);
-  const summary = summarizeChangeEvents(events);
-  const hasChanges = summary.total > 0;
+  const events = comparison.events;
+  const summary = comparison.summary;
+  const hasChanges = comparison.hasChanges;
 
   if (!hasChanges && !hasSourceIssues) {
     return;
@@ -2274,12 +2990,14 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
     return;
   }
 
-  const entryType = hasSourceIssues ? (hasChanges ? "schedule_with_source_issues" : "source_error") : "schedule_diff";
-  const signature = buildSiteChangesSignature(summary, events, sourceIssues, {
-    hasChanges,
-    hasSourceIssues,
-    entryType,
-  });
+  const entryType = comparison.entryType;
+  const signature =
+    comparison.signature ||
+    buildSiteChangesSignature(summary, events, sourceIssues, {
+      hasChanges,
+      hasSourceIssues,
+      entryType,
+    });
   if (history[0]?.signature && history[0].signature === signature) {
     return;
   }
@@ -2296,7 +3014,11 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
     hasSourceIssues,
     summary,
     events: events.slice(0, SITE_CHANGES_EVENTS_LIMIT),
-    sourceIssues: sourceIssues.slice(0, 8),
+    sourceIssues,
+    affectedFacilityCount: Number(comparison.metrics?.affectedFacilityCount || 0),
+    affectedDateCount: Number(comparison.metrics?.affectedDateCount || 0),
+    snapshotHash: String(nextPayload.snapshotHash || ""),
+    acknowledgedAt: "",
     signature,
   };
 
@@ -2950,6 +3672,37 @@ function saveSiteChangesAcknowledgedSignature() {
   localStorage.setItem(STORAGE.siteChangesAcknowledgedSignature, value.slice(0, 400));
 }
 
+function migrateLegacyAcknowledgedSiteChanges() {
+  const legacySignature = String(state.siteChangesAcknowledgedSignature || "").trim();
+  if (!legacySignature || !Array.isArray(state.siteChangesHistory) || !state.siteChangesHistory.length) {
+    return;
+  }
+
+  let migrated = false;
+  state.siteChangesHistory = state.siteChangesHistory.map((entry) => {
+    if (!entry || entry.acknowledgedAt) {
+      return entry;
+    }
+
+    if (buildSiteChangeAckSignature(entry) !== legacySignature) {
+      return entry;
+    }
+
+    migrated = true;
+    return {
+      ...entry,
+      acknowledgedAt: normalizeOptionalIsoDate(entry.checkedAt) || new Date().toISOString(),
+    };
+  });
+
+  if (migrated) {
+    saveSiteChangesHistory();
+  }
+
+  state.siteChangesAcknowledgedSignature = "";
+  saveSiteChangesAcknowledgedSignature();
+}
+
 function loadSiteChangesHistory() {
   try {
     const raw = localStorage.getItem(STORAGE.siteChanges);
@@ -2962,11 +3715,7 @@ function loadSiteChangesHistory() {
     }
     return parsed
       .filter((item) => item && typeof item === "object" && typeof item.checkedAt === "string")
-      .map((item) => ({
-        ...item,
-        events: normalizeSiteChangeEvents(item.events),
-        sourceIssues: Array.isArray(item.sourceIssues) ? item.sourceIssues.slice(0, 8) : [],
-      }))
+      .map(normalizeSiteChangeEntry)
       .slice(0, SITE_CHANGES_HISTORY_LIMIT);
   } catch {
     return [];
@@ -2975,11 +3724,7 @@ function loadSiteChangesHistory() {
 
 function saveSiteChangesHistory() {
   const compact = (Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [])
-    .map((entry) => ({
-      ...entry,
-      events: normalizeSiteChangeEvents(entry.events),
-      sourceIssues: Array.isArray(entry.sourceIssues) ? entry.sourceIssues.slice(0, 8) : [],
-    }))
+    .map(normalizeSiteChangeEntry)
     .slice(0, SITE_CHANGES_HISTORY_LIMIT);
   localStorage.setItem(STORAGE.siteChanges, JSON.stringify(compact));
 }
@@ -2994,6 +3739,17 @@ function normalizeSiteChangeEvents(events) {
   }));
 }
 
+function normalizeSiteChangeEntry(item) {
+  return {
+    ...(item && typeof item === "object" ? item : {}),
+    acknowledgedAt: normalizeOptionalIsoDate(item?.acknowledgedAt),
+    events: normalizeSiteChangeEvents(item?.events),
+    sourceIssues: Array.isArray(item?.sourceIssues) ? item.sourceIssues.slice(0, 8) : [],
+    affectedFacilityCount: Number(item?.affectedFacilityCount || 0),
+    affectedDateCount: Number(item?.affectedDateCount || 0),
+  };
+}
+
 function normalizeImportedSiteChangesPayload(value) {
   if (!value || typeof value !== "object") {
     return null;
@@ -3002,11 +3758,7 @@ function normalizeImportedSiteChangesPayload(value) {
   const historyRaw = Array.isArray(value.history) ? value.history : [];
   const history = historyRaw
     .filter((item) => item && typeof item === "object" && typeof item.checkedAt === "string")
-    .map((item) => ({
-      ...item,
-      events: normalizeSiteChangeEvents(item.events),
-      sourceIssues: Array.isArray(item.sourceIssues) ? item.sourceIssues.slice(0, 8) : [],
-    }))
+    .map(normalizeSiteChangeEntry)
     .slice(0, SITE_CHANGES_HISTORY_LIMIT);
 
   return {

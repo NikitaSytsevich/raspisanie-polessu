@@ -535,10 +535,251 @@ body::before {
 
 .changes-latest-card,
 .changes-list-card {
-  border-radius: 20px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.changes-list-card {
+  margin-top: 14px;
+}
+
+.changes-section {
+  border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(28, 28, 30, 0.88), rgba(15, 23, 42, 0.58));
-  padding: 14px;
+  padding: 16px;
+  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.24);
+}
+
+.changes-section + .changes-section {
+  margin-top: 14px;
+}
+
+.tone-important,
+.tone-info,
+.tone-issue,
+.tone-stable,
+.tone-baseline {
+  --tone-border: rgba(148, 163, 184, 0.26);
+  --tone-bg-start: rgba(28, 28, 30, 0.92);
+  --tone-bg-end: rgba(15, 23, 42, 0.72);
+  --tone-glow: rgba(148, 163, 184, 0.12);
+  --tone-title: #f8fafc;
+  --tone-copy: #dbe5f2;
+  --tone-muted: #bfdbfe;
+  --tone-divider: rgba(255, 255, 255, 0.08);
+  --tone-pill-border: rgba(148, 163, 184, 0.3);
+  --tone-pill-bg: rgba(15, 23, 42, 0.42);
+  --tone-pill-text: #e2e8f0;
+  --tone-icon-border: rgba(255, 255, 255, 0.08);
+  --tone-icon-bg: rgba(255, 255, 255, 0.08);
+  --tone-icon-text: #f8fafc;
+  --tone-metric-border: rgba(255, 255, 255, 0.08);
+  --tone-metric-bg: rgba(15, 23, 42, 0.34);
+}
+
+.tone-important {
+  --tone-border: rgba(251, 146, 60, 0.34);
+  --tone-bg-start: rgba(60, 26, 14, 0.96);
+  --tone-bg-end: rgba(24, 24, 27, 0.86);
+  --tone-glow: rgba(249, 115, 22, 0.2);
+  --tone-muted: #fdba74;
+  --tone-pill-border: rgba(251, 146, 60, 0.36);
+  --tone-pill-bg: rgba(154, 52, 18, 0.34);
+  --tone-pill-text: #ffedd5;
+  --tone-icon-border: rgba(251, 146, 60, 0.36);
+  --tone-icon-bg: rgba(154, 52, 18, 0.32);
+  --tone-icon-text: #fdba74;
+}
+
+.tone-info {
+  --tone-border: rgba(96, 165, 250, 0.34);
+  --tone-bg-start: rgba(17, 24, 39, 0.96);
+  --tone-bg-end: rgba(15, 23, 42, 0.82);
+  --tone-glow: rgba(59, 130, 246, 0.2);
+  --tone-muted: #93c5fd;
+  --tone-pill-border: rgba(96, 165, 250, 0.34);
+  --tone-pill-bg: rgba(30, 64, 175, 0.3);
+  --tone-pill-text: #dbeafe;
+  --tone-icon-border: rgba(96, 165, 250, 0.34);
+  --tone-icon-bg: rgba(30, 64, 175, 0.28);
+  --tone-icon-text: #93c5fd;
+}
+
+.tone-issue {
+  --tone-border: rgba(250, 204, 21, 0.34);
+  --tone-bg-start: rgba(54, 37, 12, 0.96);
+  --tone-bg-end: rgba(24, 24, 27, 0.86);
+  --tone-glow: rgba(250, 204, 21, 0.18);
+  --tone-muted: #fde68a;
+  --tone-pill-border: rgba(250, 204, 21, 0.34);
+  --tone-pill-bg: rgba(120, 53, 15, 0.3);
+  --tone-pill-text: #fef3c7;
+  --tone-icon-border: rgba(250, 204, 21, 0.34);
+  --tone-icon-bg: rgba(120, 53, 15, 0.28);
+  --tone-icon-text: #fde68a;
+}
+
+.tone-stable {
+  --tone-border: rgba(74, 222, 128, 0.28);
+  --tone-bg-start: rgba(10, 35, 28, 0.96);
+  --tone-bg-end: rgba(15, 23, 42, 0.78);
+  --tone-glow: rgba(34, 197, 94, 0.18);
+  --tone-muted: #86efac;
+  --tone-pill-border: rgba(74, 222, 128, 0.34);
+  --tone-pill-bg: rgba(20, 83, 45, 0.3);
+  --tone-pill-text: #dcfce7;
+  --tone-icon-border: rgba(74, 222, 128, 0.32);
+  --tone-icon-bg: rgba(20, 83, 45, 0.28);
+  --tone-icon-text: #86efac;
+}
+
+.tone-baseline {
+  --tone-border: rgba(148, 163, 184, 0.28);
+  --tone-bg-start: rgba(30, 41, 59, 0.96);
+  --tone-bg-end: rgba(15, 23, 42, 0.8);
+  --tone-glow: rgba(148, 163, 184, 0.14);
+  --tone-muted: #cbd5e1;
+  --tone-pill-border: rgba(148, 163, 184, 0.3);
+  --tone-pill-bg: rgba(51, 65, 85, 0.32);
+  --tone-pill-text: #e2e8f0;
+  --tone-icon-border: rgba(148, 163, 184, 0.3);
+  --tone-icon-bg: rgba(51, 65, 85, 0.28);
+  --tone-icon-text: #cbd5e1;
+}
+
+.changes-overview-card {
+  border-radius: 24px;
+  border: 1px solid var(--tone-border);
+  background:
+    radial-gradient(120% 160% at 0% 0%, var(--tone-glow), transparent 58%),
+    linear-gradient(180deg, var(--tone-bg-start), var(--tone-bg-end));
+  padding: 16px;
+  box-shadow: 0 18px 36px rgba(2, 6, 23, 0.28);
+}
+
+.changes-overview-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.changes-overview-kicker {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tone-muted);
+}
+
+.changes-overview-meta {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 800;
+  color: var(--tone-copy);
+}
+
+.changes-state-pill {
+  border-radius: 9999px;
+  border: 1px solid var(--tone-pill-border);
+  background: var(--tone-pill-bg);
+  color: var(--tone-pill-text);
+  padding: 7px 11px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.changes-overview-main {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.changes-overview-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid var(--tone-icon-border);
+  background: var(--tone-icon-bg);
+  color: var(--tone-icon-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.changes-overview-icon .material-symbols-outlined {
+  font-size: 28px;
+}
+
+.changes-overview-copy h2 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 900;
+  color: var(--tone-title);
+}
+
+.changes-overview-copy p {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 700;
+  color: var(--tone-copy);
+}
+
+.changes-overview-metrics {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.changes-overview-metric {
+  border-radius: 16px;
+  border: 1px solid var(--tone-metric-border);
+  background: var(--tone-metric-bg);
+  padding: 10px 11px;
+}
+
+.changes-overview-metric span {
+  display: block;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tone-muted);
+}
+
+.changes-overview-metric strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 16px;
+  line-height: 1.1;
+  font-weight: 900;
+  color: var(--tone-title);
+}
+
+.changes-overview-footer {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--tone-divider);
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 700;
+  color: var(--tone-copy);
 }
 
 .changes-latest-top {
@@ -803,6 +1044,43 @@ body::before {
   gap: 9px;
 }
 
+.changes-impact-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.changes-impact-card {
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.44);
+  padding: 12px;
+}
+
+.changes-impact-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.changes-impact-head h3 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.changes-impact-meta {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #93c5fd;
+}
+
 .changes-feed-card {
   border-radius: 16px;
   border: 1px solid rgba(148, 163, 184, 0.3);
@@ -987,6 +1265,12 @@ body::before {
 
 .changes-check-more {
   margin-top: 9px;
+}
+
+.changes-history-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .my-schedule-topbar {
@@ -1226,48 +1510,63 @@ body::before {
   width: 100%;
   text-align: left;
   appearance: none;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, rgba(28, 28, 30, 0.88), rgba(15, 23, 42, 0.58));
-  padding: 14px;
+  border: 0;
+  background: transparent;
+  padding: 0;
   cursor: pointer;
-  transition: transform 150ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  transition: transform 150ms ease;
 }
 
-.my-changes-summary-card:hover {
-  border-color: rgba(125, 211, 252, 0.52);
-  box-shadow: 0 14px 28px rgba(2, 6, 23, 0.28);
+.my-changes-widget {
+  border-radius: 24px;
+  border: 1px solid var(--tone-border);
+  background:
+    radial-gradient(120% 160% at 0% 0%, var(--tone-glow), transparent 58%),
+    linear-gradient(180deg, var(--tone-bg-start), var(--tone-bg-end));
+  padding: 16px;
+  box-shadow: 0 18px 36px rgba(2, 6, 23, 0.28);
+  transition: transform 150ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
-.my-changes-summary-card:active {
+.my-changes-summary-card:hover .my-changes-widget {
+  transform: translateY(-1px);
+  box-shadow: 0 22px 40px rgba(2, 6, 23, 0.32);
+}
+
+.my-changes-summary-card:active .my-changes-widget {
   transform: scale(0.995);
 }
 
-.my-changes-head {
+.my-changes-widget-top {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 }
 
-.my-changes-head h3 {
+.my-changes-kicker {
   margin: 0;
-  font-size: 16px;
-  line-height: 1.1;
+  font-size: 11px;
+  line-height: 1;
   font-weight: 900;
-  color: #f8fafc;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tone-muted);
 }
 
-.my-changes-head p {
-  margin: 7px 0 0;
-  font-size: 12px;
-  line-height: 1.35;
-  font-weight: 700;
-  color: #cbd5e1;
+.my-changes-widget-top h3 {
+  margin: 8px 0 0;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 900;
+  color: var(--tone-title);
 }
 
-.my-changes-badge {
+.my-changes-state-pill {
   border-radius: 9999px;
+  border: 1px solid var(--tone-pill-border);
+  background: var(--tone-pill-bg);
+  color: var(--tone-pill-text);
   padding: 7px 11px;
   font-size: 11px;
   line-height: 1;
@@ -1277,84 +1576,71 @@ body::before {
   white-space: nowrap;
 }
 
-.my-changes-badge.is-changed {
-  border: 1px solid rgba(248, 113, 113, 0.4);
-  background: rgba(220, 38, 38, 0.22);
-  color: #fecaca;
+.my-changes-widget-summary {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.48;
+  font-weight: 700;
+  color: var(--tone-copy);
 }
 
-.my-changes-badge.is-stable {
-  border: 1px solid rgba(52, 211, 153, 0.38);
-  background: rgba(5, 150, 105, 0.2);
-  color: #a7f3d0;
-}
-
-.my-changes-badge.is-baseline {
-  border: 1px solid rgba(96, 165, 250, 0.4);
-  background: rgba(37, 99, 235, 0.23);
-  color: #dbeafe;
-}
-
-.my-changes-time {
+.my-changes-widget-time {
   margin: 10px 0 0;
-  font-size: 11px;
-  line-height: 1.2;
+  font-size: 12px;
+  line-height: 1.35;
   font-weight: 800;
-  color: #93c5fd;
+  color: var(--tone-copy);
 }
 
-.my-changes-open-hint {
-  margin: 8px 0 0;
-  font-size: 11px;
-  line-height: 1.3;
-  font-weight: 800;
-  color: #cbd5e1;
+.my-changes-widget-highlights {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.my-changes-last-block {
-  margin-top: 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(15, 23, 42, 0.38);
-  padding: 8px 10px;
+.my-changes-widget-highlight {
+  border-radius: 16px;
+  border: 1px solid var(--tone-metric-border);
+  background: var(--tone-metric-bg);
+  padding: 10px 11px;
 }
 
-.my-changes-last-block.is-empty {
-  border-style: dashed;
-}
-
-.my-changes-last-label {
+.my-changes-widget-highlight span {
   display: block;
   font-size: 10px;
   line-height: 1;
   font-weight: 900;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #93c5fd;
+  color: var(--tone-muted);
 }
 
-.my-changes-last-title {
-  margin: 6px 0 0;
-  font-size: 13px;
-  line-height: 1.3;
+.my-changes-widget-highlight strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 15px;
+  line-height: 1.1;
   font-weight: 900;
-  color: #f8fafc;
+  color: var(--tone-title);
 }
 
-.my-changes-last-text {
-  margin: 5px 0 0;
-  font-size: 11px;
+.my-changes-widget-footer {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tone-divider);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
   line-height: 1.35;
-  font-weight: 700;
-  color: #cbd5e1;
+  font-weight: 800;
+  color: var(--tone-copy);
 }
 
-.my-changes-last-meta {
-  margin: 6px 0 0;
-  font-size: 10px;
-  line-height: 1.2;
-  font-weight: 800;
-  color: #93c5fd;
+.my-changes-widget-footer .material-symbols-outlined {
+  font-size: 20px;
 }
 
 .my-editor-launch-btn {
@@ -2480,15 +2766,125 @@ html.light #changesHeader .changes-updated-at {
 
 html.light .changes-latest-card,
 html.light .changes-list-card {
-  border-color: rgba(148, 163, 184, 0.28);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  background: transparent;
+  box-shadow: none;
 }
 
-html.light .changes-latest-top h2,
+html.light .changes-section {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
+}
+
+html.light .changes-overview-card,
+html.light .my-changes-widget {
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+}
+
+html.light .changes-overview-card.tone-important,
+html.light .my-changes-widget.tone-important {
+  --tone-border: rgba(249, 115, 22, 0.26);
+  --tone-bg-start: rgba(255, 247, 237, 0.98);
+  --tone-bg-end: rgba(255, 237, 213, 0.94);
+  --tone-glow: rgba(251, 146, 60, 0.16);
+  --tone-title: #7c2d12;
+  --tone-copy: #9a3412;
+  --tone-muted: #c2410c;
+  --tone-divider: rgba(251, 146, 60, 0.16);
+  --tone-pill-border: rgba(249, 115, 22, 0.28);
+  --tone-pill-bg: rgba(255, 237, 213, 0.94);
+  --tone-pill-text: #9a3412;
+  --tone-icon-border: rgba(249, 115, 22, 0.2);
+  --tone-icon-bg: rgba(255, 237, 213, 0.92);
+  --tone-icon-text: #c2410c;
+  --tone-metric-border: rgba(249, 115, 22, 0.16);
+  --tone-metric-bg: rgba(255, 255, 255, 0.84);
+}
+
+html.light .changes-overview-card.tone-info,
+html.light .my-changes-widget.tone-info {
+  --tone-border: rgba(37, 99, 235, 0.24);
+  --tone-bg-start: rgba(239, 246, 255, 0.98);
+  --tone-bg-end: rgba(219, 234, 254, 0.94);
+  --tone-glow: rgba(59, 130, 246, 0.14);
+  --tone-title: #1e3a8a;
+  --tone-copy: #1d4ed8;
+  --tone-muted: #2563eb;
+  --tone-divider: rgba(59, 130, 246, 0.16);
+  --tone-pill-border: rgba(59, 130, 246, 0.24);
+  --tone-pill-bg: rgba(219, 234, 254, 0.94);
+  --tone-pill-text: #1d4ed8;
+  --tone-icon-border: rgba(59, 130, 246, 0.18);
+  --tone-icon-bg: rgba(219, 234, 254, 0.92);
+  --tone-icon-text: #2563eb;
+  --tone-metric-border: rgba(59, 130, 246, 0.16);
+  --tone-metric-bg: rgba(255, 255, 255, 0.86);
+}
+
+html.light .changes-overview-card.tone-issue,
+html.light .my-changes-widget.tone-issue {
+  --tone-border: rgba(245, 158, 11, 0.26);
+  --tone-bg-start: rgba(255, 251, 235, 0.98);
+  --tone-bg-end: rgba(254, 243, 199, 0.94);
+  --tone-glow: rgba(250, 204, 21, 0.14);
+  --tone-title: #92400e;
+  --tone-copy: #b45309;
+  --tone-muted: #d97706;
+  --tone-divider: rgba(245, 158, 11, 0.16);
+  --tone-pill-border: rgba(245, 158, 11, 0.24);
+  --tone-pill-bg: rgba(254, 243, 199, 0.94);
+  --tone-pill-text: #b45309;
+  --tone-icon-border: rgba(245, 158, 11, 0.18);
+  --tone-icon-bg: rgba(254, 243, 199, 0.92);
+  --tone-icon-text: #d97706;
+  --tone-metric-border: rgba(245, 158, 11, 0.16);
+  --tone-metric-bg: rgba(255, 255, 255, 0.86);
+}
+
+html.light .changes-overview-card.tone-stable,
+html.light .my-changes-widget.tone-stable {
+  --tone-border: rgba(34, 197, 94, 0.22);
+  --tone-bg-start: rgba(240, 253, 244, 0.98);
+  --tone-bg-end: rgba(220, 252, 231, 0.94);
+  --tone-glow: rgba(74, 222, 128, 0.14);
+  --tone-title: #166534;
+  --tone-copy: #15803d;
+  --tone-muted: #16a34a;
+  --tone-divider: rgba(34, 197, 94, 0.16);
+  --tone-pill-border: rgba(34, 197, 94, 0.22);
+  --tone-pill-bg: rgba(220, 252, 231, 0.94);
+  --tone-pill-text: #166534;
+  --tone-icon-border: rgba(34, 197, 94, 0.18);
+  --tone-icon-bg: rgba(220, 252, 231, 0.92);
+  --tone-icon-text: #16a34a;
+  --tone-metric-border: rgba(34, 197, 94, 0.16);
+  --tone-metric-bg: rgba(255, 255, 255, 0.86);
+}
+
+html.light .changes-overview-card.tone-baseline,
+html.light .my-changes-widget.tone-baseline {
+  --tone-border: rgba(148, 163, 184, 0.24);
+  --tone-bg-start: rgba(248, 250, 252, 0.98);
+  --tone-bg-end: rgba(241, 245, 249, 0.94);
+  --tone-glow: rgba(148, 163, 184, 0.12);
+  --tone-title: #0f172a;
+  --tone-copy: #334155;
+  --tone-muted: #475569;
+  --tone-divider: rgba(148, 163, 184, 0.16);
+  --tone-pill-border: rgba(148, 163, 184, 0.24);
+  --tone-pill-bg: rgba(255, 255, 255, 0.92);
+  --tone-pill-text: #334155;
+  --tone-icon-border: rgba(148, 163, 184, 0.18);
+  --tone-icon-bg: rgba(255, 255, 255, 0.9);
+  --tone-icon-text: #475569;
+  --tone-metric-border: rgba(148, 163, 184, 0.16);
+  --tone-metric-bg: rgba(255, 255, 255, 0.86);
+}
+
 html.light .changes-empty-state h2,
 html.light .changes-list-head h2,
 html.light .changes-check-head h3,
+html.light .changes-impact-head h3,
 html.light .changes-feed-title,
 html.light .changes-event-title {
   color: #0f172a;
@@ -2502,6 +2898,7 @@ html.light .changes-event-desc {
 }
 
 html.light .changes-latest-time,
+html.light .changes-impact-meta,
 html.light .changes-event-meta {
   color: #2563eb;
 }
@@ -2544,6 +2941,11 @@ html.light .changes-stat-card strong {
 }
 
 html.light .changes-feed-card {
+  border-color: rgba(148, 163, 184, 0.36);
+  background: rgba(248, 250, 252, 0.9);
+}
+
+html.light .changes-impact-card {
   border-color: rgba(148, 163, 184, 0.36);
   background: rgba(248, 250, 252, 0.9);
 }
@@ -2658,58 +3060,9 @@ html.light .my-day-footer p {
   color: #334155;
 }
 
-html.light .my-changes-head h3,
-html.light .my-changes-open-hint {
-  color: #0f172a;
-}
-
-html.light .my-changes-head p {
-  color: #334155;
-}
-
-html.light .my-changes-time,
-html.light .my-changes-open-hint {
-  color: #2563eb;
-}
-
-html.light .my-changes-badge {
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75) inset;
-}
-
-html.light .my-changes-badge.is-stable {
-  border-color: rgba(22, 163, 74, 0.46);
-  background: rgba(220, 252, 231, 0.95);
-  color: #166534;
-}
-
-html.light .my-changes-badge.is-baseline {
-  border-color: rgba(37, 99, 235, 0.46);
-  background: rgba(219, 234, 254, 0.95);
-  color: #1d4ed8;
-}
-
-html.light .my-changes-badge.is-changed {
-  border-color: rgba(220, 38, 38, 0.45);
-  background: rgba(254, 226, 226, 0.94);
-  color: #991b1b;
-}
-
-html.light .my-changes-last-block {
-  border-color: rgba(148, 163, 184, 0.38);
-  background: rgba(248, 250, 252, 0.9);
-}
-
-html.light .my-changes-last-label,
-html.light .my-changes-last-meta {
-  color: #2563eb;
-}
-
-html.light .my-changes-last-title {
-  color: #0f172a;
-}
-
-html.light .my-changes-last-text {
-  color: #334155;
+html.light .my-changes-summary-card {
+  background: transparent;
+  box-shadow: none;
 }
 
 html.light .my-editor-launch-btn {
@@ -3455,12 +3808,21 @@ html.dark #settingsMain .source-item .source-cta .material-symbols-outlined {
     width: 100%;
   }
 
-  .changes-stats {
-    gap: 6px;
-  }
-
   .changes-compare-columns {
     grid-template-columns: 1fr;
+  }
+
+  .changes-overview-main {
+    grid-template-columns: 1fr;
+  }
+
+  .changes-overview-copy h2 {
+    font-size: 24px;
+  }
+
+  .changes-overview-metrics,
+  .my-changes-widget-highlights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .my-day-spotlight-head {
@@ -3487,7 +3849,7 @@ html.dark #settingsMain .source-item .source-cta .material-symbols-outlined {
     font-size: 14px;
   }
 
-  .my-changes-head {
+  .my-changes-widget-top {
     flex-direction: column;
     align-items: flex-start;
   }

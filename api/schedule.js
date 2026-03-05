@@ -3,6 +3,10 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_DAYS_WINDOW = 8;
 const SOURCE_DISCOVERY_TTL_MS = 20 * 60 * 1000;
 const SITEMAP_URL = "https://www.polessu.by/sitemap.xml";
+const FETCH_TIMEOUT_MS = 10 * 1000;
+const SCHEMA_VERSION = 2;
+
+const siteChangesUtils = require("../shared/site_changes.js");
 
 const FACILITIES = [
   {
@@ -86,14 +90,27 @@ module.exports = async function handler(req, res) {
       FACILITIES.map((facility) => parseFacilityWithFallback(facility, previousFacilities.get(facility.id) || null))
     );
 
+    const checkedAt = new Date().toISOString();
+    const enrichedFacilities = facilityResults.map(enrichFacilityForTracking);
+    const sourceIssues = siteChangesUtils.buildSourceIssueDetails({
+      facilities: enrichedFacilities,
+    });
     const payload = {
-      generatedAt: new Date().toISOString(),
+      schemaVersion: SCHEMA_VERSION,
+      generatedAt: checkedAt,
+      sourceCheckedAt: checkedAt,
       timezone: TIMEZONE,
-      facilities: facilityResults,
+      snapshotHash: siteChangesUtils.buildScheduleSnapshotHash({
+        schemaVersion: SCHEMA_VERSION,
+        timezone: TIMEZONE,
+        facilities: enrichedFacilities,
+      }),
+      facilities: enrichedFacilities,
       meta: {
         cached: false,
         sourceCount: FACILITIES.length,
-        sourceIssues: facilityResults.filter((item) => item.fetchState !== "ok").length,
+        sourceIssueCount: sourceIssues.length,
+        sourceIssues,
       },
     };
 
@@ -130,6 +147,23 @@ function respond(res, statusCode, payload, fromCache) {
   res.status(statusCode).send(JSON.stringify(body));
 }
 
+function enrichFacilityForTracking(facility) {
+  const tracking = siteChangesUtils.buildFacilityTrackingMeta(facility);
+
+  return {
+    ...facility,
+    comparisonMode: tracking.comparisonMode,
+    dataQuality: tracking.dataQuality,
+    facilityHash: tracking.facilityHash,
+    templateHash: tracking.templateHash,
+    changeTrackingHash: tracking.changeTrackingHash,
+    sourceCheckedAt: facility.sourceCheckedAt || facility.updatedAt || null,
+    windowStart: tracking.windowStart || null,
+    windowEnd: tracking.windowEnd || null,
+    template: tracking.template,
+  };
+}
+
 async function parseFacilityWithFallback(facility, previousFacility) {
   const startedAt = new Date().toISOString();
   const directUrls = normalizeFacilitySourceUrls(facility);
@@ -146,6 +180,7 @@ async function parseFacilityWithFallback(facility, previousFacility) {
         emoji: facility.emoji,
         sourceUrl,
         mode: facility.mode,
+        sourceCheckedAt: startedAt,
         updatedAt: startedAt,
         ...parsed,
         warnings: uniq(parsed.warnings || []),
@@ -169,6 +204,7 @@ async function parseFacilityWithFallback(facility, previousFacility) {
         emoji: facility.emoji,
         sourceUrl,
         mode: facility.mode,
+        sourceCheckedAt: startedAt,
         updatedAt: startedAt,
         ...parsed,
         warnings: uniq([...(parsed.warnings || []), "Источник найден автоматически через sitemap"]),
@@ -195,8 +231,10 @@ async function parseFacilityWithFallback(facility, previousFacility) {
       emoji: facility.emoji,
       sourceUrl: fallbackSourceUrl,
       mode: facility.mode,
+      sourceCheckedAt: startedAt,
       updatedAt: startedAt,
       days: deepClone(previousFacility.days || []),
+      template: previousFacility?.template ? deepClone(previousFacility.template) : null,
       notes: deepClone(previousFacility.notes || []),
       warnings: uniq([...previousWarnings, "Источник недоступен, показаны последние сохранённые данные"]),
       error: sourceIssue,
@@ -211,8 +249,10 @@ async function parseFacilityWithFallback(facility, previousFacility) {
     emoji: facility.emoji,
     sourceUrl: fallbackSourceUrl,
     mode: facility.mode,
+    sourceCheckedAt: startedAt,
     updatedAt: startedAt,
     days: [],
+    template: null,
     notes: [],
     warnings: ["Не удалось получить актуальные данные со страницы расписания"],
     error: sourceIssue,
@@ -374,7 +414,7 @@ function deepClone(value) {
 async function fetchHtml(url, options = {}) {
   const { accept = "text/html,application/xhtml+xml" } = options;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 16_000);
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
     const response = await fetch(url, {
@@ -537,6 +577,7 @@ function parseDated(lines, facility) {
 
   return {
     days,
+    template: null,
     notes: uniq(notes),
     warnings,
   };
@@ -587,11 +628,12 @@ function parseDailyTemplate(lines, facility, daysWindow) {
 
   const today = todayIsoInTimezone(TIMEZONE);
   const days = [];
+  const closedWeekdays = facility.id === "rowing_base" ? [0, 6] : [];
 
   for (let i = 0; i < daysWindow; i += 1) {
     const date = addDays(today, i);
     const weekday = weekdayNameRu(date);
-    const isRowingWeekendClosed = facility.id === "rowing_base" && isWeekendIso(date);
+    const isRowingWeekendClosed = closedWeekdays.length > 0 && isWeekendIso(date);
 
     days.push({
       date,
@@ -615,6 +657,17 @@ function parseDailyTemplate(lines, facility, daysWindow) {
 
   return {
     days,
+    template: {
+      sessions: uniqueTemplate.map((session) => ({
+        start: session.start,
+        end: session.end,
+        activity: session.activity,
+        note: session.note || null,
+      })),
+      closedWeekdays,
+      windowStart: days[0]?.date || null,
+      windowEnd: days[days.length - 1]?.date || null,
+    },
     notes: uniq(notes),
     warnings,
   };
