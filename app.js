@@ -185,6 +185,7 @@ function bindEvents() {
     el.myShowAllButton.addEventListener("click", () => {
       state.myScheduleRangeMode = MY_SCHEDULE_RANGE.WEEK;
       renderMySchedule();
+      scrollMyScheduleControlsIntoView();
     });
   }
 
@@ -192,6 +193,7 @@ function bindEvents() {
     el.myCollapseRangeButton.addEventListener("click", () => {
       state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
       renderMySchedule();
+      scrollMyScheduleControlsIntoView();
     });
   }
 
@@ -199,6 +201,7 @@ function bindEvents() {
     el.myOpenFullRangeButton.addEventListener("click", () => {
       state.myScheduleRangeMode = MY_SCHEDULE_RANGE.FULL;
       renderMySchedule();
+      scrollMyScheduleControlsIntoView();
     });
   }
 
@@ -984,9 +987,9 @@ function renderMySchedule() {
 
   if (el.myTimelineTitle) {
     if (rangeMode === MY_SCHEDULE_RANGE.WEEK) {
-      el.myTimelineTitle.textContent = "Выбранные сутки + 7 дней";
+      el.myTimelineTitle.textContent = "Неделя от выбранной даты";
     } else if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
-      el.myTimelineTitle.textContent = "Полный график";
+      el.myTimelineTitle.textContent = "Весь период от выбранной даты";
     } else {
       el.myTimelineTitle.textContent = "График на выбранные сутки";
     }
@@ -1033,6 +1036,7 @@ function getMyScheduleDatesToRender(focusDate, groupedByDate, rangeMode) {
 function updateMyScheduleRangeControls(rangeMode, hasHistory) {
   if (el.myDayInlineActions) {
     el.myDayInlineActions.hidden = !hasHistory;
+    el.myDayInlineActions.classList.toggle("is-sticky", hasHistory && rangeMode !== MY_SCHEDULE_RANGE.DAY);
   }
 
   if (!hasHistory) {
@@ -1051,6 +1055,7 @@ function updateMyScheduleRangeControls(rangeMode, hasHistory) {
     if (rangeMode === MY_SCHEDULE_RANGE.WEEK) {
       el.myOpenFullRangeButton.hidden = false;
       el.myOpenFullRangeButton.disabled = false;
+      el.myOpenFullRangeButton.classList.remove("is-active");
       el.myOpenFullRangeButton.innerHTML =
         '<span class="material-symbols-outlined">open_in_full</span><span>Открыть полный график</span>';
       return;
@@ -1059,6 +1064,7 @@ function updateMyScheduleRangeControls(rangeMode, hasHistory) {
     if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
       el.myOpenFullRangeButton.hidden = false;
       el.myOpenFullRangeButton.disabled = true;
+      el.myOpenFullRangeButton.classList.add("is-active");
       el.myOpenFullRangeButton.innerHTML =
         '<span class="material-symbols-outlined">check_circle</span><span>Полный график открыт</span>';
       return;
@@ -1066,9 +1072,24 @@ function updateMyScheduleRangeControls(rangeMode, hasHistory) {
 
     el.myOpenFullRangeButton.hidden = true;
     el.myOpenFullRangeButton.disabled = false;
+    el.myOpenFullRangeButton.classList.remove("is-active");
     el.myOpenFullRangeButton.innerHTML =
       '<span class="material-symbols-outlined">open_in_full</span><span>Открыть полный график</span>';
   }
+}
+
+function scrollMyScheduleControlsIntoView() {
+  const target = el.myDayInlineActions || el.myScheduleTimeline || null;
+  if (!target) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    target.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  });
 }
 
 function renderMyScheduleEmptyState() {
@@ -1353,6 +1374,7 @@ function renderMyEditorShiftCard(shift, verification) {
   const note = normalizeShiftNote(shift.note);
   const noteHtml = note ? `<p class="my-editor-shift-note">${escapeHtml(note)}</p>` : "";
   const coworkersHtml = renderShiftCoworkersLine(shift, "my-editor-shift-coworkers");
+  const shiftDuration = formatDuration(getShiftDurationMinutes(shift));
 
   return `
     <article class="my-editor-shift-card">
@@ -1363,7 +1385,8 @@ function renderMyEditorShiftCard(shift, verification) {
         ${coworkersHtml}
         ${noteHtml}
         <div class="my-editor-shift-meta">
-          <span class="my-shift-duration">${escapeHtml(formatDuration(verification.confirmedMinutes))}</span>
+          <span class="my-shift-duration">${escapeHtml(shiftDuration)}</span>
+          <span class="my-shift-verify ${escapeHtml(verification.badgeClass)}">${escapeHtml(verification.label)}</span>
         </div>
       </div>
       <div class="my-editor-shift-actions">
@@ -2961,7 +2984,7 @@ function handleMyScheduleTimelineClick(event) {
 
 function renderMyScheduleDay(date, shiftChecks, options = {}) {
   const { spotlight = false } = options;
-  const dayTotalMinutes = shiftChecks.reduce((sum, item) => sum + (toMinutes(item.shift.end) - toMinutes(item.shift.start)), 0);
+  const dayTotalMinutes = shiftChecks.reduce((sum, item) => sum + getShiftDurationMinutes(item.shift), 0);
   const dayClasses = ["my-timeline-day"];
   if (spotlight) {
     dayClasses.push("is-spotlight");
@@ -2974,8 +2997,9 @@ function renderMyScheduleDay(date, shiftChecks, options = {}) {
     dayClasses.push("is-weekend");
   }
 
-  const stateClass = isWorkingDay ? "is-working" : "is-off";
-  const stateLabel = isWorkingDay ? "Рабочий день" : "Смен нет";
+  const daySummary = isWorkingDay
+    ? `${shiftChecks.length} ${pluralizeRu(shiftChecks.length, "смена", "смены", "смен")} · ${formatDuration(dayTotalMinutes)}`
+    : "Свободный день";
   const dayBody = isWorkingDay
     ? shiftChecks.map((item) => renderMyShiftCard(item.shift, item.verification)).join("")
     : `<div class="my-day-empty">На эти сутки смены не добавлены.</div>`;
@@ -2983,14 +3007,11 @@ function renderMyScheduleDay(date, shiftChecks, options = {}) {
   return `
     <section class="${dayClasses.join(" ")}">
       <div class="my-timeline-day-head">
-        <div>
+        <div class="my-timeline-day-copy">
           <p class="my-timeline-day-kicker">${escapeHtml(formatDayTag(date))}</p>
           <h4 class="my-timeline-day-title">${escapeHtml(formatMyDayHeading(date))}</h4>
         </div>
-        <div class="my-timeline-day-badges">
-          <span class="my-timeline-day-state ${stateClass}">${escapeHtml(stateLabel)}</span>
-          <span class="my-timeline-day-total">${escapeHtml(formatDuration(dayTotalMinutes))}</span>
-        </div>
+        <p class="my-timeline-day-summary">${escapeHtml(daySummary)}</p>
       </div>
       <div class="my-timeline-day-list">
         ${dayBody}
@@ -3052,86 +3073,91 @@ function buildMyChangesWidgetFooter(model) {
 
 function renderMyShiftCard(shift, verification = getShiftVerification(shift)) {
   const status = getMyShiftStatus(shift);
-  const duration = formatDuration(verification.confirmedMinutes);
-  const coworkersHtml = renderShiftCoworkersLine(shift, "my-shift-coworkers");
+  const shiftDuration = formatDuration(getShiftDurationMinutes(shift));
+  const coworkersHtml = renderShiftCoworkersLine(shift, "my-shift-coworkers", { label: false });
   const note = normalizeShiftNote(shift.note);
   const noteHtml = note ? `<p class="my-shift-note">${escapeHtml(note)}</p>` : "";
-  const strikeClass = verification.strike ? "my-shift-text-missing" : "";
-  const siteSessionsHtml = verification.status === "partial" ? renderMyShiftSiteTimeline(shift, verification) : "";
-  const missingBadgeHtml =
-    verification.status === "missing"
-      ? `
-        <span class="my-shift-site-missing-badge" title="${escapeHtml(verification.label)}">
-          <span class="material-symbols-outlined">warning</span>
-          <span>Нет на сайте</span>
-        </span>
-      `
-      : "";
+  const supportHtml = [coworkersHtml, noteHtml].filter(Boolean).join("");
+  const siteDetailsHtml = renderMyShiftSiteTimeline(shift, verification);
+  const runtimeMeta = [status.label, shiftDuration].filter(Boolean).join(" · ");
 
   return `
     <article class="my-shift-card ${escapeHtml(status.className)} ${escapeHtml(verification.cardClass)}">
-      <div class="my-shift-time ${strikeClass}">${escapeHtml(`${shift.start} — ${shift.end}`)}</div>
-      <div class="my-shift-place ${strikeClass}">${escapeHtml(resolveShiftFacilityName(shift))}</div>
-      ${coworkersHtml}
-      ${noteHtml}
-      ${siteSessionsHtml}
-      <div class="my-shift-meta">
-        ${missingBadgeHtml}
-        <span class="my-shift-status">${escapeHtml(status.label)}</span>
-        <span class="my-shift-duration">${escapeHtml(duration)}</span>
+      <div class="my-shift-top">
+        <div class="my-shift-time-wrap">
+          <div class="my-shift-time">${escapeHtml(`${shift.start} — ${shift.end}`)}</div>
+          <p class="my-shift-runtime">${escapeHtml(runtimeMeta)}</p>
+        </div>
+        <span class="my-shift-verify ${escapeHtml(verification.badgeClass)}">${escapeHtml(verification.label)}</span>
       </div>
+      <div class="my-shift-place">${escapeHtml(resolveShiftFacilityName(shift))}</div>
+      ${supportHtml ? `<div class="my-shift-support">${supportHtml}</div>` : ""}
+      ${siteDetailsHtml}
     </article>
   `;
 }
 
-function renderShiftCoworkersLine(shift, className) {
+function renderShiftCoworkersLine(shift, className, options = {}) {
+  const { label = true } = options;
   const coworkers = normalizeCoworkers(shift?.coworkers || []);
   if (!coworkers.length) {
     return "";
   }
 
-  return `<p class="${escapeHtml(className)}">С кем: ${escapeHtml(coworkers.join(", "))}</p>`;
+  const text = label ? `С кем: ${coworkers.join(", ")}` : coworkers.join(", ");
+  return `<p class="${escapeHtml(className)}">${escapeHtml(text)}</p>`;
 }
 
 function renderMyShiftSiteTimeline(shift, verification) {
   const sessions = Array.isArray(verification.siteSessions) ? verification.siteSessions : [];
-  if (!sessions.length) {
+  if (verification.status === "matched") {
     return "";
   }
 
+  const summaryText = buildMyShiftSiteSummary(verification, sessions);
+  const detailText = String(verification.detail || "").trim();
   const rows = [];
-  for (let i = 0; i < sessions.length; i += 1) {
-    const session = sessions[i];
-    if (i > 0) {
-      const breakMins = session.startMinutes - sessions[i - 1].endMinutes;
-      if (breakMins > 0) {
-        rows.push(renderMyShiftBreak(breakMins, shift.facilityId));
+  if (verification.status === "partial") {
+    for (let i = 0; i < sessions.length; i += 1) {
+      const session = sessions[i];
+      if (i > 0) {
+        const breakMins = session.startMinutes - sessions[i - 1].endMinutes;
+        if (breakMins > 0) {
+          rows.push(renderMyShiftBreak(breakMins, shift.facilityId));
+        }
       }
-    }
 
-    const notes = [];
-    if (session.clipped) {
-      notes.push("часть сеанса");
-    }
-    if (session.note && session.note !== session.activity) {
-      notes.push(session.note);
-    }
+      const notes = [];
+      if (session.clipped) {
+        notes.push("часть смены");
+      }
+      if (session.note && session.note !== session.activity) {
+        notes.push(session.note);
+      }
 
-    rows.push(`
-      <div class="my-shift-site-row">
-        <div class="my-shift-site-session">
-          <span class="my-shift-site-time">${escapeHtml(`${session.start} — ${session.end}`)}</span>
-          <span class="my-shift-site-activity">${escapeHtml(session.activity || "Сеанс")}</span>
+      rows.push(`
+        <div class="my-shift-site-row">
+          <div class="my-shift-site-session">
+            <span class="my-shift-site-time">${escapeHtml(`${session.start} — ${session.end}`)}</span>
+            <span class="my-shift-site-activity">${escapeHtml(session.activity || "Сеанс")}</span>
+          </div>
+          ${notes.length ? `<p class="my-shift-site-note">${escapeHtml(notes.join(" · "))}</p>` : ""}
         </div>
-        ${notes.length ? `<p class="my-shift-site-note">${escapeHtml(notes.join(" · "))}</p>` : ""}
-      </div>
-    `);
+      `);
+    }
   }
 
+  const toneClass =
+    verification.status === "missing" ? "is-alert" : verification.status === "unknown" ? "is-muted" : "is-partial";
+
   return `
-    <div class="my-shift-site-strip">
-      <p class="my-shift-site-title">Сеансы на сайте в рамках смены</p>
-      ${rows.join("")}
+    <div class="my-shift-site-strip ${escapeHtml(toneClass)}">
+      <div class="my-shift-site-head">
+        <p class="my-shift-site-title">На сайте</p>
+        ${summaryText ? `<p class="my-shift-site-summary">${escapeHtml(summaryText)}</p>` : ""}
+      </div>
+      ${detailText ? `<p class="my-shift-site-message">${escapeHtml(detailText)}</p>` : ""}
+      ${rows.length ? `<div class="my-shift-site-list">${rows.join("")}</div>` : ""}
     </div>
   `;
 }
@@ -3142,6 +3168,29 @@ function renderMyShiftBreak(minutes, facilityId) {
   `;
 }
 
+function buildMyShiftSiteSummary(verification, sessions) {
+  if (verification.status === "unknown") {
+    return "Нет данных";
+  }
+
+  if (verification.status === "missing") {
+    return "Совпадений нет";
+  }
+
+  if (!sessions.length) {
+    return "";
+  }
+
+  const count = sessions.length;
+  const parts = [`${count} ${pluralizeRu(count, "сеанс", "сеанса", "сеансов")}`];
+
+  if (verification.confirmedMinutes > 0) {
+    parts.push(`покрытие ${formatDuration(verification.confirmedMinutes)}`);
+  }
+
+  return parts.join(" · ");
+}
+
 function getMyShiftStatus(shift) {
   const today = todayIso();
   const now = nowInMinutes();
@@ -3149,22 +3198,22 @@ function getMyShiftStatus(shift) {
   const end = toMinutes(shift.end);
 
   if (shift.date < today) {
-    return { label: "Прошёл", className: "past" };
+    return { label: "Завершено", className: "past" };
   }
 
   if (shift.date > today) {
-    return { label: "По плану", className: "upcoming" };
+    return { label: "Запланировано", className: "upcoming" };
   }
 
   if (now >= end) {
-    return { label: "Прошёл", className: "past" };
+    return { label: "Завершено", className: "past" };
   }
 
   if (now >= start && now < end) {
-    return { label: "Сейчас", className: "live" };
+    return { label: "Идёт сейчас", className: "live" };
   }
 
-  return { label: "Сегодня", className: "upcoming" };
+  return { label: "Позже сегодня", className: "upcoming" };
 }
 
 function getShiftVerification(shift) {
@@ -3175,10 +3224,11 @@ function getShiftVerification(shift) {
   if (!state.data?.facilities?.length) {
     return {
       status: "unknown",
-      label: "Ждём синхронизацию",
+      label: "Не проверено",
       badgeClass: "verify-unknown",
       cardClass: "",
       strike: false,
+      detail: "Проверка сайта ещё не выполнена.",
       ...fallback,
     };
   }
@@ -3187,10 +3237,11 @@ function getShiftVerification(shift) {
   if (!facility) {
     return {
       status: "missing",
-      label: "Объект не найден",
+      label: "Нет на сайте",
       badgeClass: "verify-missing",
       cardClass: "shift-missing",
-      strike: true,
+      strike: false,
+      detail: "Объект не найден в актуальных данных сайта.",
       ...fallback,
     };
   }
@@ -3200,10 +3251,11 @@ function getShiftVerification(shift) {
   if (!sessions.length) {
     return {
       status: "missing",
-      label: day?.closedReason ? "На сайте выходной" : "На сайте нет сеанса",
+      label: "Нет на сайте",
       badgeClass: "verify-missing",
       cardClass: "shift-missing",
-      strike: true,
+      strike: false,
+      detail: day?.closedReason ? String(day.closedReason) : "На сайте на эту дату нет сеансов.",
       ...fallback,
     };
   }
@@ -3216,7 +3268,8 @@ function getShiftVerification(shift) {
       label: "Нет на сайте",
       badgeClass: "verify-missing",
       cardClass: "shift-missing",
-      strike: true,
+      strike: false,
+      detail: "На сайте нет совпадений по времени смены.",
       ...fallback,
     };
   }
@@ -3227,12 +3280,13 @@ function getShiftVerification(shift) {
   if (hasExact) {
     return {
       status: "matched",
-      label: "Подтверждено",
+      label: "Совпадает",
       badgeClass: "verify-matched",
       cardClass: "",
       strike: false,
       siteSessions: overlapSessions,
       confirmedMinutes,
+      detail: "",
     };
   }
 
@@ -3244,6 +3298,7 @@ function getShiftVerification(shift) {
     strike: false,
     siteSessions: overlapSessions,
     confirmedMinutes,
+    detail: "На сайте совпадает только часть смены.",
   };
 }
 
@@ -3303,6 +3358,17 @@ function getMergedSessionMinutes(sessions) {
   }
 
   return total + (mergedEnd - mergedStart);
+}
+
+function getShiftDurationMinutes(shift) {
+  const start = toMinutes(String(shift?.start || ""));
+  const end = toMinutes(String(shift?.end || ""));
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return 0;
+  }
+
+  return end - start;
 }
 
 function resolveShiftFacilityName(shift) {

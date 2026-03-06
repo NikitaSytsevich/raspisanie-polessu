@@ -1799,16 +1799,32 @@ body::before {
 }
 
 .my-day-inline-actions {
-  margin-top: auto;
-  padding-top: 12px;
+  margin: 12px 0 10px;
   display: flex;
   justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
+.my-day-inline-actions.is-sticky {
+  position: sticky;
+  top: calc(env(safe-area-inset-top) + 104px);
+  z-index: 12;
+  margin-top: 8px;
+  padding: 10px 0 12px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0.95), rgba(10, 10, 10, 0.72) 72%, rgba(10, 10, 10, 0));
+}
+
 .my-day-inline-actions .my-day-control-btn {
   min-width: 180px;
+}
+
+#myScheduleTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .my-shift-form {
@@ -2206,64 +2222,72 @@ body::before {
 }
 
 .my-timeline-day {
-  border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  background: rgba(15, 23, 42, 0.28);
-  padding: 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.36);
+  padding: 12px;
   animation: myCardIn 260ms ease-out;
+  box-shadow: 0 10px 28px rgba(2, 6, 23, 0.14);
 }
 
 .my-timeline-day.is-spotlight {
-  border-color: rgba(59, 130, 246, 0.5);
-  background: radial-gradient(130% 140% at 0% 0%, rgba(37, 99, 235, 0.22), rgba(15, 23, 42, 0.42) 48%, rgba(15, 23, 42, 0.26) 100%);
-  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.16);
-  padding: 14px;
+  border-color: rgba(59, 130, 246, 0.38);
+  background: radial-gradient(135% 150% at 0% 0%, rgba(37, 99, 235, 0.18), rgba(15, 23, 42, 0.46) 46%, rgba(15, 23, 42, 0.3) 100%);
+  box-shadow: 0 16px 34px rgba(37, 99, 235, 0.14);
+  padding: 16px;
 }
 
 .my-timeline-day.is-weekend {
-  border-color: rgba(148, 163, 184, 0.42);
-  background: rgba(51, 65, 85, 0.36);
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(30, 41, 59, 0.42);
 }
 
 .my-timeline-day.is-today {
-  border-color: rgba(59, 130, 246, 0.52);
-  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.42);
+  box-shadow:
+    inset 0 0 0 1px rgba(59, 130, 246, 0.12),
+    0 16px 34px rgba(37, 99, 235, 0.12);
 }
 
 .my-timeline-day-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
+}
+
+.my-timeline-day-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .my-timeline-day-kicker {
-  margin: 0 0 3px;
-  font-size: 9px;
+  margin: 0;
+  font-size: 10px;
   line-height: 1;
-  font-weight: 900;
-  letter-spacing: 0.11em;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #60a5fa;
+  color: #93c5fd;
 }
 
 .my-timeline-day-title {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.2;
-  font-weight: 800;
-  color: #e2e8f0;
+  font-weight: 700;
+  color: #f8fafc;
 }
 
-.my-timeline-day-total {
-  border-radius: 9999px;
-  border: 1px solid rgba(59, 130, 246, 0.35);
-  background: rgba(59, 130, 246, 0.14);
-  color: #bfdbfe;
-  padding: 4px 8px;
-  font-size: 10px;
-  line-height: 1;
-  font-weight: 800;
+.my-timeline-day-summary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 700;
+  color: #cbd5e1;
+  text-align: right;
   flex-shrink: 0;
 }
 
@@ -2300,145 +2324,241 @@ body::before {
 .my-timeline-day-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .my-day-empty {
-  border-radius: 10px;
-  border: 1px dashed rgba(148, 163, 184, 0.36);
-  background: rgba(15, 23, 42, 0.22);
-  padding: 10px;
+  border-radius: 14px;
+  border: 1px dashed rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.18);
+  padding: 12px;
   font-size: 12px;
-  line-height: 1.35;
-  font-weight: 700;
+  line-height: 1.45;
+  font-weight: 600;
   color: #94a3b8;
 }
 
 .my-shift-card {
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(30, 41, 59, 0.5);
-  padding: 9px 10px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.56);
+  padding: 12px 12px 13px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.my-shift-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: rgba(148, 163, 184, 0.3);
 }
 
 .my-shift-card.live {
-  border-color: rgba(16, 185, 129, 0.45);
-  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.24);
+  background: rgba(15, 23, 42, 0.62);
 }
 
 .my-shift-card.upcoming {
-  border-color: rgba(59, 130, 246, 0.42);
-  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.22);
+  background: rgba(15, 23, 42, 0.58);
 }
 
 .my-shift-card.past {
-  border-color: rgba(148, 163, 184, 0.38);
-  background: rgba(71, 85, 105, 0.38);
+  border-color: rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.my-shift-card.live::before {
+  background: linear-gradient(180deg, rgba(52, 211, 153, 0.95), rgba(5, 150, 105, 0.92));
+}
+
+.my-shift-card.upcoming::before {
+  background: linear-gradient(180deg, rgba(96, 165, 250, 0.95), rgba(37, 99, 235, 0.92));
+}
+
+.my-shift-card.past::before {
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.7), rgba(100, 116, 139, 0.66));
+}
+
+.my-shift-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.my-shift-time-wrap {
+  min-width: 0;
+}
+
+.my-shift-runtime {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #94a3b8;
 }
 
 .my-shift-time {
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1.05;
   font-weight: 900;
   color: #f8fafc;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 .my-shift-place {
-  margin-top: 4px;
-  font-size: 13px;
+  margin-top: 8px;
+  font-size: 14px;
   line-height: 1.25;
   font-weight: 700;
-  color: #cbd5e1;
+  color: #e2e8f0;
+}
+
+.my-shift-support {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .my-shift-note {
-  margin: 5px 0 0;
+  margin: 0;
   font-size: 12px;
-  line-height: 1.3;
+  line-height: 1.4;
   font-weight: 600;
   color: #94a3b8;
 }
 
 .my-shift-coworkers {
-  margin: 5px 0 0;
+  margin: 0;
   font-size: 12px;
-  line-height: 1.3;
-  font-weight: 700;
-  color: #bae6fd;
+  line-height: 1.4;
+  font-weight: 600;
+  color: #cbd5e1;
 }
 
 .my-shift-site-strip {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed rgba(148, 163, 184, 0.32);
+  margin-top: 12px;
+  padding: 10px 11px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(2, 6, 23, 0.2);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+}
+
+.my-shift-site-strip.is-partial {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: rgba(120, 53, 15, 0.12);
+}
+
+.my-shift-site-strip.is-alert {
+  border-color: rgba(248, 113, 113, 0.24);
+  background: rgba(127, 29, 29, 0.14);
+}
+
+.my-shift-site-strip.is-muted {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(30, 41, 59, 0.2);
+}
+
+.my-shift-site-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.my-shift-site-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
 
 .my-shift-site-title {
   margin: 0;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 800;
   color: #93c5fd;
+}
+
+.my-shift-site-summary {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 600;
+  color: #94a3b8;
+  text-align: right;
+}
+
+.my-shift-site-message {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: #e2e8f0;
 }
 
 .my-shift-site-row {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.my-shift-site-row:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .my-shift-site-session {
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.34);
-  background: rgba(51, 65, 85, 0.38);
-  padding: 6px 7px;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 8px;
 }
 
 .my-shift-site-time {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
-  font-weight: 900;
+  font-weight: 800;
   color: #e2e8f0;
   white-space: nowrap;
 }
 
 .my-shift-site-activity {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.2;
-  font-weight: 700;
+  font-weight: 600;
   color: #cbd5e1;
   text-align: right;
 }
 
 .my-shift-site-note {
-  margin: 0 2px;
-  font-size: 10px;
-  line-height: 1.25;
-  font-weight: 700;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
   color: #94a3b8;
 }
 
 .my-shift-site-break {
-  align-self: center;
-  border-radius: 9999px;
-  border: 1px solid rgba(59, 130, 246, 0.34);
-  background: rgba(37, 99, 235, 0.16);
-  color: #bfdbfe;
-  padding: 3px 7px;
-  font-size: 9px;
+  align-self: flex-start;
+  color: #94a3b8;
+  padding: 0;
+  font-size: 10px;
   line-height: 1;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -2491,12 +2611,12 @@ body::before {
 
 .my-shift-verify {
   border-radius: 9999px;
-  padding: 3px 7px;
-  font-size: 10px;
+  padding: 5px 9px;
+  font-size: 11px;
   line-height: 1;
   font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  white-space: nowrap;
 }
 
 .my-shift-verify.verify-matched {
@@ -2524,8 +2644,12 @@ body::before {
 }
 
 .my-shift-card.shift-missing {
-  border-color: rgba(248, 113, 113, 0.44);
-  background: rgba(127, 29, 29, 0.26);
+  border-color: rgba(248, 113, 113, 0.26);
+  background: rgba(15, 23, 42, 0.62);
+}
+
+.my-shift-card.shift-missing::before {
+  background: linear-gradient(180deg, rgba(248, 113, 113, 0.95), rgba(220, 38, 38, 0.92));
 }
 
 .my-shift-text-missing {
@@ -3170,6 +3294,10 @@ html.light .my-day-control-btn {
   color: #1e293b;
 }
 
+html.light .my-day-inline-actions.is-sticky {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.78) 72%, rgba(255, 255, 255, 0));
+}
+
 html.light .my-day-control-btn[disabled] {
   opacity: 0.72;
 }
@@ -3332,24 +3460,26 @@ html.light .my-timeline-empty {
 }
 
 html.light .my-timeline-day {
-  border-color: rgba(148, 163, 184, 0.34);
-  background: rgba(248, 250, 252, 0.92);
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.92);
 }
 
 html.light .my-timeline-day.is-spotlight {
-  border-color: rgba(37, 99, 235, 0.46);
-  background: radial-gradient(130% 140% at 0% 0%, rgba(191, 219, 254, 0.85), rgba(219, 234, 254, 0.55) 42%, rgba(248, 250, 252, 0.94) 100%);
-  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.14);
+  border-color: rgba(37, 99, 235, 0.28);
+  background: radial-gradient(135% 145% at 0% 0%, rgba(219, 234, 254, 0.92), rgba(239, 246, 255, 0.82) 42%, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.1);
 }
 
 html.light .my-timeline-day.is-weekend {
-  border-color: rgba(100, 116, 139, 0.42);
-  background: rgba(226, 232, 240, 0.94);
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(248, 250, 252, 0.94);
 }
 
 html.light .my-timeline-day.is-today {
-  border-color: rgba(37, 99, 235, 0.46);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.16);
+  border-color: rgba(37, 99, 235, 0.3);
+  box-shadow:
+    inset 0 0 0 1px rgba(37, 99, 235, 0.1),
+    0 12px 26px rgba(37, 99, 235, 0.08);
 }
 
 html.light .my-timeline-day-kicker {
@@ -3360,10 +3490,8 @@ html.light .my-timeline-day-title {
   color: #0f172a;
 }
 
-html.light .my-timeline-day-total {
-  border-color: rgba(37, 99, 235, 0.38);
-  background: rgba(37, 99, 235, 0.12);
-  color: #1e3a8a;
+html.light .my-timeline-day-summary {
+  color: #475569;
 }
 
 html.light .my-timeline-day-state {
@@ -3385,37 +3513,41 @@ html.light .my-timeline-day-state.is-off {
 }
 
 html.light .my-day-empty {
-  border-color: rgba(148, 163, 184, 0.44);
-  background: rgba(248, 250, 252, 0.84);
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(248, 250, 252, 0.92);
   color: #64748b;
 }
 
 html.light .my-shift-card {
-  border-color: rgba(148, 163, 184, 0.45);
+  border-color: rgba(148, 163, 184, 0.24);
   background: #ffffff;
 }
 
 html.light .my-shift-card.live {
-  border-color: rgba(22, 163, 74, 0.45);
-  background: rgba(220, 252, 231, 0.76);
+  border-color: rgba(22, 163, 74, 0.24);
+  background: #ffffff;
 }
 
 html.light .my-shift-card.upcoming {
-  border-color: rgba(37, 99, 235, 0.44);
-  background: rgba(219, 234, 254, 0.78);
+  border-color: rgba(37, 99, 235, 0.22);
+  background: #ffffff;
 }
 
 html.light .my-shift-card.past {
-  border-color: rgba(148, 163, 184, 0.5);
-  background: rgba(226, 232, 240, 0.9);
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(248, 250, 252, 0.94);
 }
 
 html.light .my-shift-time {
   color: #0f172a;
 }
 
+html.light .my-shift-runtime {
+  color: #64748b;
+}
+
 html.light .my-shift-place {
-  color: #334155;
+  color: #0f172a;
 }
 
 html.light .my-shift-note {
@@ -3423,20 +3555,31 @@ html.light .my-shift-note {
 }
 
 html.light .my-shift-coworkers {
-  color: #0369a1;
+  color: #475569;
 }
 
 html.light .my-shift-site-strip {
-  border-top-color: rgba(148, 163, 184, 0.4);
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(248, 250, 252, 0.9);
+}
+
+html.light .my-shift-site-strip.is-partial {
+  border-color: rgba(245, 158, 11, 0.26);
+  background: rgba(255, 247, 237, 0.94);
+}
+
+html.light .my-shift-site-strip.is-alert {
+  border-color: rgba(239, 68, 68, 0.24);
+  background: rgba(254, 242, 242, 0.96);
+}
+
+html.light .my-shift-site-strip.is-muted {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(248, 250, 252, 0.88);
 }
 
 html.light .my-shift-site-title {
   color: #2563eb;
-}
-
-html.light .my-shift-site-session {
-  border-color: rgba(148, 163, 184, 0.46);
-  background: rgba(241, 245, 249, 0.88);
 }
 
 html.light .my-shift-site-time {
@@ -3451,10 +3594,16 @@ html.light .my-shift-site-note {
   color: #64748b;
 }
 
+html.light .my-shift-site-summary {
+  color: #64748b;
+}
+
+html.light .my-shift-site-message {
+  color: #334155;
+}
+
 html.light .my-shift-site-break {
-  border-color: rgba(37, 99, 235, 0.34);
-  background: rgba(37, 99, 235, 0.14);
-  color: #1e3a8a;
+  color: #64748b;
 }
 
 html.light .my-shift-status {
@@ -3494,8 +3643,8 @@ html.light .my-shift-verify.verify-unknown {
 }
 
 html.light .my-shift-card.shift-missing {
-  border-color: rgba(220, 38, 38, 0.42);
-  background: rgba(254, 226, 226, 0.8);
+  border-color: rgba(220, 38, 38, 0.24);
+  background: #ffffff;
 }
 
 html.light .my-shift-text-missing {
