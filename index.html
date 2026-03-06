@@ -50,20 +50,18 @@
           </button>
         </div>
         <div class="settings-header-copy">
-          <p class="settings-page-kicker">Приложение</p>
+          <p class="settings-page-kicker">Моё пространство</p>
           <h1>Настройки</h1>
-          <p class="settings-page-subtitle">Внешний вид, проверка расписания и ваши локальные данные в одном месте.</p>
+          <p class="settings-page-subtitle">Тема приложения, резервная копия графика и готовые GPT-промпты для разбора скриншотов.</p>
         </div>
       </header>
 
       <main id="settingsMain" class="settings-main">
-        <section id="settingsOverviewCard" class="settings-overview-card"></section>
-
         <section class="settings-panel">
           <div class="settings-panel-head">
             <p>Внешний вид</p>
-            <h2>Как выглядит приложение</h2>
-            <span>Тема применяется сразу и не требует перезагрузки.</span>
+            <h2>Тема приложения</h2>
+            <span>Переключается сразу, без перезагрузки.</span>
           </div>
           <div id="themeSelector" class="settings-theme-grid">
             <button type="button" data-theme="light" class="settings-theme-card">
@@ -109,73 +107,34 @@
 
         <section class="settings-panel">
           <div class="settings-panel-head">
-            <p>Проверка данных</p>
-            <h2>Обновление и мониторинг</h2>
-            <span>Приложение может проверять расписание само или только по кнопке.</span>
-          </div>
-          <div id="autoRefreshOptions" class="settings-refresh-grid">
-            <button type="button" data-auto-refresh="0" class="settings-refresh-card">
-              <strong>Вручную</strong>
-              <small>Только когда вы нажимаете обновить</small>
-            </button>
-            <button type="button" data-auto-refresh="5" class="settings-refresh-card">
-              <strong>5 минут</strong>
-              <small>Самый частый режим</small>
-            </button>
-            <button type="button" data-auto-refresh="15" class="settings-refresh-card">
-              <strong>15 минут</strong>
-              <small>Спокойный повседневный режим</small>
-            </button>
-            <button type="button" data-auto-refresh="30" class="settings-refresh-card">
-              <strong>30 минут</strong>
-              <small>Минимум фоновых проверок</small>
-            </button>
-          </div>
-          <div id="settingsMonitorCard" class="settings-monitor-card"></div>
-          <div id="settingsSourceIssues" class="settings-inline-stack"></div>
-          <div class="settings-inline-actions">
-            <button id="settingsRefreshButton" type="button" class="settings-primary-btn">
-              <span class="material-symbols-outlined">refresh</span>
-              <span>Проверить сейчас</span>
-            </button>
-            <button id="openSettingsChangesButton" type="button" class="settings-secondary-btn">
-              <span class="material-symbols-outlined">travel_explore</span>
-              <span>Открыть изменения</span>
-            </button>
-          </div>
-        </section>
-
-        <section class="settings-panel">
-          <div class="settings-panel-head">
-            <p>Локальные данные</p>
-            <h2>Смены и локальный журнал</h2>
-            <span>Все записи живут только в этом браузере, пока вы не экспортируете их.</span>
+            <p>Мои данные</p>
+            <h2>Скачать и загрузить график</h2>
+            <span>Здесь можно сохранить резервную копию или загрузить готовый JSON после обработки скриншотов.</span>
           </div>
           <div id="settingsDataCard" class="settings-data-card"></div>
-          <div class="settings-actions-grid">
-            <button id="openSettingsEditorButton" type="button" class="settings-action-tile">
-              <span class="material-symbols-outlined">edit_calendar</span>
-              <strong>Мои смены</strong>
-              <small>Добавить или исправить записи</small>
-            </button>
+          <div class="settings-actions-grid settings-actions-grid-compact">
             <button id="exportMyShiftsButton" type="button" class="settings-action-tile settings-action-export">
               <span class="material-symbols-outlined">download</span>
-              <strong>Экспорт</strong>
-              <small>Смены и локальный журнал в JSON</small>
+              <strong>Скачать мой график</strong>
+              <small>Сохранить JSON-файл с вашими сменами</small>
             </button>
             <button id="importMyShiftsButton" type="button" class="settings-action-tile settings-action-import">
               <span class="material-symbols-outlined">upload</span>
-              <strong>Импорт</strong>
-              <small>Восстановить данные из файла</small>
-            </button>
-            <button id="resetSiteChangesButton" type="button" class="settings-action-tile settings-action-danger">
-              <span class="material-symbols-outlined">delete_sweep</span>
-              <strong>Сбросить журнал</strong>
-              <small>Очистить локальную проверку изменений</small>
+              <strong>Загрузить JSON</strong>
+              <small>Импортировать файл или готовый ответ GPT</small>
             </button>
           </div>
           <input id="importMyShiftsInput" type="file" accept=".json,application/json" hidden />
           <p id="myShiftsDataNotice" hidden class="history-data-notice"></p>
+        </section>
+
+        <section class="settings-panel">
+          <div class="settings-panel-head">
+            <p>GPT-промпты</p>
+            <h2>Скриншоты в готовый JSON</h2>
+            <span>Копируйте промпт, добавляйте скриншоты по объектам и получайте файл, который можно сразу загрузить в приложение.</span>
+          </div>
+          <div id="settingsPromptsCard" class="settings-prompts-card"></div>
         </section>
       </main>
     </div>

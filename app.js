@@ -86,6 +86,7 @@ const el = {
   settingsMonitorCard: document.getElementById("settingsMonitorCard"),
   settingsSourceIssues: document.getElementById("settingsSourceIssues"),
   settingsDataCard: document.getElementById("settingsDataCard"),
+  settingsPromptsCard: document.getElementById("settingsPromptsCard"),
   myDaySpotlightHead: document.getElementById("myDaySpotlightHead"),
   myScheduleRangeButton: document.getElementById("myScheduleRangeButton"),
   myScheduleRangeIcon: document.getElementById("myScheduleRangeIcon"),
@@ -234,6 +235,10 @@ function bindEvents() {
 
   if (el.importMyShiftsInput) {
     el.importMyShiftsInput.addEventListener("change", handleMyShiftsImport);
+  }
+
+  if (el.settingsMain) {
+    el.settingsMain.addEventListener("click", handleSettingsMainClick);
   }
 
   if (el.autoRefreshOptions) {
@@ -737,28 +742,14 @@ function buildAutoRefreshHint(model) {
 }
 
 function renderSettingsView() {
-  if (!el.settingsOverviewCard || !el.settingsMonitorCard || !el.settingsDataCard) {
+  if (!el.settingsDataCard || !el.settingsPromptsCard) {
     return;
   }
 
-  const model = buildSettingsOverviewModel();
-  el.settingsOverviewCard.innerHTML = renderSettingsOverviewCard(model);
-  el.settingsMonitorCard.innerHTML = renderSettingsMonitorCard(model);
-  el.settingsDataCard.innerHTML = renderSettingsDataCard(model);
-  if (el.settingsSourceIssues) {
-    el.settingsSourceIssues.innerHTML = renderSettingsSourceIssues(model.sourceIssues);
-  }
-  if (el.openSettingsChangesButton) {
-    const hasAnyChangesPageData = model.hasHistory || Boolean(model.changesModel.checkedAtIso);
-    el.openSettingsChangesButton.disabled = !hasAnyChangesPageData;
-    el.openSettingsChangesButton.querySelector("span:last-child").textContent =
-      model.status === "attention" || model.status === "issue" ? "Посмотреть изменения" : "Страница изменений";
-  }
+  el.settingsDataCard.innerHTML = renderSettingsDataCard();
+  el.settingsPromptsCard.innerHTML = renderSettingsPromptsCard();
   if (el.exportMyShiftsButton) {
-    el.exportMyShiftsButton.disabled = !model.exportableItems;
-  }
-  if (el.resetSiteChangesButton) {
-    el.resetSiteChangesButton.disabled = !model.hasHistory && !Boolean(state.siteChangesLastCheckedAt);
+    el.exportMyShiftsButton.disabled = !state.myShifts.length;
   }
 }
 
@@ -851,39 +842,237 @@ function renderSettingsSourceIssues(issues) {
   }).join("");
 }
 
-function renderSettingsDataCard(model) {
+function renderSettingsDataCard() {
+  const facilityCount = new Set(
+    state.myShifts
+      .map((shift) => String(shift.facilityId || "").trim())
+      .filter(Boolean)
+  ).size;
   const metrics = [
     { label: "Смены", value: String(state.myShifts.length) },
-    { label: "Журнал", value: String(state.siteChangesHistory.length) },
-    { label: "К экспорту", value: String(model.exportableItems) },
+    { label: "Объекты", value: String(facilityCount) },
+    { label: "К загрузке", value: "JSON" },
     { label: "Тема", value: resolveThemeLabel(state.settings.theme) },
   ];
 
-  let summary = "Экспорт сохраняет ваши смены и локальный журнал проверки сайта в один JSON-файл.";
-  if (!state.myShifts.length && !state.siteChangesHistory.length) {
-    summary = "Локальных данных почти нет. Сначала добавьте смену или дождитесь первой проверки сайта.";
-  } else if (!state.myShifts.length) {
-    summary = "У вас пока нет своих смен, но уже есть локальный журнал проверки сайта.";
-  } else if (!state.siteChangesHistory.length) {
-    summary = "Ваши смены сохранены, а локальный журнал изменений ещё не накопился.";
+  let summary = "Скачанный файл можно хранить как резервную копию и потом вернуть обратно одним импортом.";
+  if (!state.myShifts.length) {
+    summary = "Если GPT уже собрал JSON по скриншотам, его можно сразу загрузить сюда без ручного редактирования.";
   }
 
   return `
     <article class="settings-surface-card">
       <div class="settings-surface-head">
         <div>
-          <p class="settings-surface-kicker">Резерв и перенос</p>
-          <h3>Локальные данные этого устройства</h3>
+          <p class="settings-surface-kicker">JSON для приложения</p>
+          <h3>${escapeHtml(state.myShifts.length ? "Ваш график готов к резервной копии" : "Можно загрузить готовый график")}</h3>
         </div>
-        <span class="settings-surface-chip">${escapeHtml(model.exportableItems ? "Есть данные" : "Пусто")}</span>
+        <span class="settings-surface-chip">${escapeHtml(state.myShifts.length ? "Есть смены" : "Пока пусто")}</span>
       </div>
       <p class="settings-surface-text">${escapeHtml(summary)}</p>
       <div class="settings-surface-metrics">
         ${metrics.map((metric) => renderOverviewMetric(metric, "settings-surface-metric")).join("")}
       </div>
-      <p class="settings-surface-footnote">Сброс журнала очищает только локальную историю изменений и не затрагивает сами смены.</p>
+      <p class="settings-surface-footnote">Подходит и полный экспорт приложения, и обычный объект вида <code>{ "shifts": [...] }</code>.</p>
     </article>
   `;
+}
+
+function renderSettingsPromptsCard() {
+  return buildSettingsPromptCatalog()
+    .map((prompt) => `
+      <article class="settings-prompt-card">
+        <div class="settings-prompt-head">
+          <div>
+            <p class="settings-prompt-kicker">${escapeHtml(prompt.kicker)}</p>
+            <h3>${escapeHtml(prompt.title)}</h3>
+            <p>${escapeHtml(prompt.description)}</p>
+          </div>
+          <button
+            type="button"
+            class="settings-copy-btn"
+            data-copy-settings-prompt="${escapeHtml(prompt.id)}"
+            data-default-label="${escapeHtml(prompt.buttonLabel)}"
+            data-default-icon="content_copy"
+          >
+            <span class="material-symbols-outlined">content_copy</span>
+            <span data-copy-label>${escapeHtml(prompt.buttonLabel)}</span>
+          </button>
+        </div>
+        <pre class="settings-prompt-text">${escapeHtml(prompt.prompt)}</pre>
+      </article>
+    `)
+    .join("");
+}
+
+function buildSettingsPromptCatalog() {
+  const facilityLines = getMyFacilityOptions()
+    .map((facility) => `- ${facility.name} -> ${facility.id}`)
+    .join("\n");
+
+  const extractPrompt = [
+    `Ты получаешь несколько скриншотов месячного графика работы сотрудников по объектам ПолесГУ.`,
+    `Твоя задача: найти только смены сотрудника "${SELF_INSTRUCTOR_NAME}" и вернуть готовый JSON для импорта в приложение.`,
+    `Верни только JSON без markdown, пояснений и текста до или после.`,
+    ``,
+    `Что обязательно учитывать:`,
+    `1. Месяц и год бери из заголовка каждого скриншота.`,
+    `2. Используй только дату, объект, фамилии сотрудников и интервалы времени в ячейках.`,
+    `3. Игнорируй графу часов за день, цифры под сменами и итоговые часы за месяц: в них могут быть намеренные ошибки.`,
+    `4. Если у "${SELF_INSTRUCTOR_NAME}" в ячейке стоит "в", "вс", "вых" или "вых.", это выходной: смену не создавай.`,
+    `5. Если в ячейке стоит только пометка другого объекта ("лед", "мал", "спорт", "гребная"), не создавай смену из этой ячейки. Найди реальное время на скриншоте соответствующего объекта.`,
+    `6. coworkers — это только сотрудники, у которых на том же объекте и в тот же день время реально пересекается с моей сменой.`,
+    `7. Меня самого в coworkers не добавляй.`,
+    `8. Если время читается неуверенно, не выдумывай запись. Лучше пропусти её, чем сделай неверную смену.`,
+    `9. note оставляй пустой строкой, если нет явной причины что-то пояснить.`,
+    ``,
+    `Сопоставление объектов с facilityId:`,
+    facilityLines,
+    ``,
+    `Формат ответа:`,
+    `{`,
+    `  "shifts": [`,
+    `    {`,
+    `      "date": "2026-03-02",`,
+    `      "facilityId": "rowing_base",`,
+    `      "facilityName": "Гребная база",`,
+    `      "start": "18:00",`,
+    `      "end": "21:00",`,
+    `      "coworkers": ["Фамилия И.О."],`,
+    `      "note": ""`,
+    `    }`,
+    `  ]`,
+    `}`,
+    ``,
+    `Правила по формату:`,
+    `- date в формате YYYY-MM-DD`,
+    `- start и end в формате HH:MM`,
+    `- записи отсортируй по дате и времени`,
+    `- если смен нет, верни { "shifts": [] }`,
+    `- не добавляй поля, которых нет в примере`,
+    ``,
+    `Сейчас я — "${SELF_INSTRUCTOR_NAME}". Анализируй только мои смены.`,
+  ].join("\n");
+
+  const reviewPrompt = [
+    `Ты проверяешь уже готовый JSON со сменами по тем же скриншотам графика.`,
+    `Смотри только на сотрудника "${SELF_INSTRUCTOR_NAME}".`,
+    `Верни исправленный JSON без markdown, пояснений и текста до или после.`,
+    ``,
+    `Проверь по шагам:`,
+    `1. Каждая смена должна быть подтверждена реальным временем на одном из скриншотов нужного объекта.`,
+    `2. Выходные не должны превращаться в смены.`,
+    `3. Пометки "лед", "мал", "спорт", "гребная" не являются сменами сами по себе — это только указание на другой объект.`,
+    `4. coworkers добавляй только если у сотрудников есть пересечение по времени на том же объекте и в тот же день.`,
+    `5. Полностью игнорируй графу часов за день, цифры под сменами и месячные итоги.`,
+    `6. Если запись сомнительна или противоречит скриншотам, лучше удали её, чем оставь неточной.`,
+    ``,
+    `Формат ответа:`,
+    `{`,
+    `  "shifts": [`,
+    `    {`,
+    `      "date": "2026-03-02",`,
+    `      "facilityId": "rowing_base",`,
+    `      "facilityName": "Гребная база",`,
+    `      "start": "18:00",`,
+    `      "end": "21:00",`,
+    `      "coworkers": ["Фамилия И.О."],`,
+    `      "note": ""`,
+    `    }`,
+    `  ]`,
+    `}`,
+  ].join("\n");
+
+  return [
+    {
+      id: "extract",
+      kicker: "Основной",
+      title: "Скриншоты в JSON",
+      description: "Первый прогон по новым графикам. На выходе должен быть готовый файл для импорта.",
+      buttonLabel: "Копировать текст",
+      prompt: extractPrompt,
+    },
+    {
+      id: "review",
+      kicker: "Проверка",
+      title: "Проверить готовый JSON",
+      description: "Второй прогон, если нужно проверить ответ GPT и убрать сомнительные записи.",
+      buttonLabel: "Копировать проверку",
+      prompt: reviewPrompt,
+    },
+  ];
+}
+
+function handleSettingsMainClick(event) {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+
+  const copyButton = target.closest("[data-copy-settings-prompt]");
+  if (!copyButton) {
+    return;
+  }
+
+  void handleSettingsPromptCopy(String(copyButton.dataset.copySettingsPrompt || ""), copyButton);
+}
+
+async function handleSettingsPromptCopy(promptId, button) {
+  const prompt = buildSettingsPromptCatalog().find((item) => item.id === promptId);
+  if (!prompt) {
+    return;
+  }
+
+  try {
+    await copyTextToClipboard(prompt.prompt);
+    flashSettingsCopyButton(button, "Скопировано", "done");
+  } catch {
+    flashSettingsCopyButton(button, "Не удалось", "priority_high");
+  }
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "readonly");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  document.body.removeChild(textarea);
+  if (!copied) {
+    throw new Error("Clipboard unavailable");
+  }
+}
+
+function flashSettingsCopyButton(button, label, icon) {
+  const labelNode = button.querySelector("[data-copy-label]");
+  const iconNode = button.querySelector(".material-symbols-outlined");
+  if (!labelNode || !iconNode) {
+    return;
+  }
+
+  const defaultLabel = String(button.dataset.defaultLabel || labelNode.textContent || "Копировать");
+  const defaultIcon = String(button.dataset.defaultIcon || iconNode.textContent || "content_copy");
+
+  if (button._settingsCopyTimer) {
+    window.clearTimeout(button._settingsCopyTimer);
+  }
+
+  labelNode.textContent = label;
+  iconNode.textContent = icon;
+  button.classList.add("is-copied");
+  button._settingsCopyTimer = window.setTimeout(() => {
+    labelNode.textContent = defaultLabel;
+    iconNode.textContent = defaultIcon;
+    button.classList.remove("is-copied");
+  }, 1800);
 }
 
 function resolveThemeLabel(theme) {
@@ -3473,7 +3662,7 @@ function exportMyShiftsHistory() {
   link.click();
   URL.revokeObjectURL(url);
 
-  setMyShiftsDataNotice("История графика и изменения на сайте экспортированы.", "success");
+  setMyShiftsDataNotice("JSON с вашим графиком сохранён.", "success");
 }
 
 async function handleMyShiftsImport(event) {
@@ -3498,9 +3687,9 @@ async function handleMyShiftsImport(event) {
     }
 
     if (state.myShifts.length) {
-      const confirmed = window.confirm("Заменить текущую историю графика импортированными данными?");
+      const confirmed = window.confirm("Заменить текущий график загруженным JSON?");
       if (!confirmed) {
-        setMyShiftsDataNotice("Импорт отменён.", "info");
+        setMyShiftsDataNotice("Загрузка отменена.", "info");
         input.value = "";
         return;
       }
@@ -3530,7 +3719,7 @@ async function handleMyShiftsImport(event) {
     renderMyScheduleEditor();
     renderChangesView();
     renderSettingsView();
-    setMyShiftsDataNotice(`Импортировано смен: ${state.myShifts.length}.`, "success");
+    setMyShiftsDataNotice(`Загружено смен: ${state.myShifts.length}.`, "success");
   } catch (error) {
     setMyShiftsDataNotice(
       error instanceof Error ? `Ошибка импорта: ${error.message}` : "Ошибка импорта истории.",
