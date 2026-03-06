@@ -1748,35 +1748,42 @@ body::before {
 }
 
 .my-day-control-btn {
-  border: 1px solid rgba(148, 163, 184, 0.34);
-  background: rgba(148, 163, 184, 0.11);
-  border-radius: 14px;
-  padding: 10px 11px;
-  color: #e2e8f0;
-  display: flex;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.2);
+  border-radius: 9999px;
+  min-height: 30px;
+  padding: 0 10px;
+  color: #cbd5e1;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   cursor: pointer;
   font-size: 11px;
   line-height: 1;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
 }
 
 .my-day-control-btn .material-symbols-outlined {
-  font-size: 17px;
+  font-size: 14px;
 }
 
-.my-day-control-btn.is-active {
+.my-day-control-btn.is-expanded,
+.my-day-control-btn[aria-pressed="true"] {
   border-color: rgba(96, 165, 250, 0.48);
-  background: rgba(37, 99, 235, 0.26);
+  background: rgba(37, 99, 235, 0.18);
   color: #dbeafe;
 }
 
 .my-day-control-btn:active {
-  transform: scale(0.995);
+  transform: scale(0.985);
 }
 
 .my-day-control-btn[disabled] {
@@ -1795,30 +1802,31 @@ body::before {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.my-day-spotlight-head h3 {
+  margin: 0;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #f8fafc;
 }
 
 .my-day-inline-actions {
-  margin: 12px 0 10px;
   display: flex;
-  justify-content: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.my-day-inline-actions.is-sticky {
-  position: sticky;
-  top: calc(env(safe-area-inset-top) + 104px);
-  z-index: 12;
-  margin-top: 8px;
-  padding: 10px 0 12px;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  background: linear-gradient(180deg, rgba(10, 10, 10, 0.95), rgba(10, 10, 10, 0.72) 72%, rgba(10, 10, 10, 0));
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .my-day-inline-actions .my-day-control-btn {
-  min-width: 180px;
+  min-width: 0;
 }
 
 #myScheduleTimeline {
@@ -2553,14 +2561,39 @@ body::before {
 }
 
 .my-shift-site-break {
-  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0;
   color: #94a3b8;
-  padding: 0;
   font-size: 10px;
-  line-height: 1;
+  line-height: 1.15;
   font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.my-shift-site-break::before,
+.my-shift-site-break::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: rgba(148, 163, 184, 0.16);
+}
+
+.my-shift-site-break span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.18);
+  white-space: nowrap;
+}
+
+.my-shift-site-break.is-ice-fill span {
+  background: rgba(30, 64, 175, 0.14);
+  color: #bfdbfe;
 }
 
 .my-shift-meta {
@@ -3289,20 +3322,21 @@ html.light .my-settings-launch-copy small {
 }
 
 html.light .my-day-control-btn {
-  border-color: rgba(148, 163, 184, 0.42);
-  background: rgba(248, 250, 252, 0.95);
+  border-color: rgba(148, 163, 184, 0.32);
+  background: rgba(255, 255, 255, 0.9);
   color: #1e293b;
 }
 
-html.light .my-day-inline-actions.is-sticky {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.78) 72%, rgba(255, 255, 255, 0));
+html.light .my-day-spotlight-head h3 {
+  color: #0f172a;
 }
 
 html.light .my-day-control-btn[disabled] {
   opacity: 0.72;
 }
 
-html.light .my-day-control-btn.is-active {
+html.light .my-day-control-btn.is-expanded,
+html.light .my-day-control-btn[aria-pressed="true"] {
   border-color: rgba(37, 99, 235, 0.44);
   background: rgba(37, 99, 235, 0.12);
   color: #1d4ed8;
@@ -3604,6 +3638,20 @@ html.light .my-shift-site-message {
 
 html.light .my-shift-site-break {
   color: #64748b;
+}
+
+html.light .my-shift-site-break::before,
+html.light .my-shift-site-break::after {
+  background: rgba(148, 163, 184, 0.24);
+}
+
+html.light .my-shift-site-break span {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+html.light .my-shift-site-break.is-ice-fill span {
+  background: rgba(219, 234, 254, 0.82);
+  color: #1d4ed8;
 }
 
 html.light .my-shift-status {
@@ -4668,9 +4716,8 @@ html.dark .history-data-notice.info {
   }
 
   .my-day-spotlight-head {
-    flex-direction: column;
-    gap: 10px;
-    align-items: stretch;
+    gap: 8px;
+    align-items: center;
   }
 
   .my-editor-launch-btn {
@@ -4696,8 +4743,13 @@ html.dark .history-data-notice.info {
     align-items: flex-start;
   }
 
+  .my-day-inline-actions {
+    width: auto;
+    justify-content: flex-end;
+  }
+
   .my-day-inline-actions .my-day-control-btn {
-    width: 100%;
+    width: auto;
   }
 
   .my-editor-shift-actions {

@@ -24,7 +24,6 @@ const DEFAULT_INSTRUCTORS = [
 
 const MY_SCHEDULE_RANGE = {
   DAY: "day",
-  WEEK: "week",
   FULL: "full",
 };
 
@@ -87,9 +86,10 @@ const el = {
   settingsMonitorCard: document.getElementById("settingsMonitorCard"),
   settingsSourceIssues: document.getElementById("settingsSourceIssues"),
   settingsDataCard: document.getElementById("settingsDataCard"),
-  myShowAllButton: document.getElementById("myShowAllButton"),
-  myCollapseRangeButton: document.getElementById("myCollapseRangeButton"),
-  myOpenFullRangeButton: document.getElementById("myOpenFullRangeButton"),
+  myDaySpotlightHead: document.getElementById("myDaySpotlightHead"),
+  myScheduleRangeButton: document.getElementById("myScheduleRangeButton"),
+  myScheduleRangeIcon: document.getElementById("myScheduleRangeIcon"),
+  myScheduleRangeLabel: document.getElementById("myScheduleRangeLabel"),
   myDayInlineActions: document.getElementById("myDayInlineActions"),
   myTimelineTitle: document.getElementById("myTimelineTitle"),
   myShiftForm: document.getElementById("myShiftForm"),
@@ -181,25 +181,10 @@ function bindEvents() {
     el.backFromMyEditorButton.addEventListener("click", () => setView("my_schedule"));
   }
 
-  if (el.myShowAllButton) {
-    el.myShowAllButton.addEventListener("click", () => {
-      state.myScheduleRangeMode = MY_SCHEDULE_RANGE.WEEK;
-      renderMySchedule();
-      scrollMyScheduleControlsIntoView();
-    });
-  }
-
-  if (el.myCollapseRangeButton) {
-    el.myCollapseRangeButton.addEventListener("click", () => {
-      state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
-      renderMySchedule();
-      scrollMyScheduleControlsIntoView();
-    });
-  }
-
-  if (el.myOpenFullRangeButton) {
-    el.myOpenFullRangeButton.addEventListener("click", () => {
-      state.myScheduleRangeMode = MY_SCHEDULE_RANGE.FULL;
+  if (el.myScheduleRangeButton) {
+    el.myScheduleRangeButton.addEventListener("click", () => {
+      state.myScheduleRangeMode =
+        getMyScheduleRangeMode() === MY_SCHEDULE_RANGE.DAY ? MY_SCHEDULE_RANGE.FULL : MY_SCHEDULE_RANGE.DAY;
       renderMySchedule();
       scrollMyScheduleControlsIntoView();
     });
@@ -944,8 +929,11 @@ function hydrateMyScheduleUI() {
 
 function getMyScheduleRangeMode() {
   const mode = String(state.myScheduleRangeMode || "");
-  if (mode === MY_SCHEDULE_RANGE.DAY || mode === MY_SCHEDULE_RANGE.WEEK || mode === MY_SCHEDULE_RANGE.FULL) {
+  if (mode === MY_SCHEDULE_RANGE.DAY || mode === MY_SCHEDULE_RANGE.FULL) {
     return mode;
+  }
+  if (mode === "week") {
+    return MY_SCHEDULE_RANGE.FULL;
   }
   return MY_SCHEDULE_RANGE.DAY;
 }
@@ -960,7 +948,7 @@ function renderMySchedule() {
   }
 
   renderMyScheduleFacilityOptions();
-  const rangeMode = getMyScheduleRangeMode();
+  let rangeMode = getMyScheduleRangeMode();
   if (el.myEditorLaunchWrap) {
     el.myEditorLaunchWrap.hidden = !state.myShifts.length;
   }
@@ -982,16 +970,19 @@ function renderMySchedule() {
   }
 
   const focusDate = state.myScheduleFocusDate;
+  const canExpandRange = canExpandMyScheduleRange(focusDate, groupedByDate);
+  if (!canExpandRange && rangeMode === MY_SCHEDULE_RANGE.FULL) {
+    state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
+    rangeMode = MY_SCHEDULE_RANGE.DAY;
+  }
   const datesToRender = getMyScheduleDatesToRender(focusDate, groupedByDate, rangeMode);
-  updateMyScheduleRangeControls(rangeMode, state.myShifts.length > 0);
+  updateMyScheduleRangeControls(rangeMode, canExpandRange);
 
   if (el.myTimelineTitle) {
-    if (rangeMode === MY_SCHEDULE_RANGE.WEEK) {
-      el.myTimelineTitle.textContent = "Неделя от выбранной даты";
-    } else if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
-      el.myTimelineTitle.textContent = "Весь период от выбранной даты";
+    if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
+      el.myTimelineTitle.textContent = "Весь график";
     } else {
-      el.myTimelineTitle.textContent = "График на выбранные сутки";
+      el.myTimelineTitle.textContent = "Выбранный день";
     }
   }
 
@@ -1012,10 +1003,6 @@ function renderMySchedule() {
 }
 
 function getMyScheduleDatesToRender(focusDate, groupedByDate, rangeMode) {
-  if (rangeMode === MY_SCHEDULE_RANGE.WEEK) {
-    return Array.from({ length: 8 }, (_, index) => addDays(focusDate, index));
-  }
-
   if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
     const futureShiftDates = Array.from(groupedByDate.keys())
       .filter((date) => date >= focusDate)
@@ -1033,53 +1020,34 @@ function getMyScheduleDatesToRender(focusDate, groupedByDate, rangeMode) {
   return [focusDate];
 }
 
-function updateMyScheduleRangeControls(rangeMode, hasHistory) {
+function canExpandMyScheduleRange(focusDate, groupedByDate) {
+  return Array.from(groupedByDate.keys()).some((date) => date > focusDate);
+}
+
+function updateMyScheduleRangeControls(rangeMode, canExpandRange) {
   if (el.myDayInlineActions) {
-    el.myDayInlineActions.hidden = !hasHistory;
-    el.myDayInlineActions.classList.toggle("is-sticky", hasHistory && rangeMode !== MY_SCHEDULE_RANGE.DAY);
+    el.myDayInlineActions.hidden = !canExpandRange;
   }
 
-  if (!hasHistory) {
+  if (!canExpandRange || !el.myScheduleRangeButton) {
     return;
   }
 
-  if (el.myShowAllButton) {
-    el.myShowAllButton.hidden = rangeMode !== MY_SCHEDULE_RANGE.DAY;
+  const isExpanded = rangeMode === MY_SCHEDULE_RANGE.FULL;
+  el.myScheduleRangeButton.classList.toggle("is-expanded", isExpanded);
+  el.myScheduleRangeButton.setAttribute("aria-pressed", isExpanded ? "true" : "false");
+  el.myScheduleRangeButton.title = isExpanded ? "Свернуть к выбранному дню" : "Показать весь график";
+
+  if (el.myScheduleRangeIcon) {
+    el.myScheduleRangeIcon.textContent = isExpanded ? "close_fullscreen" : "open_in_full";
   }
-
-  if (el.myCollapseRangeButton) {
-    el.myCollapseRangeButton.hidden = rangeMode === MY_SCHEDULE_RANGE.DAY;
-  }
-
-  if (el.myOpenFullRangeButton) {
-    if (rangeMode === MY_SCHEDULE_RANGE.WEEK) {
-      el.myOpenFullRangeButton.hidden = false;
-      el.myOpenFullRangeButton.disabled = false;
-      el.myOpenFullRangeButton.classList.remove("is-active");
-      el.myOpenFullRangeButton.innerHTML =
-        '<span class="material-symbols-outlined">open_in_full</span><span>Открыть полный график</span>';
-      return;
-    }
-
-    if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
-      el.myOpenFullRangeButton.hidden = false;
-      el.myOpenFullRangeButton.disabled = true;
-      el.myOpenFullRangeButton.classList.add("is-active");
-      el.myOpenFullRangeButton.innerHTML =
-        '<span class="material-symbols-outlined">check_circle</span><span>Полный график открыт</span>';
-      return;
-    }
-
-    el.myOpenFullRangeButton.hidden = true;
-    el.myOpenFullRangeButton.disabled = false;
-    el.myOpenFullRangeButton.classList.remove("is-active");
-    el.myOpenFullRangeButton.innerHTML =
-      '<span class="material-symbols-outlined">open_in_full</span><span>Открыть полный график</span>';
+  if (el.myScheduleRangeLabel) {
+    el.myScheduleRangeLabel.textContent = isExpanded ? "К дню" : "Весь график";
   }
 }
 
 function scrollMyScheduleControlsIntoView() {
-  const target = el.myDayInlineActions || el.myScheduleTimeline || null;
+  const target = el.myDaySpotlightHead || el.myScheduleTimeline || null;
   if (!target) {
     return;
   }
@@ -3163,8 +3131,13 @@ function renderMyShiftSiteTimeline(shift, verification) {
 }
 
 function renderMyShiftBreak(minutes, facilityId) {
+  const breakLabel = classifyBreak(minutes, facilityId);
+  const modifierClass = breakLabel === "заливка льда" ? "is-ice-fill" : "";
+  const label = `${breakLabel.charAt(0).toUpperCase()}${breakLabel.slice(1)} · ${formatDuration(minutes)}`;
   return `
-    <div class="my-shift-site-break">${escapeHtml(formatDuration(minutes))} ${escapeHtml(classifyBreak(minutes, facilityId))}</div>
+    <div class="my-shift-site-break ${escapeHtml(modifierClass)}">
+      <span>${escapeHtml(label)}</span>
+    </div>
   `;
 }
 

@@ -202,22 +202,14 @@
 
       <main id="myScheduleMain" class="px-5 pt-5 pb-24">
         <section class="my-graph-placeholder my-day-spotlight">
-          <div class="my-day-spotlight-head">
-            <h3 id="myTimelineTitle">График на выбранные сутки</h3>
-          </div>
-          <div id="myDayInlineActions" class="my-day-inline-actions">
-            <button id="myShowAllButton" type="button" class="my-day-control-btn">
-              <span class="material-symbols-outlined">unfold_more</span>
-              <span>Показать неделю</span>
-            </button>
-            <button id="myCollapseRangeButton" type="button" class="my-day-control-btn" hidden>
-              <span class="material-symbols-outlined">unfold_less</span>
-              <span>Свернуть к дню</span>
-            </button>
-            <button id="myOpenFullRangeButton" type="button" class="my-day-control-btn" hidden>
-              <span class="material-symbols-outlined">open_in_full</span>
-              <span>Открыть полный график</span>
-            </button>
+          <div id="myDaySpotlightHead" class="my-day-spotlight-head">
+            <h3 id="myTimelineTitle">Выбранный день</h3>
+            <div id="myDayInlineActions" class="my-day-inline-actions" hidden>
+              <button id="myScheduleRangeButton" type="button" class="my-day-control-btn">
+                <span id="myScheduleRangeIcon" class="material-symbols-outlined">open_in_full</span>
+                <span id="myScheduleRangeLabel">Весь график</span>
+              </button>
+            </div>
           </div>
           <div id="myScheduleTimeline"></div>
         </section>
