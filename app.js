@@ -1610,6 +1610,373 @@ function resolveChangesToneClass(status) {
   }
 }
 
+function buildEntryChangeGroups(entry) {
+  const events = getEntryDisplayEvents(entry);
+  if (!events.length) {
+    return [];
+  }
+
+  const groups = new Map();
+
+  for (const event of events) {
+    const scope = String(event?.scope || "").trim();
+    const programTitle = String(event?.programTitle || "").trim();
+    const date = String(event?.date || "").trim();
+    const scopeKey =
+      scope === "program"
+        ? `program::${programTitle || String(event?.title || "program")}`
+        : date
+          ? `date::${date}`
+          : event?.template
+            ? "template"
+            : "general";
+    const facilityId = String(event?.facilityId || "").trim();
+    const key = `${facilityId}::${scopeKey}`;
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        facilityId,
+        facilityName: String(event?.facilityName || "Объект"),
+        date,
+        sourceUrl: sanitizeHttpUrl(event?.sourceUrl),
+        template: Boolean(event?.template),
+        programTitle,
+        scope,
+        events: [],
+      });
+    }
+
+    groups.get(key).events.push(event);
+  }
+
+  return Array.from(groups.values())
+    .map((group) => {
+      const impactedShiftCount = countChangeGroupShiftImpact(group.events);
+      return {
+        ...group,
+        tone: pickImpactTone(group.events),
+        impactedShiftCount,
+        summary: buildChangeGroupSummary(group),
+        details: buildChangeGroupDetails(group),
+        shortLabel: buildChangeGroupShortLabel(group),
+      };
+    })
+    .sort(compareChangeGroups);
+}
+
+function countChangeGroupShiftImpact(events) {
+  if (!Array.isArray(state.myShifts) || !state.myShifts.length) {
+    return 0;
+  }
+
+  return state.myShifts
+    .filter(isShiftRelevantForImpact)
+    .filter((shift) => (events || []).some((event) => doesEventAffectShift(event, shift)))
+    .length;
+}
+
+function compareChangeGroups(a, b) {
+  const hasDateA = Boolean(a?.date);
+  const hasDateB = Boolean(b?.date);
+  if (hasDateA && hasDateB && a.date !== b.date) {
+    return a.date.localeCompare(b.date);
+  }
+  if (hasDateA !== hasDateB) {
+    return hasDateA ? -1 : 1;
+  }
+
+  const facilityA = String(a?.facilityName || "");
+  const facilityB = String(b?.facilityName || "");
+  if (facilityA !== facilityB) {
+    return facilityA.localeCompare(facilityB, "ru");
+  }
+
+  const programA = String(a?.programTitle || "");
+  const programB = String(b?.programTitle || "");
+  if (programA !== programB) {
+    return programA.localeCompare(programB, "ru");
+  }
+
+  return String(a?.summary || "").localeCompare(String(b?.summary || ""), "ru");
+}
+
+function buildChangeGroupShortLabel(group) {
+  if (group?.programTitle) {
+    return `${group.facilityName} · ${group.programTitle}`;
+  }
+  if (group?.date) {
+    return `${group.facilityName} · ${formatMonthDayShort(group.date)}`;
+  }
+  if (group?.template) {
+    return `${group.facilityName} · Шаблон`;
+  }
+  return String(group?.facilityName || "Изменение");
+}
+
+function buildChangeGroupSummary(group) {
+  if (!group || !Array.isArray(group.events) || !group.events.length) {
+    return "Изменение зафиксировано.";
+  }
+
+  if (group.scope === "program") {
+    return buildProgramGroupSummary(group);
+  }
+
+  const removedCount = group.events.filter((event) => /_removed$/.test(String(event?.type || "")) && /session/.test(String(event?.scope || ""))).length;
+  const addedCount = group.events.filter((event) => /_added$/.test(String(event?.type || "")) && /session/.test(String(event?.scope || ""))).length;
+  const updatedCount = group.events.filter((event) => /_updated$/.test(String(event?.type || "")) && /session/.test(String(event?.scope || ""))).length;
+  const closureEvent = group.events.find((event) => String(event?.type || "") === "closure_changed" || String(event?.type || "") === "template_closure_changed") || null;
+  const dayRemoved = group.events.find((event) => String(event?.type || "") === "day_removed") || null;
+  const dayAdded = group.events.find((event) => String(event?.type || "") === "day_added") || null;
+  const parts = [];
+
+  if (removedCount) {
+    parts.push(`убрано ${removedCount} ${pluralizeRu(removedCount, "сеанс", "сеанса", "сеансов")}`);
+  }
+  if (addedCount) {
+    parts.push(`добавлено ${addedCount} ${pluralizeRu(addedCount, "сеанс", "сеанса", "сеансов")}`);
+  }
+  if (updatedCount) {
+    parts.push(`обновлено ${updatedCount} ${pluralizeRu(updatedCount, "сеанс", "сеанса", "сеансов")}`);
+  }
+
+  if (parts.length) {
+    return capitalize(parts.join(", "));
+  }
+  if (closureEvent) {
+    return capitalize(cleanChangeSummaryText(closureEvent.afterText || closureEvent.description, "Статус суток обновлён."));
+  }
+  if (dayRemoved) {
+    return "Дата снята с публикации.";
+  }
+  if (dayAdded) {
+    return "Появилась новая дата.";
+  }
+
+  const fallback = group.events[0];
+  return capitalize(cleanChangeSummaryText(fallback?.afterText || fallback?.description || fallback?.title, "Детали обновлены."));
+}
+
+function buildProgramGroupSummary(group) {
+  const event = group?.events?.[0] || null;
+  if (!event) {
+    return "Обновлена дополнительная программа.";
+  }
+
+  switch (String(event.type || "")) {
+    case "program_added":
+      return "Добавлена дополнительная программа.";
+    case "program_removed":
+      return "Дополнительная программа удалена.";
+    case "program_updated":
+    default:
+      return "Обновлено расписание дополнительной программы.";
+  }
+}
+
+function buildChangeGroupDetails(group) {
+  if (!group || !Array.isArray(group.events) || !group.events.length) {
+    return [];
+  }
+
+  if (group.scope === "program") {
+    return buildProgramGroupDetails(group);
+  }
+
+  const rows = [];
+  const removedSessions = group.events.filter((event) => /_removed$/.test(String(event?.type || "")) && /session/.test(String(event?.scope || "")));
+  const addedSessions = group.events.filter((event) => /_added$/.test(String(event?.type || "")) && /session/.test(String(event?.scope || "")));
+  const updatedSessions = group.events.filter((event) => /_updated$/.test(String(event?.type || "")) && /session/.test(String(event?.scope || "")));
+  const closureEvent = group.events.find((event) => String(event?.type || "") === "closure_changed" || String(event?.type || "") === "template_closure_changed") || null;
+  const dayRemoved = group.events.find((event) => String(event?.type || "") === "day_removed") || null;
+  const dayAdded = group.events.find((event) => String(event?.type || "") === "day_added") || null;
+
+  if (removedSessions.length) {
+    rows.push({
+      label: "Убрано",
+      value: joinLimitedValues(removedSessions.map((event) => formatSessionSlotForSummary(event, false)), 3),
+    });
+  }
+  if (addedSessions.length) {
+    rows.push({
+      label: "Добавлено",
+      value: joinLimitedValues(addedSessions.map((event) => formatSessionSlotForSummary(event, false)), 3),
+    });
+  }
+  if (updatedSessions.length) {
+    rows.push({
+      label: "Обновлено",
+      value: joinLimitedValues(updatedSessions.map((event) => formatSessionSlotForSummary(event, true)), 2),
+    });
+  }
+  if (closureEvent) {
+    rows.push({
+      label: "Статус",
+      value: truncateText(cleanChangeSummaryText(closureEvent.afterText || closureEvent.description, "Статус суток обновлён."), 150),
+    });
+  }
+  if (dayRemoved) {
+    rows.push({
+      label: "Дата",
+      value: "Дата больше не публикуется на сайте.",
+    });
+  } else if (dayAdded) {
+    rows.push({
+      label: "Дата",
+      value: "На сайте появилась новая дата.",
+    });
+  }
+
+  return rows.slice(0, 3);
+}
+
+function buildProgramGroupDetails(group) {
+  const event = group?.events?.[0] || null;
+  if (!event) {
+    return [];
+  }
+
+  if (String(event.type || "") === "program_removed") {
+    return [
+      {
+        label: "Было",
+        value: truncateText(cleanChangeSummaryText(event.beforeText, "Детали программы недоступны."), 180),
+      },
+    ];
+  }
+
+  return [
+    {
+      label: String(event.type || "") === "program_added" ? "Добавлено" : "Расписание",
+      value: truncateText(cleanChangeSummaryText(event.afterText || event.description, "Детали программы обновлены."), 180),
+    },
+  ];
+}
+
+function joinLimitedValues(values, limit = 3) {
+  const normalized = Array.from(new Set((values || []).map((value) => normalizeChangeSideText(value, "")).filter(Boolean)));
+  const visible = normalized.slice(0, limit);
+  let text = visible.join(", ");
+
+  if (normalized.length > visible.length) {
+    text += ` и ещё ${normalized.length - visible.length}`;
+  }
+
+  return text || "Детали обновлены.";
+}
+
+function formatSessionSlotForSummary(event, includeDetails) {
+  const timeLabel = event?.start && event?.end ? `${event.start} — ${event.end}` : "";
+  if (!includeDetails) {
+    return timeLabel || cleanChangeSummaryText(event?.afterText || event?.beforeText || event?.description, "Сеанс обновлён.");
+  }
+
+  const detail = stripLeadingTimeRange(
+    cleanChangeSummaryText(event?.afterText || event?.description || event?.beforeText, "Сеанс обновлён.")
+  );
+
+  if (timeLabel && detail) {
+    return `${timeLabel} (${truncateText(detail, 72)})`;
+  }
+
+  return timeLabel || truncateText(detail, 72);
+}
+
+function stripLeadingTimeRange(value) {
+  return String(value || "")
+    .replace(/^\d{2}:\d{2}\s+—\s+\d{2}:\d{2}\s*(?:·\s*)?/u, "")
+    .trim();
+}
+
+function cleanChangeSummaryText(value, fallback = "Детали обновлены.") {
+  const text = normalizeChangeSideText(value, fallback)
+    .replace(/^(было|стало):\s*/iu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text || fallback;
+}
+
+function truncateText(value, maxLength = 140) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text || text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+}
+
+function buildEntryLeadSummary(entry, groups = buildEntryChangeGroups(entry)) {
+  if (!entry) {
+    return "Подробности недоступны.";
+  }
+
+  if (entry.baseline) {
+    return "Это стартовая точка для всех следующих сравнений на этом устройстве.";
+  }
+
+  if (entry.hasSourceIssues && !entry.hasChanges) {
+    return entry.sourceIssues?.[0]?.description || "Один или несколько источников не ответили корректно.";
+  }
+
+  if (!groups.length) {
+    return entry.hasSourceIssues
+      ? "Изменения есть, но проверка была неполной."
+      : "Изменения зафиксированы.";
+  }
+
+  const leadGroup = groups[0];
+  const extraGroups = Math.max(0, groups.length - 1);
+  const leadSummary = String(leadGroup.summary || "").replace(/[.]+$/u, "");
+  let text = `${buildChangeGroupShortLabel(leadGroup)}: ${leadSummary}`;
+
+  if (extraGroups > 0) {
+    text += `. Ещё ${extraGroups} ${pluralizeRu(extraGroups, "блок", "блока", "блоков")} ниже`;
+  }
+
+  if (entry.hasSourceIssues) {
+    text += ". Проверка неполная";
+  }
+
+  return text;
+}
+
+function buildChangesOverviewHighlights(status, focusEntry, focusImpact, focusGroups) {
+  const highlights = [];
+
+  if (focusImpact?.total > 0) {
+    highlights.push({
+      label: "Мои смены",
+      value: `Затронуто ${focusImpact.total} ${pluralizeRu(focusImpact.total, "смена", "смены", "смен")}`,
+    });
+  }
+
+  for (const group of focusGroups || []) {
+    highlights.push({
+      label: group.shortLabel,
+      value: group.summary,
+    });
+    if (highlights.length >= 3) {
+      break;
+    }
+  }
+
+  if (focusEntry?.hasSourceIssues && highlights.length < 3) {
+    const issue = focusEntry.sourceIssues?.[0] || null;
+    if (issue) {
+      highlights.push({
+        label: issue.facilityName || "Проверка",
+        value: truncateText(issue.description || "Источник ответил с ошибкой.", 96),
+      });
+    }
+  }
+
+  if (status === "stable" || status === "baseline" || status === "no_data") {
+    return [];
+  }
+
+  return highlights.slice(0, 3);
+}
+
 function buildChangesAttentionModel(history, lastCheckedAtIso) {
   const entries = Array.isArray(history) ? history.filter(Boolean) : [];
   const latest = entries[0] || null;
@@ -1651,9 +2018,10 @@ function buildChangesAttentionModel(history, lastCheckedAtIso) {
   const lastEventText = lastEventEntry?.checkedAt ? formatChangesDateTime(lastEventEntry.checkedAt) : "Событий пока не было";
   const checkedAtText = checkedAtIso ? formatChangesDateTime(checkedAtIso) : "Проверок пока нет";
   const checkedAtMeta = checkedAtIso ? buildChangesCheckMeta(checkedAtIso) : "Проверка ещё не запускалась";
-  const summary = buildChangesOverviewSummary(status, focusEntry, focusImpact);
+  const focusGroups = buildEntryChangeGroups(focusEntry);
+  const summary = buildChangesOverviewSummary(status, focusEntry, focusImpact, focusGroups);
   const footer = buildChangesOverviewFooter(status, lastEventEntry);
-  const metrics = buildChangesOverviewMetrics(status, focusEntry, focusImpact, checkedAtIso, entries);
+  const highlights = buildChangesOverviewHighlights(status, focusEntry, focusImpact, focusGroups);
 
   return {
     status,
@@ -1668,9 +2036,10 @@ function buildChangesAttentionModel(history, lastCheckedAtIso) {
     checkedAtText,
     checkedAtMeta,
     lastEventText,
+    focusGroups,
     summary,
     footer,
-    metrics,
+    highlights,
     headline: buildChangesOverviewHeadline(status),
     pill: buildChangesOverviewPill(status),
     icon: buildChangesOverviewIcon(status),
@@ -1680,19 +2049,19 @@ function buildChangesAttentionModel(history, lastCheckedAtIso) {
 function buildChangesOverviewHeadline(status) {
   switch (status) {
     case "important":
-      return "Есть важное";
+      return "Затронуты мои смены";
     case "changes":
-      return "Есть новые изменения";
+      return "Есть изменения";
     case "issue":
-      return "Есть сбой проверки";
+      return "Проверка неполная";
     case "reviewed_changes":
-      return "Последнее событие просмотрено";
+      return "Последнее изменение просмотрено";
     case "reviewed_issue":
       return "Последняя проблема просмотрена";
     case "stable":
       return "Без новых изменений";
     case "baseline":
-      return "Проверка готова";
+      return "Первый снимок готов";
     case "no_data":
     default:
       return "Проверка ещё не запущена";
@@ -1702,15 +2071,16 @@ function buildChangesOverviewHeadline(status) {
 function buildChangesOverviewPill(status) {
   switch (status) {
     case "important":
+      return "Влияет";
     case "changes":
       return "Новое";
     case "issue":
-      return "Сбой";
+      return "Неполно";
     case "reviewed_changes":
     case "reviewed_issue":
       return "Просмотрено";
     case "stable":
-      return "Спокойно";
+      return "Без изменений";
     case "baseline":
       return "Первый снимок";
     case "no_data":
@@ -1741,23 +2111,22 @@ function buildChangesOverviewIcon(status) {
   }
 }
 
-function buildChangesOverviewSummary(status, focusEntry, focusImpact) {
+function buildChangesOverviewSummary(status, focusEntry, focusImpact, focusGroups) {
   const leadIssue = focusEntry?.sourceIssues?.[0] || null;
+  const leadSummary = buildEntryLeadSummary(focusEntry, focusGroups);
   switch (status) {
     case "important":
-      return `Изменения затронули ${focusImpact.total} ${pluralizeRu(focusImpact.total, "вашу смену", "ваши смены", "ваших смен")}. Сначала проверьте блок ниже.`;
+      return `Затронуто ${focusImpact.total} ${pluralizeRu(focusImpact.total, "ваша смена", "ваши смены", "ваших смен")}. ${leadSummary}`;
     case "changes":
-      if (state.myShifts.length) {
-        return "Изменения есть, но ваши смены в этой проверке не затронуты.";
-      }
-      return "Изменения уже найдены. Добавьте свои смены, чтобы видеть личное влияние автоматически.";
+      return state.myShifts.length
+        ? `Ваши смены в этой проверке не затронуты. ${leadSummary}`
+        : leadSummary;
     case "issue":
       return leadIssue?.description || "Часть источников не ответила. Сравнение может быть неполным.";
     case "reviewed_changes":
-      if (focusImpact.total > 0) {
-        return `Последнее событие уже просмотрено. Оно затрагивало ${focusImpact.total} ${pluralizeRu(focusImpact.total, "вашу смену", "ваши смены", "ваших смен")}.`;
-      }
-      return "Последнее событие уже просмотрено. Сейчас непросмотренных изменений нет.";
+      return focusImpact.total > 0
+        ? `Последнее изменение уже просмотрено. Было затронуто ${focusImpact.total} ${pluralizeRu(focusImpact.total, "ваша смена", "ваши смены", "ваших смен")}.`
+        : `Последнее изменение уже просмотрено. ${leadSummary}`;
     case "reviewed_issue":
       return "Последняя проблема проверки уже просмотрена. Новых непросмотренных событий сейчас нет.";
     case "stable":
@@ -1853,10 +2222,10 @@ function renderOverviewMetric(metric, className) {
 }
 
 function renderChangesOverviewCard(model) {
-  const metricsHtml = model.metrics.length
+  const metricsHtml = model.highlights.length
     ? `
       <div class="changes-overview-metrics">
-        ${model.metrics.map((metric) => renderOverviewMetric(metric, "changes-overview-metric")).join("")}
+        ${model.highlights.map((metric) => renderOverviewMetric(metric, "changes-overview-metric")).join("")}
       </div>
     `
     : "";
@@ -2066,13 +2435,14 @@ function pickImpactTone(events) {
 
 function renderFocusEntryDetailsSection(model) {
   const focusEntry = model?.focusEntry || null;
+  const focusGroups = Array.isArray(model?.focusGroups) ? model.focusGroups : [];
 
   if (!focusEntry) {
     return `
       <section class="changes-section">
         <div class="changes-list-head">
-          <h2>Что изменилось</h2>
-          <p>Последняя проверка не нашла новых событий. Последние зафиксированные записи остались в журнале ниже.</p>
+          <h2>Кратко по изменениям</h2>
+          <p>Последняя проверка не нашла новых событий. Предыдущие записи остались в истории ниже.</p>
         </div>
       </section>
     `;
@@ -2082,84 +2452,97 @@ function renderFocusEntryDetailsSection(model) {
     return `
       <section class="changes-section">
         <div class="changes-list-head">
-          <h2>Что изменилось</h2>
+          <h2>Кратко по изменениям</h2>
           <p>Это стартовый локальный снимок. Следующие проверки будут сравниваться с ним или с более новыми снимками.</p>
         </div>
       </section>
     `;
   }
 
-  const blocks = [];
-  const entryEvents = getEntryDisplayEvents(focusEntry);
-  if (entryEvents.length) {
-    const groups = groupSiteChangeEvents(entryEvents);
-    blocks.push(`
+  if (!focusGroups.length) {
+    return `
       <section class="changes-section">
         <div class="changes-list-head">
-          <h2>Что изменилось</h2>
-          <p>${
-            isSiteChangeEntryAcknowledged(focusEntry)
-              ? "Это последнее уже просмотренное событие. Нажмите на карточку, чтобы открыть официальный источник."
-              : "Сравнение с предыдущей проверкой на этом устройстве. Нажмите на карточку, чтобы открыть официальный источник."
-          }</p>
-        </div>
-        <div class="changes-list">
-          ${groups.map((group) => renderSiteChangeGroupCard(group)).join("")}
+          <h2>Кратко по изменениям</h2>
+          <p>В этой записи нет отдельных карточек расписания. Обычно это означает, что изменился только статус проверки.</p>
         </div>
       </section>
-    `);
+    `;
   }
 
-  if (!blocks.length) {
-    blocks.push(`
-      <section class="changes-section">
-        <div class="changes-list-head">
-          <h2>Что изменилось</h2>
-          <p>В этой записи нет карточек расписания. Обычно это означает, что изменился только статус проверки.</p>
-        </div>
-      </section>
-    `);
-  }
-
-  return blocks.join("");
-}
-
-function groupSiteChangeEvents(events) {
-  const groups = new Map();
-
-  for (const event of events || []) {
-    const facilityId = String(event?.facilityId || "");
-    const date = String(event?.date || "");
-    const key = `${facilityId}::${date || "template"}`;
-    if (!groups.has(key)) {
-      groups.set(key, {
-        key,
-        facilityName: String(event?.facilityName || "Объект"),
-        facilityId,
-        date,
-        events: [],
-      });
-    }
-    groups.get(key).events.push(event);
-  }
-
-  return Array.from(groups.values());
-}
-
-function renderSiteChangeGroupCard(group) {
-  const dateLabel = group.date ? formatMonthDayShort(group.date) : "Шаблонный источник";
   return `
-    <article class="changes-feed-card">
+    <section class="changes-section">
+      <div class="changes-list-head">
+        <h2>Кратко по изменениям</h2>
+        <p>${
+          isSiteChangeEntryAcknowledged(focusEntry)
+            ? "Это последнее уже просмотренное событие. Карточки ниже показывают только суть изменений."
+            : "Карточки ниже показывают суть изменений по объектам и датам. Нажмите на карточку, чтобы открыть официальный источник."
+        }</p>
+      </div>
+      <div class="changes-list">
+        ${focusGroups.map((group) => renderChangeGroupCard(group)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderChangeGroupCard(group) {
+  const chips = [];
+  if (group.template) {
+    chips.push('<span class="changes-feed-chip info">Шаблон</span>');
+  }
+  if (group.programTitle) {
+    chips.push('<span class="changes-feed-chip info">Программа</span>');
+  }
+  if (group.impactedShiftCount > 0) {
+    chips.push(`<span class="changes-feed-chip warn">Смены: ${escapeHtml(String(group.impactedShiftCount))}</span>`);
+  }
+
+  const rowsHtml = group.details.length
+    ? `
+      <div class="changes-group-rows">
+        ${group.details.map((row) => renderChangeGroupRow(row)).join("")}
+      </div>
+    `
+    : "";
+
+  const cardHtml = `
+    <article class="changes-feed-card changes-group-card">
       <div class="changes-feed-top">
         <div>
-          <h3 class="changes-feed-title">${escapeHtml(`${group.facilityName} · ${dateLabel}`)}</h3>
-          <p class="changes-feed-time">${escapeHtml(`${group.events.length} карточек`)}</p>
+          <h3 class="changes-feed-title">${escapeHtml(group.shortLabel)}</h3>
+          <p class="changes-feed-time">${escapeHtml(group.summary)}</p>
         </div>
       </div>
-      <div class="changes-compare-grid">
-        ${group.events.map((event) => renderInteractiveChangeComparisonCard(event)).join("")}
-      </div>
+      ${chips.length ? `<div class="changes-feed-chips">${chips.join("")}</div>` : ""}
+      ${rowsHtml}
     </article>
+  `;
+
+  if (!group.sourceUrl) {
+    return cardHtml;
+  }
+
+  return `
+    <a
+      class="changes-group-link"
+      href="${escapeHtml(group.sourceUrl)}"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="${escapeHtml(`${group.shortLabel}: открыть официальный источник`)}"
+    >
+      ${cardHtml}
+    </a>
+  `;
+}
+
+function renderChangeGroupRow(row) {
+  return `
+    <div class="changes-group-row">
+      <span>${escapeHtml(String(row?.label || ""))}</span>
+      <strong>${escapeHtml(String(row?.value || ""))}</strong>
+    </div>
   `;
 }
 
@@ -2198,7 +2581,7 @@ function renderChangesHistorySection(history) {
     return `
       <section class="changes-section">
         <div class="changes-list-head">
-          <h2>Журнал проверок</h2>
+          <h2>История проверок</h2>
           <p>Записи появятся после первой успешной проверки.</p>
         </div>
       </section>
@@ -2208,8 +2591,8 @@ function renderChangesHistorySection(history) {
   return `
     <section class="changes-section">
       <div class="changes-list-head">
-        <h2>Журнал проверок</h2>
-        <p>Хранится локально в этом браузере. Просмотренные записи остаются в журнале.</p>
+        <h2>История проверок</h2>
+        <p>Лента хранится локально в этом браузере. Просмотренные записи остаются в истории.</p>
       </div>
       <div class="changes-list">
         ${history.slice(0, SITE_CHANGES_HISTORY_PREVIEW_LIMIT).map((entry) => renderSiteChangeHistoryCard(entry)).join("")}
@@ -2220,7 +2603,8 @@ function renderChangesHistorySection(history) {
 
 function renderSiteChangeHistoryCard(entry) {
   const impact = buildEntryMyShiftImpact(entry);
-  const previewEvents = getEntryDisplayEvents(entry).slice(0, 2);
+  const groups = buildEntryChangeGroups(entry);
+  const previewGroups = groups.slice(0, 2);
   const previewIssues = Array.isArray(entry?.sourceIssues) ? entry.sourceIssues.slice(0, 2) : [];
   const chips = [];
 
@@ -2232,20 +2616,20 @@ function renderSiteChangeHistoryCard(entry) {
     chips.push('<span class="changes-feed-chip warn">Не просмотрено</span>');
   }
 
-  if (entry.hasChanges) {
-    chips.push(`<span class="changes-feed-chip info">Событий: ${escapeHtml(String(entry.summary?.total || 0))}</span>`);
-  }
   if (impact.total > 0) {
-    chips.push(`<span class="changes-feed-chip warn">Мои смены: ${escapeHtml(String(impact.total))}</span>`);
+    chips.push(`<span class="changes-feed-chip warn">Смены: ${escapeHtml(String(impact.total))}</span>`);
   }
   if (previewIssues.length) {
     chips.push(`<span class="changes-feed-chip warn">Проблемы: ${escapeHtml(String(previewIssues.length))}</span>`);
   }
+  if (entry.hasChanges && groups[0]?.template) {
+    chips.push('<span class="changes-feed-chip info">Есть шаблонные изменения</span>');
+  }
 
-  const previewHtml = previewEvents.length
+  const previewHtml = previewGroups.length
     ? `
       <div class="changes-events">
-        ${previewEvents.map((event) => renderHistoryPreviewEvent(event)).join("")}
+        ${previewGroups.map((group) => renderHistoryPreviewGroup(group)).join("")}
       </div>
     `
     : previewIssues.length
@@ -2276,7 +2660,7 @@ function renderSiteChangeHistoryCard(entry) {
         </div>
         ${renderHistoryEntryStatus(entry)}
       </div>
-      <p class="changes-feed-line">${escapeHtml(buildHistoryEntryLine(entry, impact))}</p>
+      <p class="changes-feed-line">${escapeHtml(buildHistoryEntryLine(entry, impact, groups))}</p>
       <div class="changes-feed-chips">${chips.join("")}</div>
       ${previewHtml}
       ${acknowledgeButton}
@@ -2284,12 +2668,15 @@ function renderSiteChangeHistoryCard(entry) {
   `;
 }
 
-function renderHistoryPreviewEvent(event) {
-  const meta = [event?.facilityName, event?.date ? formatMonthDayShort(event.date) : "шаблон"].filter(Boolean).join(" · ");
+function renderHistoryPreviewGroup(group) {
+  const meta = [
+    group?.template ? "Шаблон" : "",
+    group?.impactedShiftCount > 0 ? `Смены: ${group.impactedShiftCount}` : "",
+  ].filter(Boolean).join(" · ");
   return `
-    <article class="changes-event changes-event-${escapeHtml(String(event?.severity || "info"))}">
-      <h3 class="changes-event-title">${escapeHtml(String(event?.title || "Изменение"))}</h3>
-      <p class="changes-event-desc">${escapeHtml(normalizeChangeSideText(event?.afterText || event?.description, "Детали обновлены."))}</p>
+    <article class="changes-event changes-event-${escapeHtml(String(group?.tone || "info"))}">
+      <h3 class="changes-event-title">${escapeHtml(String(group?.shortLabel || "Изменение"))}</h3>
+      <p class="changes-event-desc">${escapeHtml(String(group?.summary || "Детали обновлены."))}</p>
       ${meta ? `<p class="changes-event-meta">${escapeHtml(meta)}</p>` : ""}
     </article>
   `;
@@ -2315,13 +2702,16 @@ function buildHistoryEntryTitle(entry) {
   if (entry.hasSourceIssues && !entry.hasChanges) {
     return "Проблема проверки";
   }
+  if (entry.hasSourceIssues && entry.hasChanges) {
+    return "Изменения и проблемы проверки";
+  }
   if (entry.hasChanges) {
-    return "Зафиксированы изменения";
+    return "Есть изменения на сайте";
   }
   return "Проверка выполнена";
 }
 
-function buildHistoryEntryLine(entry, impact) {
+function buildHistoryEntryLine(entry, impact, groups = buildEntryChangeGroups(entry)) {
   if (!entry) {
     return "Подробности недоступны.";
   }
@@ -2332,12 +2722,9 @@ function buildHistoryEntryLine(entry, impact) {
     return entry.sourceIssues?.[0]?.description || "Один или несколько источников не ответили корректно.";
   }
 
-  let text = `Событий: ${entry.summary?.total || 0}.`;
-  if (state.myShifts.length) {
-    text += impact.total ? ` Мои смены затронуты: ${impact.total}.` : " Мои смены не затронуты.";
-  }
-  if (entry.hasSourceIssues) {
-    text += ` Проблем с источниками: ${entry.sourceIssues?.length || 0}.`;
+  let text = buildEntryLeadSummary(entry, groups);
+  if (impact.total > 0 && !/Затронуто/i.test(text)) {
+    text += `. Затронуто смен: ${impact.total}`;
   }
   return text;
 }
@@ -2621,7 +3008,7 @@ function renderMyChangesSummary() {
   const latest = history[0] || null;
   const lastCheckedAtIso = state.siteChangesLastCheckedAt || latest?.checkedAt || "";
   const model = buildChangesAttentionModel(history, lastCheckedAtIso);
-  const highlights = model.metrics.slice(0, 3);
+  const highlights = model.highlights.slice(0, 2);
   const highlightsHtml = highlights.length
     ? `
       <div class="my-changes-widget-highlights">
@@ -2654,16 +3041,13 @@ function buildMyChangesWidgetFooter(model) {
   if (model.status === "no_data") {
     return "Открыть и запустить проверку";
   }
-  if (model.status === "important") {
-    return "Открыть детали";
-  }
   if (model.status === "issue") {
-    return "Посмотреть проблему";
+    return "Открыть проблему";
   }
-  if (model.lastEventEntry?.checkedAt) {
-    return `Последнее событие: ${formatChangesDateTime(model.lastEventEntry.checkedAt)}`;
+  if (model.status === "stable") {
+    return "Открыть журнал проверок";
   }
-  return "Открыть детали";
+  return "Открыть разбор";
 }
 
 function renderMyShiftCard(shift, verification = getShiftVerification(shift)) {

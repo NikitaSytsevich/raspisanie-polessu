@@ -126,6 +126,54 @@
     });
   }
 
+  function normalizeProgramScheduleItem(item) {
+    const weekdays = normalizeClosedWeekdays(item && item.weekdays);
+    const start = normalizeTime(item && item.start);
+    const end = normalizeTime(item && item.end);
+    const note = trimText(item && item.note);
+
+    if (!start || !end) {
+      return null;
+    }
+
+    return {
+      weekdays: weekdays,
+      start: start,
+      end: end,
+      note: note,
+    };
+  }
+
+  function buildExtraProgramsForComparison(extraPrograms) {
+    return (Array.isArray(extraPrograms) ? extraPrograms : [])
+      .map(function (program) {
+        const title = trimText(program && program.title);
+        const schedule = (Array.isArray(program && program.schedule) ? program.schedule : [])
+          .map(normalizeProgramScheduleItem)
+          .filter(Boolean)
+          .sort(function (a, b) {
+            const weekdayDiff = a.weekdays.join(",").localeCompare(b.weekdays.join(","));
+            if (weekdayDiff !== 0) {
+              return weekdayDiff;
+            }
+            return toMinutes(a.start) - toMinutes(b.start) || toMinutes(a.end) - toMinutes(b.end);
+          });
+
+        if (!title || !schedule.length) {
+          return null;
+        }
+
+        return {
+          title: title,
+          schedule: schedule,
+        };
+      })
+      .filter(Boolean)
+      .sort(function (a, b) {
+        return a.title.localeCompare(b.title, "ru");
+      });
+  }
+
   function buildTemplateDefinition(facility) {
     const existing = facility && facility.template && typeof facility.template === "object" ? facility.template : null;
     const existingSessions = Array.isArray(existing && existing.sessions)
@@ -241,6 +289,7 @@
     const dataQuality = inferDataQuality(facility);
     const datedDays = buildDatedDaysForComparison(facility && facility.days);
     const template = comparisonMode === "template" ? buildTemplateDefinition(facility) : null;
+    const programs = buildExtraProgramsForComparison(facility && facility.extraPrograms);
     const warningList = (Array.isArray(facility && facility.warnings) ? facility.warnings : [])
       .map(trimText)
       .filter(Boolean);
@@ -258,6 +307,7 @@
       issueText: issueText,
       warnings: warningList,
       notes: noteList,
+      programs: programs,
       days: datedDays,
       template: template
         ? {
@@ -279,10 +329,15 @@
 
     const changeTrackingHash =
       comparisonMode === "template"
-        ? templateHash
+        ? stableHash({
+            id: trimText(facility && facility.id),
+            templateHash: templateHash,
+            programs: programs,
+          })
         : stableHash({
             id: trimText(facility && facility.id),
             days: datedDays,
+            programs: programs,
           });
 
     return {
@@ -294,6 +349,7 @@
       windowStart: template ? template.windowStart : trimText(datedDays[0] && datedDays[0].date),
       windowEnd: template ? template.windowEnd : trimText(datedDays[datedDays.length - 1] && datedDays[datedDays.length - 1].date),
       template: template,
+      programs: programs,
     };
   }
 
@@ -308,6 +364,7 @@
       windowStart: trimText(facility && facility.windowStart) || built.windowStart,
       windowEnd: trimText(facility && facility.windowEnd) || built.windowEnd,
       template: built.template,
+      programs: built.programs,
     };
   }
 
@@ -401,7 +458,9 @@
 
     const normalized = normalizeSessionForComparison(session);
     const timeLabel = normalized.start && normalized.end ? normalized.start + " — " + normalized.end : "Время не указано";
-    const details = [normalized.activity, normalized.note].filter(Boolean).join(" · ");
+    const details = Array.from(
+      new Set([normalized.activity, normalized.note].map(trimText).filter(Boolean))
+    ).join(" · ");
     return details ? timeLabel + " · " + details : timeLabel;
   }
 
@@ -562,15 +621,21 @@
 
   function diffDatedFacility(previousFacility, nextFacility, meta) {
     const events = [];
+    const previousMeta = resolveFacilityTrackingMeta(previousFacility);
+    const nextMeta = resolveFacilityTrackingMeta(nextFacility);
     const previousDays = toDayMap(previousFacility && previousFacility.days);
     const nextDays = toDayMap(nextFacility && nextFacility.days);
     const dates = Array.from(new Set(Array.from(previousDays.keys()).concat(Array.from(nextDays.keys())))).sort();
+    const overlapWindow = resolveComparableDateWindow(previousFacility, nextFacility);
 
     for (const date of dates) {
       const previousDay = previousDays.get(date) || null;
       const nextDay = nextDays.get(date) || null;
 
       if (!previousDay && nextDay) {
+        if (!shouldCompareWindowEdgeDate(date, overlapWindow)) {
+          continue;
+        }
         const sessionsCount = Array.isArray(nextDay.sessions) ? nextDay.sessions.length : 0;
         events.push({
           type: "day_added",
@@ -593,6 +658,9 @@
       }
 
       if (previousDay && !nextDay) {
+        if (!shouldCompareWindowEdgeDate(date, overlapWindow)) {
+          continue;
+        }
         const sessionsCount = Array.isArray(previousDay.sessions) ? previousDay.sessions.length : 0;
         events.push({
           type: "day_removed",
@@ -713,13 +781,58 @@
       }
     }
 
+    events.push.apply(events, diffSupplementaryPrograms(previousMeta.programs, nextMeta.programs, meta));
     return events;
+  }
+
+  function resolveComparableDateWindow(previousFacility, nextFacility) {
+    const previousMeta = resolveFacilityTrackingMeta(previousFacility);
+    const nextMeta = resolveFacilityTrackingMeta(nextFacility);
+    const previousStart = trimText(previousMeta.windowStart);
+    const previousEnd = trimText(previousMeta.windowEnd);
+    const nextStart = trimText(nextMeta.windowStart);
+    const nextEnd = trimText(nextMeta.windowEnd);
+
+    if (!previousStart || !previousEnd || !nextStart || !nextEnd) {
+      return {
+        isKnown: false,
+        hasOverlap: true,
+        start: "",
+        end: "",
+      };
+    }
+
+    const start = previousStart > nextStart ? previousStart : nextStart;
+    const end = previousEnd < nextEnd ? previousEnd : nextEnd;
+
+    return {
+      isKnown: true,
+      hasOverlap: start <= end,
+      start: start <= end ? start : "",
+      end: start <= end ? end : "",
+    };
+  }
+
+  function shouldCompareWindowEdgeDate(date, overlapWindow) {
+    const text = trimText(date);
+    if (!text) {
+      return false;
+    }
+    if (!overlapWindow || !overlapWindow.isKnown) {
+      return true;
+    }
+    if (!overlapWindow.hasOverlap) {
+      return false;
+    }
+    return text >= overlapWindow.start && text <= overlapWindow.end;
   }
 
   function diffTemplateFacility(previousFacility, nextFacility, meta) {
     const events = [];
-    const previousTemplate = resolveFacilityTrackingMeta(previousFacility).template || { sessions: [], closedWeekdays: [] };
-    const nextTemplate = resolveFacilityTrackingMeta(nextFacility).template || { sessions: [], closedWeekdays: [] };
+    const previousMeta = resolveFacilityTrackingMeta(previousFacility);
+    const nextMeta = resolveFacilityTrackingMeta(nextFacility);
+    const previousTemplate = previousMeta.template || { sessions: [], closedWeekdays: [] };
+    const nextTemplate = nextMeta.template || { sessions: [], closedWeekdays: [] };
     const previousSessions = toSessionMap(previousTemplate.sessions);
     const nextSessions = toSessionMap(nextTemplate.sessions);
     const sessionKeys = Array.from(new Set(Array.from(previousSessions.keys()).concat(Array.from(nextSessions.keys())))).sort();
@@ -808,6 +921,115 @@
         beforeText: "Было: " + formatClosedWeekdays(previousTemplate.closedWeekdays) + ".",
         afterText: "Стало: " + formatClosedWeekdays(nextTemplate.closedWeekdays) + ".",
       });
+    }
+
+    events.push.apply(events, diffSupplementaryPrograms(previousMeta.programs, nextMeta.programs, meta));
+    return events;
+  }
+
+  function toProgramMap(programs) {
+    const map = new Map();
+    for (const program of programs || []) {
+      const title = trimText(program && program.title);
+      if (!title) {
+        continue;
+      }
+      map.set(title, program);
+    }
+    return map;
+  }
+
+  function formatWeekdayRule(weekdays) {
+    const labels = normalizeClosedWeekdays(weekdays).map(function (weekday) {
+      return ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"][weekday] || "";
+    }).filter(Boolean);
+    return labels.join(", ");
+  }
+
+  function formatProgramSnapshot(program) {
+    if (!program || !Array.isArray(program.schedule) || !program.schedule.length) {
+      return "Детали программы не указаны.";
+    }
+
+    const previews = program.schedule.slice(0, 4).map(function (item) {
+      const weekdayLabel = formatWeekdayRule(item.weekdays);
+      const timeLabel = item.start + " — " + item.end;
+      const note = trimText(item.note);
+      const suffix = note ? " (" + note + ")" : "";
+      return weekdayLabel ? weekdayLabel + ": " + timeLabel + suffix : timeLabel + suffix;
+    });
+
+    if (program.schedule.length > previews.length) {
+      previews.push("и ещё " + String(program.schedule.length - previews.length));
+    }
+
+    return previews.join("; ");
+  }
+
+  function diffSupplementaryPrograms(previousPrograms, nextPrograms, meta) {
+    const events = [];
+    const previousMap = toProgramMap(previousPrograms);
+    const nextMap = toProgramMap(nextPrograms);
+    const titles = Array.from(new Set(Array.from(previousMap.keys()).concat(Array.from(nextMap.keys())))).sort(function (a, b) {
+      return a.localeCompare(b, "ru");
+    });
+
+    for (const title of titles) {
+      const previousProgram = previousMap.get(title) || null;
+      const nextProgram = nextMap.get(title) || null;
+
+      if (!previousProgram && nextProgram) {
+        events.push({
+          type: "program_added",
+          severity: "positive",
+          scope: "program",
+          facilityId: meta.facilityId,
+          facilityName: meta.facilityName,
+          sourceUrl: meta.sourceUrl,
+          date: null,
+          programTitle: title,
+          title: "Добавлена программа",
+          description: title,
+          beforeText: "Программа отсутствовала.",
+          afterText: formatProgramSnapshot(nextProgram),
+        });
+        continue;
+      }
+
+      if (previousProgram && !nextProgram) {
+        events.push({
+          type: "program_removed",
+          severity: "warning",
+          scope: "program",
+          facilityId: meta.facilityId,
+          facilityName: meta.facilityName,
+          sourceUrl: meta.sourceUrl,
+          date: null,
+          programTitle: title,
+          title: "Удалена программа",
+          description: title,
+          beforeText: formatProgramSnapshot(previousProgram),
+          afterText: "Программа удалена.",
+        });
+        continue;
+      }
+
+      if (stableHash(previousProgram.schedule) !== stableHash(nextProgram.schedule)) {
+        events.push({
+          type: "program_updated",
+          severity: "info",
+          scope: "program",
+          facilityId: meta.facilityId,
+          facilityName: meta.facilityName,
+          sourceUrl: meta.sourceUrl,
+          date: null,
+          programTitle: title,
+          title: "Обновлена программа",
+          description: title,
+          beforeText: formatProgramSnapshot(previousProgram),
+          afterText: formatProgramSnapshot(nextProgram),
+        });
+      }
     }
 
     return events;

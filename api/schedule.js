@@ -4,7 +4,7 @@ const DEFAULT_DAYS_WINDOW = 8;
 const SOURCE_DISCOVERY_TTL_MS = 20 * 60 * 1000;
 const SITEMAP_URL = "https://www.polessu.by/sitemap.xml";
 const FETCH_TIMEOUT_MS = 10 * 1000;
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const siteChangesUtils = require("../shared/site_changes.js");
 
@@ -235,6 +235,7 @@ async function parseFacilityWithFallback(facility, previousFacility) {
       updatedAt: startedAt,
       days: deepClone(previousFacility.days || []),
       template: previousFacility?.template ? deepClone(previousFacility.template) : null,
+      extraPrograms: Array.isArray(previousFacility?.extraPrograms) ? deepClone(previousFacility.extraPrograms) : [],
       notes: deepClone(previousFacility.notes || []),
       warnings: uniq([...previousWarnings, "Источник недоступен, показаны последние сохранённые данные"]),
       error: sourceIssue,
@@ -253,6 +254,7 @@ async function parseFacilityWithFallback(facility, previousFacility) {
     updatedAt: startedAt,
     days: [],
     template: null,
+    extraPrograms: [],
     notes: [],
     warnings: ["Не удалось получить актуальные данные со страницы расписания"],
     error: sourceIssue,
@@ -486,6 +488,7 @@ function parseDated(lines, facility) {
   const dayMap = new Map();
   const notes = [];
   const warnings = [];
+  const extraPrograms = extractSupplementaryPrograms(lines);
 
   let currentDate = null;
   let currentWeekday = null;
@@ -578,6 +581,7 @@ function parseDated(lines, facility) {
   return {
     days,
     template: null,
+    extraPrograms,
     notes: uniq(notes),
     warnings,
   };
@@ -668,6 +672,7 @@ function parseDailyTemplate(lines, facility, daysWindow) {
       windowStart: days[0]?.date || null,
       windowEnd: days[days.length - 1]?.date || null,
     },
+    extraPrograms: [],
     notes: uniq(notes),
     warnings,
   };
@@ -761,11 +766,15 @@ function sanitizeNote(note) {
     return null;
   }
 
-  const cleaned = note
-    .replace(/^[-,.;:()\s]+/, "")
-    .replace(/[-,.;:()\s]+$/, "")
+  let cleaned = note
+    .replace(/^[-,.;:\s]+/, "")
+    .replace(/[-,.;:\s]+$/, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
 
   if (!cleaned) {
     return null;
@@ -776,6 +785,164 @@ function sanitizeNote(note) {
   }
 
   return cleaned;
+}
+
+function extractSupplementaryPrograms(lines) {
+  const programs = [];
+  let currentProgram = null;
+  let currentWeekdays = [];
+
+  for (const rawLine of lines || []) {
+    const line = normalizeLine(rawLine);
+    if (!line || isTechnicalOrServiceLine(line)) {
+      continue;
+    }
+
+    if (/^обучение плаванию/i.test(line)) {
+      finalizeSupplementaryProgram(programs, currentProgram);
+      currentProgram = {
+        title: line.replace(/:+$/, "").trim(),
+        schedule: [],
+        notes: [],
+      };
+      currentWeekdays = [];
+      continue;
+    }
+
+    if (!currentProgram) {
+      continue;
+    }
+
+    if (/^(расписание|срок действия абонементов|оплатить услуги|оплата услуг|стоимость услуг|желаем вам|в расписании возможны изменения)/i.test(line)) {
+      finalizeSupplementaryProgram(programs, currentProgram);
+      currentProgram = null;
+      currentWeekdays = [];
+      continue;
+    }
+
+    const weekdayPrefix = extractWeekdayPrefix(line);
+    let lineToParse = line;
+
+    if (weekdayPrefix.weekdays.length) {
+      currentWeekdays = weekdayPrefix.weekdays;
+      lineToParse = weekdayPrefix.tail;
+    }
+
+    const ranges = extractRangesFromLine(lineToParse);
+    if (ranges.length) {
+      for (const range of ranges) {
+        currentProgram.schedule.push({
+          weekdays: currentWeekdays.slice(),
+          start: range.start,
+          end: range.end,
+          note: range.note || null,
+        });
+      }
+      continue;
+    }
+
+    if (lineToParse) {
+      currentProgram.notes.push(lineToParse);
+    }
+  }
+
+  finalizeSupplementaryProgram(programs, currentProgram);
+  return programs;
+}
+
+function finalizeSupplementaryProgram(programs, program) {
+  if (!program || !program.title) {
+    return;
+  }
+
+  const schedule = dedupeProgramSchedule(program.schedule || []);
+  if (!schedule.length) {
+    return;
+  }
+
+  programs.push({
+    title: program.title,
+    schedule,
+    notes: uniq(program.notes || []),
+  });
+}
+
+function dedupeProgramSchedule(items) {
+  const seen = new Set();
+  const result = [];
+
+  for (const item of items || []) {
+    const weekdays = Array.isArray(item?.weekdays)
+      ? Array.from(new Set(item.weekdays.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value >= 0 && value <= 6))).sort((a, b) => a - b)
+      : [];
+    const start = normalizeTime(item?.start);
+    const end = normalizeTime(item?.end);
+    const note = sanitizeNote(item?.note || "");
+
+    if (!start || !end) {
+      continue;
+    }
+
+    const normalized = {
+      weekdays,
+      start,
+      end,
+      note,
+    };
+    const key = [weekdays.join(","), start, end, note || ""].join("|");
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(normalized);
+  }
+
+  return result.sort((a, b) => {
+    const weekdaysDiff = a.weekdays.join(",").localeCompare(b.weekdays.join(","));
+    if (weekdaysDiff !== 0) {
+      return weekdaysDiff;
+    }
+    return toMinutes(a.start) - toMinutes(b.start) || toMinutes(a.end) - toMinutes(b.end);
+  });
+}
+
+function extractWeekdayPrefix(line) {
+  const weekdayPattern = "(понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)";
+  const matcher = new RegExp(`^(${weekdayPattern}(?:\\s*,\\s*${weekdayPattern})*)(.*)$`, "iu");
+  const match = String(line || "").match(matcher);
+  if (!match) {
+    return { weekdays: [], tail: line };
+  }
+
+  return {
+    weekdays: parseWeekdayList(match[1]),
+    tail: normalizeLine(match[3] || ""),
+  };
+}
+
+function parseWeekdayList(value) {
+  const labels = String(value || "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+
+  const map = {
+    "воскресенье": 0,
+    "понедельник": 1,
+    "вторник": 2,
+    "среда": 3,
+    "четверг": 4,
+    "пятница": 5,
+    "суббота": 6,
+  };
+
+  return Array.from(
+    new Set(
+      labels
+        .map((label) => map[label])
+        .filter((value) => Number.isInteger(value))
+    )
+  ).sort((a, b) => a - b);
 }
 
 function normalizeLine(line) {
