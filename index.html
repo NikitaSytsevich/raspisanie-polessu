@@ -42,122 +42,140 @@
   </head>
   <body class="bg-dark-base min-h-screen antialiased pb-24">
 
-    <div id="settingsView" hidden class="bg-background-light text-black min-h-screen">
-      <header id="settingsHeader" class="sticky top-0 z-50 bg-header-tint/95 ios-blur-light px-6 pt-12 pb-4 header-depth">
-        <div class="flex flex-col gap-4">
-          <div class="flex items-center">
-            <button
-              id="backFromSettingsButton"
-              class="relative size-10 -ml-2 flex items-center justify-center rounded-xl hover:bg-black/5 text-slate-900 active:scale-95 transition-all"
-              type="button"
-            >
-              <span class="material-symbols-outlined text-[28px] font-medium">arrow_back</span>
-            </button>
-          </div>
-          <h1 class="text-[34px] font-[900] tracking-tight text-black leading-tight">Настройки</h1>
+    <div id="settingsView" hidden class="settings-view">
+      <header id="settingsHeader" class="settings-header">
+        <div class="settings-header-top">
+          <button id="backFromSettingsButton" class="settings-back-btn" type="button" title="Назад к графику">
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+        </div>
+        <div class="settings-header-copy">
+          <p class="settings-page-kicker">Приложение</p>
+          <h1>Настройки</h1>
+          <p class="settings-page-subtitle">Внешний вид, проверка расписания и ваши локальные данные в одном месте.</p>
         </div>
       </header>
 
-      <main id="settingsMain" class="px-6 py-8 pb-24">
-        <section class="settings-panel mb-12">
-          <h2 class="text-xs font-[800] text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Тема оформления</h2>
-          <div id="themeSelector" class="grid grid-cols-2 gap-4">
-            <button
-              type="button"
-              data-theme="light"
-              class="theme-card group relative flex flex-col items-center overflow-hidden rounded-[24px] border-2 border-transparent bg-slate-50 p-4 transition-all"
-            >
-              <div class="theme-check hidden absolute top-3 right-3 size-6 rounded-full bg-primary items-center justify-center z-10 shadow-sm">
-                <span class="material-symbols-outlined text-white text-[16px] font-[800]">check</span>
-              </div>
-              <div class="mb-4 flex h-32 w-full flex-col gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-100">
-                <div class="h-3 w-1/3 rounded-full bg-slate-100"></div>
-                <div class="h-16 w-full rounded-lg bg-slate-50 border border-slate-100"></div>
-                <div class="mt-auto flex gap-2">
-                  <div class="h-2 w-full rounded-full bg-slate-100"></div>
-                  <div class="h-2 w-1/4 rounded-full bg-blue-100"></div>
-                </div>
-              </div>
-              <span class="text-[15px] font-[800] text-slate-900">Светлая</span>
-            </button>
+      <main id="settingsMain" class="settings-main">
+        <section id="settingsOverviewCard" class="settings-overview-card"></section>
 
-            <button
-              type="button"
-              data-theme="dark"
-              class="theme-card group relative flex flex-col items-center overflow-hidden rounded-[24px] border-2 border-transparent bg-slate-900 p-4 transition-all"
-            >
-              <div class="theme-check hidden absolute top-3 right-3 size-6 rounded-full bg-primary items-center justify-center z-10 shadow-sm">
-                <span class="material-symbols-outlined text-white text-[16px] font-[800]">check</span>
-              </div>
-              <div class="mb-4 flex h-32 w-full flex-col gap-2 rounded-xl bg-slate-800 p-3 shadow-inner border border-slate-700">
-                <div class="h-3 w-1/3 rounded-full bg-slate-700"></div>
-                <div class="h-16 w-full rounded-lg bg-slate-900/50 border border-slate-700/50"></div>
-                <div class="mt-auto flex gap-2">
-                  <div class="h-2 w-full rounded-full bg-slate-700"></div>
-                  <div class="h-2 w-1/4 rounded-full bg-slate-600"></div>
-                </div>
-              </div>
-              <span class="text-[15px] font-[800] text-white">Темная</span>
-            </button>
-
-            <button
-              type="button"
-              data-theme="system"
-              class="theme-card col-span-2 group relative flex items-center gap-6 overflow-hidden rounded-[24px] border-2 border-transparent bg-slate-100 p-4 transition-all"
-            >
-              <div class="theme-check hidden absolute top-3 right-3 size-6 rounded-full bg-primary items-center justify-center z-10 shadow-sm">
-                <span class="material-symbols-outlined text-white text-[16px] font-[800]">check</span>
-              </div>
-              <div class="relative flex h-24 w-1/2 overflow-hidden rounded-xl border border-slate-200 shadow-sm">
-                <div class="w-1/2 h-full bg-white"></div>
-                <div class="w-1/2 h-full bg-slate-900"></div>
-              </div>
-              <div class="flex flex-col items-start">
-                <span class="text-[17px] font-[800] text-slate-900">Системная</span>
-                <span class="text-xs font-semibold text-slate-400 mt-1">Автоматически</span>
-              </div>
-            </button>
+        <section class="settings-panel">
+          <div class="settings-panel-head">
+            <p>Внешний вид</p>
+            <h2>Как выглядит приложение</h2>
+            <span>Тема применяется сразу и не требует перезагрузки.</span>
           </div>
-        </section>
+          <div id="themeSelector" class="settings-theme-grid">
+            <button type="button" data-theme="light" class="settings-theme-card">
+              <div class="settings-theme-preview theme-preview-light">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="settings-theme-copy">
+                <strong>Светлая</strong>
+                <small>Ясный дневной режим</small>
+              </div>
+              <span class="settings-theme-check material-symbols-outlined">done</span>
+            </button>
 
-        <section class="settings-panel mb-12">
-          <h2 class="text-xs font-[800] text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Обновление данных</h2>
-          <div class="bg-slate-50 rounded-[24px] border border-slate-100 p-5">
-            <label class="text-sm font-bold text-slate-700 block mb-2" for="autoRefreshSelect">Интервал автообновления</label>
-            <select id="autoRefreshSelect" class="w-full rounded-xl border-slate-200 text-sm font-semibold text-slate-700">
-              <option value="0">Только вручную</option>
-              <option value="5">Каждые 5 минут</option>
-              <option value="15">Каждые 15 минут</option>
-              <option value="30">Каждые 30 минут</option>
-            </select>
-            <button
-              id="settingsRefreshButton"
-              type="button"
-              class="mt-4 w-full rounded-xl bg-primary text-white text-sm font-extrabold py-3 active:scale-[0.99]"
-            >
-              Обновить сейчас
+            <button type="button" data-theme="dark" class="settings-theme-card">
+              <div class="settings-theme-preview theme-preview-dark">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="settings-theme-copy">
+                <strong>Тёмная</strong>
+                <small>Для вечера и слабого света</small>
+              </div>
+              <span class="settings-theme-check material-symbols-outlined">done</span>
+            </button>
+
+            <button type="button" data-theme="system" class="settings-theme-card">
+              <div class="settings-theme-preview theme-preview-system">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="settings-theme-copy">
+                <strong>Системная</strong>
+                <small>Следует за устройством</small>
+              </div>
+              <span class="settings-theme-check material-symbols-outlined">done</span>
             </button>
           </div>
         </section>
 
         <section class="settings-panel">
-          <h2 class="text-xs font-[800] text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Мой график</h2>
-          <div class="bg-slate-50 rounded-[24px] border border-slate-100 p-5 mb-5">
-            <p class="text-sm font-semibold text-slate-600 mb-4">Импорт и экспорт истории ваших смен в JSON.</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button id="exportMyShiftsButton" type="button" class="history-action-btn history-action-btn-export">
-                Экспорт истории
-              </button>
-              <button id="importMyShiftsButton" type="button" class="history-action-btn history-action-btn-import">
-                Импорт истории
-              </button>
-            </div>
-            <input id="importMyShiftsInput" type="file" accept=".json,application/json" hidden />
-            <p id="myShiftsDataNotice" hidden class="history-data-notice mt-3"></p>
+          <div class="settings-panel-head">
+            <p>Проверка данных</p>
+            <h2>Обновление и мониторинг</h2>
+            <span>Приложение может проверять расписание само или только по кнопке.</span>
           </div>
+          <div id="autoRefreshOptions" class="settings-refresh-grid">
+            <button type="button" data-auto-refresh="0" class="settings-refresh-card">
+              <strong>Вручную</strong>
+              <small>Только когда вы нажимаете обновить</small>
+            </button>
+            <button type="button" data-auto-refresh="5" class="settings-refresh-card">
+              <strong>5 минут</strong>
+              <small>Самый частый режим</small>
+            </button>
+            <button type="button" data-auto-refresh="15" class="settings-refresh-card">
+              <strong>15 минут</strong>
+              <small>Спокойный повседневный режим</small>
+            </button>
+            <button type="button" data-auto-refresh="30" class="settings-refresh-card">
+              <strong>30 минут</strong>
+              <small>Минимум фоновых проверок</small>
+            </button>
+          </div>
+          <div id="settingsMonitorCard" class="settings-monitor-card"></div>
+          <div id="settingsSourceIssues" class="settings-inline-stack"></div>
+          <div class="settings-inline-actions">
+            <button id="settingsRefreshButton" type="button" class="settings-primary-btn">
+              <span class="material-symbols-outlined">refresh</span>
+              <span>Проверить сейчас</span>
+            </button>
+            <button id="openSettingsChangesButton" type="button" class="settings-secondary-btn">
+              <span class="material-symbols-outlined">travel_explore</span>
+              <span>Открыть изменения</span>
+            </button>
+          </div>
+        </section>
 
-          <h2 class="text-xs font-[800] text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Источники</h2>
-          <ul id="sourceList" class="space-y-2"></ul>
+        <section class="settings-panel">
+          <div class="settings-panel-head">
+            <p>Локальные данные</p>
+            <h2>Смены и локальный журнал</h2>
+            <span>Все записи живут только в этом браузере, пока вы не экспортируете их.</span>
+          </div>
+          <div id="settingsDataCard" class="settings-data-card"></div>
+          <div class="settings-actions-grid">
+            <button id="openSettingsEditorButton" type="button" class="settings-action-tile">
+              <span class="material-symbols-outlined">edit_calendar</span>
+              <strong>Мои смены</strong>
+              <small>Добавить или исправить записи</small>
+            </button>
+            <button id="exportMyShiftsButton" type="button" class="settings-action-tile settings-action-export">
+              <span class="material-symbols-outlined">download</span>
+              <strong>Экспорт</strong>
+              <small>Смены и локальный журнал в JSON</small>
+            </button>
+            <button id="importMyShiftsButton" type="button" class="settings-action-tile settings-action-import">
+              <span class="material-symbols-outlined">upload</span>
+              <strong>Импорт</strong>
+              <small>Восстановить данные из файла</small>
+            </button>
+            <button id="resetSiteChangesButton" type="button" class="settings-action-tile settings-action-danger">
+              <span class="material-symbols-outlined">delete_sweep</span>
+              <strong>Сбросить журнал</strong>
+              <small>Очистить локальную проверку изменений</small>
+            </button>
+          </div>
+          <input id="importMyShiftsInput" type="file" accept=".json,application/json" hidden />
+          <p id="myShiftsDataNotice" hidden class="history-data-notice"></p>
         </section>
       </main>
     </div>

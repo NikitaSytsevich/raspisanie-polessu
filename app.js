@@ -57,6 +57,7 @@ const state = {
 
 const el = {
   settingsView: document.getElementById("settingsView"),
+  settingsMain: document.getElementById("settingsMain"),
   myScheduleView: document.getElementById("myScheduleView"),
   myScheduleEditorView: document.getElementById("myScheduleEditorView"),
   changesView: document.getElementById("changesView"),
@@ -73,13 +74,19 @@ const el = {
   backFromChangesButton: document.getElementById("backFromChangesButton"),
   backFromMyEditorButton: document.getElementById("backFromMyEditorButton"),
   themeSelector: document.getElementById("themeSelector"),
-  autoRefreshSelect: document.getElementById("autoRefreshSelect"),
+  autoRefreshOptions: document.getElementById("autoRefreshOptions"),
   settingsRefreshButton: document.getElementById("settingsRefreshButton"),
+  openSettingsChangesButton: document.getElementById("openSettingsChangesButton"),
+  openSettingsEditorButton: document.getElementById("openSettingsEditorButton"),
   exportMyShiftsButton: document.getElementById("exportMyShiftsButton"),
   importMyShiftsButton: document.getElementById("importMyShiftsButton"),
   importMyShiftsInput: document.getElementById("importMyShiftsInput"),
   myShiftsDataNotice: document.getElementById("myShiftsDataNotice"),
-  sourceList: document.getElementById("sourceList"),
+  resetSiteChangesButton: document.getElementById("resetSiteChangesButton"),
+  settingsOverviewCard: document.getElementById("settingsOverviewCard"),
+  settingsMonitorCard: document.getElementById("settingsMonitorCard"),
+  settingsSourceIssues: document.getElementById("settingsSourceIssues"),
+  settingsDataCard: document.getElementById("settingsDataCard"),
   myShowAllButton: document.getElementById("myShowAllButton"),
   myCollapseRangeButton: document.getElementById("myCollapseRangeButton"),
   myOpenFullRangeButton: document.getElementById("myOpenFullRangeButton"),
@@ -130,6 +137,19 @@ function init() {
 function bindEvents() {
   if (el.settingsRefreshButton) {
     el.settingsRefreshButton.addEventListener("click", () => fetchSchedule(true, { source: "settings" }));
+  }
+  if (el.openSettingsChangesButton) {
+    el.openSettingsChangesButton.addEventListener("click", () => setView("changes"));
+  }
+  if (el.openSettingsEditorButton) {
+    el.openSettingsEditorButton.addEventListener("click", () => {
+      state.myEditingShiftId = null;
+      resetMyShiftForm();
+      setView("my_schedule_editor");
+    });
+  }
+  if (el.resetSiteChangesButton) {
+    el.resetSiteChangesButton.addEventListener("click", handleResetSiteChanges);
   }
   if (el.myScheduleRefreshButton) {
     el.myScheduleRefreshButton.addEventListener("click", () => fetchSchedule(true, { source: "my_schedule_global" }));
@@ -228,11 +248,18 @@ function bindEvents() {
     el.importMyShiftsInput.addEventListener("change", handleMyShiftsImport);
   }
 
-  if (el.autoRefreshSelect) {
-    el.autoRefreshSelect.addEventListener("change", () => {
-      state.settings.autoRefreshMins = Number(el.autoRefreshSelect.value || 0);
+  if (el.autoRefreshOptions) {
+    el.autoRefreshOptions.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-auto-refresh]");
+      if (!button) {
+        return;
+      }
+
+      state.settings.autoRefreshMins = Number(button.dataset.autoRefresh || 0);
       saveSettings();
       setupAutoRefresh();
+      hydrateAutoRefreshButtons();
+      renderSettingsView();
     });
   }
 
@@ -247,6 +274,7 @@ function bindEvents() {
       saveSettings();
       applyTheme(state.settings.theme);
       hydrateThemeButtons();
+      renderSettingsView();
     });
   }
 
@@ -296,6 +324,9 @@ function setView(view) {
   }
   if (showChanges) {
     renderChangesView();
+  }
+  if (showSettings) {
+    renderSettingsView();
   }
 
   window.scrollTo({ top: 0, behavior: "auto" });
@@ -427,7 +458,7 @@ async function fetchSchedule(force, options = {}) {
 
 function renderAll() {
   renderHeader();
-  renderSources();
+  renderSettingsView();
   renderMySchedule();
   renderMyScheduleEditor();
   renderChangesView();
@@ -460,6 +491,9 @@ function setupUpdatedAtTicker() {
     }
     if (state.view === "my_schedule") {
       renderMyChangesSummary();
+    }
+    if (state.view === "settings") {
+      renderSettingsView();
     }
   }, 60_000);
 }
@@ -534,42 +568,346 @@ function classifyBreak(minutes, facilityId) {
   return "переход";
 }
 
-function renderSources() {
-  if (!state.data?.facilities) {
-    el.sourceList.innerHTML = "";
+function formatAutoRefreshLabel(minutes, options = {}) {
+  const { compact = false } = options;
+  const mins = Number(minutes || 0);
+  if (!mins) {
+    return compact ? "вручную" : "Только вручную";
+  }
+  return compact ? `${mins} мин` : `Каждые ${mins} минут`;
+}
+
+function buildCurrentSourceIssues() {
+  if (!Array.isArray(state.data?.facilities)) {
+    return [];
+  }
+
+  return state.data.facilities.flatMap((facility) => {
+    const facilityName = String(facility?.name || "Источник");
+    const sourceUrl = sanitizeHttpUrl(facility?.sourceUrl);
+    if (facility?.error) {
+      return [{
+        facilityName,
+        description: String(facility.error),
+        kind: "error",
+        sourceUrl,
+      }];
+    }
+
+    if (Array.isArray(facility?.warnings) && facility.warnings.length) {
+      return [{
+        facilityName,
+        description: String(facility.warnings[0]),
+        kind: "warn",
+        sourceUrl,
+      }];
+    }
+
+    return [];
+  }).slice(0, 6);
+}
+
+function buildSettingsOverviewModel() {
+  const freshness = buildScheduleFreshnessState(state.data?.generatedAt);
+  const changesModel = buildChangesAttentionModel(
+    Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [],
+    state.siteChangesLastCheckedAt || state.siteChangesHistory?.[0]?.checkedAt || ""
+  );
+  const sourceIssues = buildCurrentSourceIssues();
+  const unreadChanges = (Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [])
+    .filter((entry) => entry && !entry.baseline && (entry.hasChanges || entry.hasSourceIssues) && !isSiteChangeEntryAcknowledged(entry))
+    .length;
+  const hasData = Boolean(state.data?.generatedAt);
+  const autoRefreshMins = Number(state.settings.autoRefreshMins || 0);
+  const exportableItems = state.myShifts.length + (Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory.length : 0);
+
+  let status = "setup";
+  if (!hasData) {
+    status = "setup";
+  } else if (sourceIssues.some((issue) => issue.kind === "error") || changesModel.status === "issue") {
+    status = "issue";
+  } else if (changesModel.status === "important" || changesModel.status === "changes") {
+    status = "attention";
+  } else {
+    status = "calm";
+  }
+
+  const toneClass =
+    status === "issue"
+      ? "tone-issue"
+      : status === "attention"
+        ? changesModel.status === "important" ? "tone-important" : "tone-info"
+        : status === "calm"
+          ? "tone-stable"
+          : "tone-baseline";
+
+  return {
+    status,
+    toneClass,
+    hasData,
+    freshness,
+    changesModel,
+    sourceIssues,
+    unreadChanges,
+    autoRefreshMins,
+    exportableItems,
+    hasMyShifts: state.myShifts.length > 0,
+    hasHistory: Array.isArray(state.siteChangesHistory) && state.siteChangesHistory.length > 0,
+    headline: buildSettingsHeadline(status, changesModel, sourceIssues),
+    pill: buildSettingsPill(status),
+    icon: buildSettingsIcon(status, changesModel),
+    summary: buildSettingsSummary(status, changesModel, sourceIssues, freshness, autoRefreshMins),
+  };
+}
+
+function buildSettingsHeadline(status, changesModel, sourceIssues) {
+  if (status === "setup") {
+    return "Ждём первую загрузку";
+  }
+  if (status === "issue") {
+    return sourceIssues.some((issue) => issue.kind === "error") ? "Есть проблемы с данными" : "Проверка требует внимания";
+  }
+  if (status === "attention") {
+    return changesModel.status === "important" ? "Есть важные изменения" : "Есть новые события";
+  }
+  return "Всё работает спокойно";
+}
+
+function buildSettingsPill(status) {
+  if (status === "setup") {
+    return "Настройка";
+  }
+  if (status === "issue") {
+    return "Проверить";
+  }
+  if (status === "attention") {
+    return "Новое";
+  }
+  return "Готово";
+}
+
+function buildSettingsIcon(status, changesModel) {
+  if (status === "setup") {
+    return "hourglass_top";
+  }
+  if (status === "issue") {
+    return changesModel.status === "issue" ? "rule" : "warning";
+  }
+  if (status === "attention") {
+    return changesModel.status === "important" ? "priority_high" : "notifications";
+  }
+  return "verified";
+}
+
+function buildSettingsSummary(status, changesModel, sourceIssues, freshness, autoRefreshMins) {
+  if (status === "setup") {
+    return "После первой успешной синхронизации здесь появится контроль состояния приложения, данных и локального мониторинга.";
+  }
+  if (status === "issue") {
+    if (sourceIssues.length) {
+      return `${sourceIssues.length} ${pluralizeRu(sourceIssues.length, "источник отвечает с проблемой", "источника отвечают с проблемой", "источников отвечают с проблемой")}. Последняя загрузка: ${freshness.shortText}.`;
+    }
+    return "Последняя локальная проверка была неполной. Лучше открыть страницу изменений и проверить детали.";
+  }
+  if (status === "attention") {
+    if (changesModel.status === "important") {
+      return `Есть непросмотренные изменения, которые затрагивают ${changesModel.focusImpact.total} ${pluralizeRu(changesModel.focusImpact.total, "вашу смену", "ваши смены", "ваших смен")}.`;
+    }
+    return `Новые изменения уже найдены. Автообновление сейчас: ${formatAutoRefreshLabel(autoRefreshMins, { compact: false }).toLowerCase()}.`;
+  }
+  return `Последняя загрузка прошла спокойно. Автообновление сейчас: ${formatAutoRefreshLabel(autoRefreshMins, { compact: false }).toLowerCase()}.`;
+}
+
+function buildSettingsMonitorSummary(model) {
+  if (!model.hasData) {
+    return "Пока приложение не получило первый снимок расписания. После загрузки появятся время обновления и локальный мониторинг изменений.";
+  }
+
+  const localStatus =
+    model.changesModel.status === "important"
+      ? "Есть важные непросмотренные изменения."
+      : model.changesModel.status === "changes"
+        ? "Есть новые изменения без влияния на ваши смены."
+        : model.changesModel.status === "issue"
+          ? "Последняя локальная проверка была неполной."
+          : "Новых непросмотренных изменений сейчас нет.";
+
+  return `${model.freshness.mainText}. ${localStatus}`;
+}
+
+function buildAutoRefreshHint(model) {
+  if (!model.autoRefreshMins) {
+    return "Режим вручную подходит, если вы сами открываете приложение перед работой и не хотите лишних фоновых запросов.";
+  }
+  if (model.autoRefreshMins <= 5) {
+    return "Частый режим: удобен, если расписание меняется в течение дня и вы хотите быстро видеть новые события.";
+  }
+  if (model.autoRefreshMins <= 15) {
+    return "Сбалансированный режим: обычно этого достаточно, чтобы держать изменения под контролем без лишнего шума.";
+  }
+  return "Редкий режим: меньше фоновых проверок, но изменения могут появляться в журнале с заметной задержкой.";
+}
+
+function renderSettingsView() {
+  if (!el.settingsOverviewCard || !el.settingsMonitorCard || !el.settingsDataCard) {
     return;
   }
 
-  el.sourceList.innerHTML = state.data.facilities
-    .map((facility) => {
-      const warn = facility.error
-        ? `Ошибка: ${facility.error}`
-        : facility.warnings?.length
-          ? facility.warnings[0]
-          : "ОК";
+  const model = buildSettingsOverviewModel();
+  el.settingsOverviewCard.innerHTML = renderSettingsOverviewCard(model);
+  el.settingsMonitorCard.innerHTML = renderSettingsMonitorCard(model);
+  el.settingsDataCard.innerHTML = renderSettingsDataCard(model);
+  if (el.settingsSourceIssues) {
+    el.settingsSourceIssues.innerHTML = renderSettingsSourceIssues(model.sourceIssues);
+  }
+  if (el.openSettingsChangesButton) {
+    const hasAnyChangesPageData = model.hasHistory || Boolean(model.changesModel.checkedAtIso);
+    el.openSettingsChangesButton.disabled = !hasAnyChangesPageData;
+    el.openSettingsChangesButton.querySelector("span:last-child").textContent =
+      model.status === "attention" || model.status === "issue" ? "Посмотреть изменения" : "Страница изменений";
+  }
+  if (el.exportMyShiftsButton) {
+    el.exportMyShiftsButton.disabled = !model.exportableItems;
+  }
+  if (el.resetSiteChangesButton) {
+    el.resetSiteChangesButton.disabled = !model.hasHistory && !Boolean(state.siteChangesLastCheckedAt);
+  }
+}
 
-      return `
-        <li class="source-item">
-          <a
-            class="source-item-link"
-            href="${escapeHtml(facility.sourceUrl)}"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="${escapeHtml(`Открыть официальный сайт: ${facility.name}`)}"
-          >
-            <div class="source-main">
-              <h4>${escapeHtml(`${facility.emoji || ""} ${facility.name}`)}</h4>
-              <p>${escapeHtml(warn)}</p>
-            </div>
-            <div class="source-cta" aria-hidden="true">
-              <span class="source-cta-text">Официальный сайт</span>
-              <span class="material-symbols-outlined">open_in_new</span>
-            </div>
-          </a>
-        </li>
-      `;
-    })
-    .join("");
+function renderSettingsOverviewCard(model) {
+  const metrics = [
+    { label: "Данные", value: model.hasData ? model.freshness.shortText : "нет" },
+    { label: "Автообновл.", value: formatAutoRefreshLabel(model.autoRefreshMins, { compact: true }) },
+    { label: "Мои смены", value: String(state.myShifts.length) },
+    { label: "Новых", value: String(model.unreadChanges) },
+  ];
+
+  return `
+    <article class="settings-hero-card ${escapeHtml(model.toneClass)}">
+      <div class="settings-hero-top">
+        <div>
+          <p class="settings-hero-kicker">Умная сводка</p>
+          <p class="settings-hero-meta">${
+            model.hasData ? escapeHtml(model.freshness.mainText) : "Данные ещё не загружены"
+          }</p>
+        </div>
+        <span class="settings-state-pill">${escapeHtml(model.pill)}</span>
+      </div>
+      <div class="settings-hero-main">
+        <div class="settings-hero-icon">
+          <span class="material-symbols-outlined">${escapeHtml(model.icon)}</span>
+        </div>
+        <div class="settings-hero-copy">
+          <h2>${escapeHtml(model.headline)}</h2>
+          <p>${escapeHtml(model.summary)}</p>
+        </div>
+      </div>
+      <div class="settings-hero-metrics">
+        ${metrics.map((metric) => renderOverviewMetric(metric, "settings-hero-metric")).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function renderSettingsMonitorCard(model) {
+  const monitorMetrics = [
+    { label: "Режим", value: formatAutoRefreshLabel(model.autoRefreshMins, { compact: true }) },
+    { label: "Журнал", value: String(state.siteChangesHistory.length) },
+    { label: "Новых", value: String(model.unreadChanges) },
+    { label: "Проблемы", value: String(model.sourceIssues.length) },
+  ];
+
+  return `
+    <article class="settings-surface-card">
+      <div class="settings-surface-head">
+        <div>
+          <p class="settings-surface-kicker">Фоновая проверка</p>
+          <h3>${escapeHtml(model.autoRefreshMins ? `Автообновление ${formatAutoRefreshLabel(model.autoRefreshMins, { compact: false }).toLowerCase()}` : "Обновление только вручную")}</h3>
+        </div>
+        <span class="settings-surface-chip">${escapeHtml(model.hasData ? "Активно" : "Ожидание")}</span>
+      </div>
+      <p class="settings-surface-text">${escapeHtml(buildSettingsMonitorSummary(model))}</p>
+      <div class="settings-surface-metrics">
+        ${monitorMetrics.map((metric) => renderOverviewMetric(metric, "settings-surface-metric")).join("")}
+      </div>
+      <p class="settings-surface-footnote">${escapeHtml(buildAutoRefreshHint(model))}</p>
+    </article>
+  `;
+}
+
+function renderSettingsSourceIssues(issues) {
+  if (!Array.isArray(issues) || !issues.length) {
+    return `
+      <article class="settings-inline-note is-calm">
+        <span class="material-symbols-outlined">task_alt</span>
+        <p>Сейчас нет явных проблем у источников данных.</p>
+      </article>
+    `;
+  }
+
+  return issues.map((issue) => {
+    const linkStart = issue.sourceUrl
+      ? `<a class="settings-inline-note ${escapeHtml(issue.kind === "error" ? "is-issue" : "is-warn")}" href="${escapeHtml(issue.sourceUrl)}" target="_blank" rel="noopener noreferrer">`
+      : `<div class="settings-inline-note ${escapeHtml(issue.kind === "error" ? "is-issue" : "is-warn")}">`;
+    const linkEnd = issue.sourceUrl ? "</a>" : "</div>";
+
+    return `
+      ${linkStart}
+        <span class="material-symbols-outlined">${issue.kind === "error" ? "warning" : "info"}</span>
+        <div>
+          <strong>${escapeHtml(issue.facilityName)}</strong>
+          <p>${escapeHtml(issue.description)}</p>
+        </div>
+      ${linkEnd}
+    `;
+  }).join("");
+}
+
+function renderSettingsDataCard(model) {
+  const metrics = [
+    { label: "Смены", value: String(state.myShifts.length) },
+    { label: "Журнал", value: String(state.siteChangesHistory.length) },
+    { label: "К экспорту", value: String(model.exportableItems) },
+    { label: "Тема", value: resolveThemeLabel(state.settings.theme) },
+  ];
+
+  let summary = "Экспорт сохраняет ваши смены и локальный журнал проверки сайта в один JSON-файл.";
+  if (!state.myShifts.length && !state.siteChangesHistory.length) {
+    summary = "Локальных данных почти нет. Сначала добавьте смену или дождитесь первой проверки сайта.";
+  } else if (!state.myShifts.length) {
+    summary = "У вас пока нет своих смен, но уже есть локальный журнал проверки сайта.";
+  } else if (!state.siteChangesHistory.length) {
+    summary = "Ваши смены сохранены, а локальный журнал изменений ещё не накопился.";
+  }
+
+  return `
+    <article class="settings-surface-card">
+      <div class="settings-surface-head">
+        <div>
+          <p class="settings-surface-kicker">Резерв и перенос</p>
+          <h3>Локальные данные этого устройства</h3>
+        </div>
+        <span class="settings-surface-chip">${escapeHtml(model.exportableItems ? "Есть данные" : "Пусто")}</span>
+      </div>
+      <p class="settings-surface-text">${escapeHtml(summary)}</p>
+      <div class="settings-surface-metrics">
+        ${metrics.map((metric) => renderOverviewMetric(metric, "settings-surface-metric")).join("")}
+      </div>
+      <p class="settings-surface-footnote">Сброс журнала очищает только локальную историю изменений и не затрагивает сами смены.</p>
+    </article>
+  `;
+}
+
+function resolveThemeLabel(theme) {
+  switch (theme) {
+    case "light":
+      return "светлая";
+    case "dark":
+      return "тёмная";
+    case "system":
+    default:
+      return "система";
+  }
 }
 
 function hydrateMyScheduleUI() {
@@ -1167,6 +1505,7 @@ function acknowledgeSiteChangeEntry(entryId) {
   saveSiteChangesHistory();
   renderChangesView();
   renderMyChangesSummary();
+  renderSettingsView();
 }
 
 function renderChangesEmptySections() {
@@ -2191,6 +2530,31 @@ function handleDeleteMyShiftsHistory() {
   renderMyScheduleEditor();
 }
 
+function handleResetSiteChanges() {
+  const hasHistory = Array.isArray(state.siteChangesHistory) && state.siteChangesHistory.length > 0;
+  const hasCheckedAt = Boolean(state.siteChangesLastCheckedAt);
+  if (!hasHistory && !hasCheckedAt) {
+    setMyShiftsDataNotice("Локальный журнал уже пуст.", "info");
+    return;
+  }
+
+  const confirmed = window.confirm("Очистить локальный журнал изменений и историю проверок на этом устройстве?");
+  if (!confirmed) {
+    return;
+  }
+
+  state.siteChangesHistory = [];
+  state.siteChangesLastCheckedAt = "";
+  state.siteChangesAcknowledgedSignature = "";
+  saveSiteChangesHistory();
+  saveSiteChangesLastCheckedAt();
+  saveSiteChangesAcknowledgedSignature();
+  renderChangesView();
+  renderMyChangesSummary();
+  renderSettingsView();
+  setMyShiftsDataNotice("Локальный журнал изменений очищен.", "success");
+}
+
 function handleMyScheduleTimelineClick(event) {
   const importHistoryButton = event.target.closest("button[data-import-history]");
   if (importHistoryButton && el.importMyShiftsInput) {
@@ -2653,7 +3017,7 @@ function setMyShiftsDataNotice(message, type = "info") {
 
   el.myShiftsDataNotice.hidden = false;
   el.myShiftsDataNotice.textContent = message;
-  el.myShiftsDataNotice.className = `history-data-notice mt-3 ${type}`;
+  el.myShiftsDataNotice.className = `history-data-notice ${type}`;
 }
 
 function exportMyShiftsHistory() {
@@ -2742,6 +3106,7 @@ async function handleMyShiftsImport(event) {
     renderMySchedule();
     renderMyScheduleEditor();
     renderChangesView();
+    renderSettingsView();
     setMyShiftsDataNotice(`Импортировано смен: ${state.myShifts.length}.`, "success");
   } catch (error) {
     setMyShiftsDataNotice(
@@ -2754,14 +3119,29 @@ async function handleMyShiftsImport(event) {
 }
 
 function hydrateSettingsUI() {
-  el.autoRefreshSelect.value = String(state.settings.autoRefreshMins || 0);
   hydrateThemeButtons();
+  hydrateAutoRefreshButtons();
+  renderSettingsView();
 }
 
 function hydrateThemeButtons() {
+  if (!el.themeSelector) {
+    return;
+  }
   const buttons = Array.from(el.themeSelector.querySelectorAll("button[data-theme]"));
   buttons.forEach((button) => {
     button.classList.toggle("active-theme", button.dataset.theme === state.settings.theme);
+  });
+}
+
+function hydrateAutoRefreshButtons() {
+  if (!el.autoRefreshOptions) {
+    return;
+  }
+  const current = String(Number(state.settings.autoRefreshMins || 0));
+  const buttons = Array.from(el.autoRefreshOptions.querySelectorAll("button[data-auto-refresh]"));
+  buttons.forEach((button) => {
+    button.classList.toggle("is-active", String(button.dataset.autoRefresh || "") === current);
   });
 }
 
@@ -2792,6 +3172,7 @@ function applyTheme(theme) {
   document.documentElement.classList.toggle("dark", resolved === "dark");
   document.documentElement.classList.toggle("light", resolved !== "dark");
   applyThemeColor(resolved);
+  renderSettingsView();
   renderMySchedule();
   renderMyScheduleEditor();
   renderChangesView();
