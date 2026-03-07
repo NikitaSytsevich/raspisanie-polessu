@@ -38,6 +38,7 @@ const state = {
   view: "my_schedule",
   settings: loadSettings(),
   myShifts: loadMyShifts(),
+  staffShifts: loadStaffShifts(),
   siteChangesHistory: loadSiteChangesHistory(),
   siteChangesLastCheckedAt: loadSiteChangesLastCheckedAt(),
   siteChangesAcknowledgedSignature: loadSiteChangesAcknowledgedSignature(),
@@ -123,6 +124,9 @@ function init() {
     saveSiteChangesLastCheckedAt();
   }
   migrateLegacyAcknowledgedSiteChanges();
+  if (syncStaffShiftsWithMyShifts()) {
+    saveMyShifts();
+  }
 
   applyTheme(state.settings.theme);
   hydrateSettingsUI();
@@ -848,10 +852,16 @@ function renderSettingsDataCard() {
       .map((shift) => String(shift.facilityId || "").trim())
       .filter(Boolean)
   ).size;
+  const staffPeopleCount = new Set(
+    (state.staffShifts || [])
+      .map((entry) => String(entry?.name || "").trim())
+      .filter(Boolean)
+      .filter((name) => normalizeDiffText(name) !== normalizeDiffText(SELF_INSTRUCTOR_NAME))
+  ).size;
   const metrics = [
     { label: "Смены", value: String(state.myShifts.length) },
     { label: "Объекты", value: String(facilityCount) },
-    { label: "К загрузке", value: "JSON" },
+    { label: "Коллеги", value: String(staffPeopleCount) },
     { label: "Тема", value: resolveThemeLabel(state.settings.theme) },
   ];
 
@@ -873,7 +883,7 @@ function renderSettingsDataCard() {
       <div class="settings-surface-metrics">
         ${metrics.map((metric) => renderOverviewMetric(metric, "settings-surface-metric")).join("")}
       </div>
-      <p class="settings-surface-footnote">Подходит и полный экспорт приложения, и обычный объект вида <code>{ "shifts": [...] }</code>.</p>
+      <p class="settings-surface-footnote">Подходит и полный экспорт приложения, и объект вида <code>{ "shifts": [...], "staffShifts": [...] }</code>.</p>
     </article>
   `;
 }
@@ -913,6 +923,7 @@ function buildSettingsPromptCatalog() {
   const extractPrompt = [
     `Ты получаешь несколько скриншотов месячного графика работы сотрудников по объектам ПолесГУ.`,
     `Твоя задача: найти только смены сотрудника "${SELF_INSTRUCTOR_NAME}" и вернуть готовый JSON для импорта в приложение.`,
+    `Верни два массива: "shifts" и "staffShifts".`,
     `Верни только JSON без markdown, пояснений и текста до или после.`,
     ``,
     `Что обязательно учитывать:`,
@@ -921,10 +932,12 @@ function buildSettingsPromptCatalog() {
     `3. Игнорируй графу часов за день, цифры под сменами и итоговые часы за месяц: в них могут быть намеренные ошибки.`,
     `4. Если у "${SELF_INSTRUCTOR_NAME}" в ячейке стоит "в", "вс", "вых" или "вых.", это выходной: смену не создавай.`,
     `5. Если в ячейке стоит только пометка другого объекта ("лед", "мал", "спорт", "гребная"), не создавай смену из этой ячейки. Найди реальное время на скриншоте соответствующего объекта.`,
-    `6. coworkers — это только сотрудники, у которых на том же объекте и в тот же день время реально пересекается с моей сменой.`,
-    `7. Меня самого в coworkers не добавляй.`,
-    `8. Если время читается неуверенно, не выдумывай запись. Лучше пропусти её, чем сделай неверную смену.`,
-    `9. note оставляй пустой строкой, если нет явной причины что-то пояснить.`,
+    `6. "shifts" — это только мои смены.`,
+    `7. "staffShifts" — это смены сотрудников на тех датах и объектах, где у меня есть смена. Включай туда и мою запись, и коллег.`,
+    `8. coworkers в моих сменах можешь заполнить по пересечению на всю смену или оставить пустым массивом, если staffShifts уже достаточно.`,
+    `9. Меня самого в coworkers не добавляй.`,
+    `10. Если время читается неуверенно, не выдумывай запись. Лучше пропусти её, чем сделай неверную смену.`,
+    `11. note оставляй пустой строкой, если нет явной причины что-то пояснить.`,
     ``,
     `Сопоставление объектов с facilityId:`,
     facilityLines,
@@ -938,8 +951,26 @@ function buildSettingsPromptCatalog() {
     `      "facilityName": "Гребная база",`,
     `      "start": "18:00",`,
     `      "end": "21:00",`,
-    `      "coworkers": ["Фамилия И.О."],`,
+    `      "coworkers": [],`,
     `      "note": ""`,
+    `    }`,
+    `  ],`,
+    `  "staffShifts": [`,
+    `    {`,
+    `      "date": "2026-03-02",`,
+    `      "facilityId": "rowing_base",`,
+    `      "facilityName": "Гребная база",`,
+    `      "name": "Сыцевич Н.В.",`,
+    `      "start": "18:00",`,
+    `      "end": "21:00"`,
+    `    },`,
+    `    {`,
+    `      "date": "2026-03-02",`,
+    `      "facilityId": "rowing_base",`,
+    `      "facilityName": "Гребная база",`,
+    `      "name": "Липчук А.С.",`,
+    `      "start": "18:00",`,
+    `      "end": "21:00"`,
     `    }`,
     `  ]`,
     `}`,
@@ -947,8 +978,9 @@ function buildSettingsPromptCatalog() {
     `Правила по формату:`,
     `- date в формате YYYY-MM-DD`,
     `- start и end в формате HH:MM`,
+    `- staffShifts должен содержать только даты и объекты, где у меня есть смена`,
     `- записи отсортируй по дате и времени`,
-    `- если смен нет, верни { "shifts": [] }`,
+    `- если смен нет, верни { "shifts": [], "staffShifts": [] }`,
     `- не добавляй поля, которых нет в примере`,
     ``,
     `Сейчас я — "${SELF_INSTRUCTOR_NAME}". Анализируй только мои смены.`,
@@ -957,15 +989,17 @@ function buildSettingsPromptCatalog() {
   const reviewPrompt = [
     `Ты проверяешь уже готовый JSON со сменами по тем же скриншотам графика.`,
     `Смотри только на сотрудника "${SELF_INSTRUCTOR_NAME}".`,
+    `В JSON должны быть два массива: "shifts" и "staffShifts".`,
     `Верни исправленный JSON без markdown, пояснений и текста до или после.`,
     ``,
     `Проверь по шагам:`,
     `1. Каждая смена должна быть подтверждена реальным временем на одном из скриншотов нужного объекта.`,
     `2. Выходные не должны превращаться в смены.`,
     `3. Пометки "лед", "мал", "спорт", "гребная" не являются сменами сами по себе — это только указание на другой объект.`,
-    `4. coworkers добавляй только если у сотрудников есть пересечение по времени на том же объекте и в тот же день.`,
-    `5. Полностью игнорируй графу часов за день, цифры под сменами и месячные итоги.`,
-    `6. Если запись сомнительна или противоречит скриншотам, лучше удали её, чем оставь неточной.`,
+    `4. staffShifts должен содержать мою смену и смены коллег на тех датах и объектах, где я реально работаю.`,
+    `5. coworkers добавляй только если у сотрудников есть пересечение по времени на том же объекте и в тот же день.`,
+    `6. Полностью игнорируй графу часов за день, цифры под сменами и месячные итоги.`,
+    `7. Если запись сомнительна или противоречит скриншотам, лучше удали её, чем оставь неточной.`,
     ``,
     `Формат ответа:`,
     `{`,
@@ -976,8 +1010,18 @@ function buildSettingsPromptCatalog() {
     `      "facilityName": "Гребная база",`,
     `      "start": "18:00",`,
     `      "end": "21:00",`,
-    `      "coworkers": ["Фамилия И.О."],`,
-    `      "note": ""`,
+    `      "coworkers": [],`,
+      `      "note": ""`,
+    `    }`,
+    `  ],`,
+    `  "staffShifts": [`,
+    `    {`,
+    `      "date": "2026-03-02",`,
+    `      "facilityId": "rowing_base",`,
+    `      "facilityName": "Гребная база",`,
+    `      "name": "Сыцевич Н.В.",`,
+    `      "start": "18:00",`,
+    `      "end": "21:00"`,
     `    }`,
     `  ]`,
     `}`,
@@ -1308,6 +1352,63 @@ function getMyFacilityOptions() {
   ];
 }
 
+function normalizeFacilityLookupKey(value) {
+  return normalizeDiffText(value)
+    .replace(/ё/g, "е")
+    .replace(/[«»"'`]/g, "")
+    .replace(/\bбольшой\b/g, "спортивный")
+    .replace(/\bспорт\.?\b/g, "спортивный")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function resolveImportedFacility(item) {
+  const options = getMyFacilityOptions();
+  const rawId = String(item?.facilityId || item?.facility_id || "").trim();
+  const rawName = String(item?.facilityName || item?.facility || item?.object || item?.location || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const aliases = new Map([
+    ["ледовая арена", "ice_arena"],
+    ["большой бассейн", "sports_pool"],
+    ["спортивный бассейн", "sports_pool"],
+    ["малый бассейн", "small_pool"],
+    ["гребная база", "rowing_base"],
+  ]);
+
+  if (rawId) {
+    const matchById = options.find((facility) => String(facility.id) === rawId);
+    if (matchById) {
+      return {
+        facilityId: matchById.id,
+        facilityName: matchById.name,
+      };
+    }
+  }
+
+  const normalizedName = normalizeFacilityLookupKey(rawName);
+  if (normalizedName) {
+    const aliasId = aliases.get(normalizedName);
+    const matchByName =
+      options.find((facility) => normalizeFacilityLookupKey(facility.name) === normalizedName)
+      || options.find((facility) => normalizeFacilityLookupKey(facility.name).includes(normalizedName))
+      || options.find((facility) => normalizedName.includes(normalizeFacilityLookupKey(facility.name)))
+      || (aliasId ? options.find((facility) => String(facility.id) === aliasId) : null);
+
+    if (matchByName) {
+      return {
+        facilityId: matchByName.id,
+        facilityName: matchByName.name,
+      };
+    }
+  }
+
+  return {
+    facilityId: rawId,
+    facilityName: rawName || rawId,
+  };
+}
+
 function getMyInstructorOptions() {
   const map = new Map(DEFAULT_INSTRUCTORS.map((item) => [normalizeDiffText(item.name), item.name]));
 
@@ -1320,6 +1421,16 @@ function getMyInstructorOptions() {
       if (!map.has(normalized)) {
         map.set(normalized, name);
       }
+    }
+  }
+
+  for (const entry of state.staffShifts || []) {
+    const normalized = normalizeDiffText(entry?.name);
+    if (!normalized || normalized === normalizeDiffText(SELF_INSTRUCTOR_NAME)) {
+      continue;
+    }
+    if (!map.has(normalized)) {
+      map.set(normalized, String(entry.name));
     }
   }
 
@@ -2571,12 +2682,12 @@ function doesEventAffectShift(event, shift) {
 }
 
 function timeRangesOverlap(startA, endA, startB, endB) {
-  const aStart = toMinutes(startA);
-  const aEnd = toMinutes(endA);
-  const bStart = toMinutes(startB);
-  const bEnd = toMinutes(endB);
+  const aStart = toMinutes(normalizeTime(String(startA || "")));
+  const aEnd = toMinutes(normalizeTime(String(endA || "")));
+  const bStart = toMinutes(normalizeTime(String(startB || "")));
+  const bEnd = toMinutes(normalizeTime(String(endB || "")));
 
-  if (aStart < 0 || aEnd < 0 || bStart < 0 || bEnd < 0) {
+  if (![aStart, aEnd, bStart, bEnd].every(Number.isFinite)) {
     return false;
   }
 
@@ -3076,7 +3187,7 @@ function handleMyEditorShiftListClick(event) {
 }
 
 function handleDeleteMyShiftsHistory() {
-  if (!state.myShifts.length) {
+  if (!state.myShifts.length && !state.staffShifts.length) {
     setMyScheduleNotice("История уже пустая.", "info");
     return;
   }
@@ -3087,6 +3198,7 @@ function handleDeleteMyShiftsHistory() {
   }
 
   state.myShifts = [];
+  state.staffShifts = [];
   saveMyShifts();
   state.myEditingShiftId = null;
   state.myScheduleFocusDate = todayIso();
@@ -3231,7 +3343,7 @@ function buildMyChangesWidgetFooter(model) {
 function renderMyShiftCard(shift, verification = getShiftVerification(shift)) {
   const status = getMyShiftStatus(shift);
   const shiftDuration = formatDuration(getShiftDurationMinutes(shift));
-  const coworkersHtml = renderShiftCoworkersLine(shift, "my-shift-coworkers", { label: false });
+  const coworkersHtml = renderShiftCoworkersLine(shift, "my-shift-coworkers", { labelText: "По смене" });
   const note = normalizeShiftNote(shift.note);
   const noteHtml = note ? `<p class="my-shift-note">${escapeHtml(note)}</p>` : "";
   const supportHtml = [coworkersHtml, noteHtml].filter(Boolean).join("");
@@ -3254,27 +3366,65 @@ function renderMyShiftCard(shift, verification = getShiftVerification(shift)) {
   `;
 }
 
+function getShiftCoworkerNames(shift) {
+  const direct = normalizeCoworkers(shift?.coworkers || []);
+  const derived = normalizeCoworkers(getShiftStaffOverlapEntries(shift).map((entry) => entry.name));
+  return normalizeCoworkers([...direct, ...derived]);
+}
+
+function getShiftStaffOverlapEntries(shift) {
+  if (!shift?.date || !shift?.facilityId || !Array.isArray(state.staffShifts) || !state.staffShifts.length) {
+    return [];
+  }
+
+  return state.staffShifts.filter((entry) => {
+    if (!entry || entry.date !== shift.date || String(entry.facilityId || "") !== String(shift.facilityId || "")) {
+      return false;
+    }
+
+    if (normalizeDiffText(entry.name) === normalizeDiffText(SELF_INSTRUCTOR_NAME)) {
+      return false;
+    }
+
+    return timeRangesOverlap(shift.start, shift.end, entry.start, entry.end);
+  });
+}
+
+function getSessionCoworkerNames(session, staffEntries) {
+  if (!session || !Array.isArray(staffEntries) || !staffEntries.length) {
+    return [];
+  }
+
+  return normalizeCoworkers(
+    staffEntries
+      .filter((entry) => timeRangesOverlap(session.start, session.end, entry.start, entry.end))
+      .map((entry) => entry.name)
+  );
+}
+
 function renderShiftCoworkersLine(shift, className, options = {}) {
-  const { label = true } = options;
-  const coworkers = normalizeCoworkers(shift?.coworkers || []);
+  const { label = true, labelText = "С кем" } = options;
+  const coworkers = getShiftCoworkerNames(shift);
   if (!coworkers.length) {
     return "";
   }
 
-  const text = label ? `С кем: ${coworkers.join(", ")}` : coworkers.join(", ");
+  const text = label ? `${labelText}: ${coworkers.join(", ")}` : coworkers.join(", ");
   return `<p class="${escapeHtml(className)}">${escapeHtml(text)}</p>`;
 }
 
 function renderMyShiftSiteTimeline(shift, verification) {
   const sessions = Array.isArray(verification.siteSessions) ? verification.siteSessions : [];
-  if (verification.status === "matched") {
+  const staffEntries = getShiftStaffOverlapEntries(shift);
+  const hasSessionCoworkers = sessions.some((session) => getSessionCoworkerNames(session, staffEntries).length);
+  if (verification.status === "matched" && !hasSessionCoworkers) {
     return "";
   }
 
   const summaryText = buildMyShiftSiteSummary(verification, sessions);
   const detailText = String(verification.detail || "").trim();
   const rows = [];
-  if (verification.status === "partial") {
+  if (verification.status === "partial" || verification.status === "matched") {
     for (let i = 0; i < sessions.length; i += 1) {
       const session = sessions[i];
       if (i > 0) {
@@ -3291,6 +3441,7 @@ function renderMyShiftSiteTimeline(shift, verification) {
       if (session.note && session.note !== session.activity) {
         notes.push(session.note);
       }
+      const sessionCoworkers = getSessionCoworkerNames(session, staffEntries);
 
       rows.push(`
         <div class="my-shift-site-row">
@@ -3298,6 +3449,7 @@ function renderMyShiftSiteTimeline(shift, verification) {
             <span class="my-shift-site-time">${escapeHtml(`${session.start} — ${session.end}`)}</span>
             <span class="my-shift-site-activity">${escapeHtml(session.activity || "Сеанс")}</span>
           </div>
+          ${sessionCoworkers.length ? `<p class="my-shift-site-coworkers">${escapeHtml(`На сеансе: ${sessionCoworkers.join(", ")}`)}</p>` : ""}
           ${notes.length ? `<p class="my-shift-site-note">${escapeHtml(notes.join(" · "))}</p>` : ""}
         </div>
       `);
@@ -3310,7 +3462,7 @@ function renderMyShiftSiteTimeline(shift, verification) {
   return `
     <div class="my-shift-site-strip ${escapeHtml(toneClass)}">
       <div class="my-shift-site-head">
-        <p class="my-shift-site-title">На сайте</p>
+        <p class="my-shift-site-title">${rows.length ? "По сеансам" : "На сайте"}</p>
         ${summaryText ? `<p class="my-shift-site-summary">${escapeHtml(summaryText)}</p>` : ""}
       </div>
       ${detailText ? `<p class="my-shift-site-message">${escapeHtml(detailText)}</p>` : ""}
@@ -3640,11 +3792,12 @@ function exportMyShiftsHistory() {
     : [];
 
   const payload = {
-    version: 4,
+    version: 6,
     app: "Расписание",
     exportedAt: new Date().toISOString(),
     timezone: state.data?.timezone || "Europe/Minsk",
     shifts: state.myShifts,
+    staffShifts: state.staffShifts,
     siteChanges: {
       lastCheckedAt: state.siteChangesLastCheckedAt || "",
       acknowledgedSignature: "",
@@ -3696,8 +3849,10 @@ async function handleMyShiftsImport(event) {
     }
 
     const importedSiteChanges = normalizeImportedSiteChangesPayload(parsed?.siteChanges);
+    const importedStaffShifts = normalizeStaffShiftRecords(parsed?.staffShifts || parsed?.staff || parsed?.roster || []);
 
     state.myShifts = normalized;
+    state.staffShifts = importedStaffShifts;
     saveMyShifts();
 
     if (importedSiteChanges) {
@@ -3719,7 +3874,10 @@ async function handleMyShiftsImport(event) {
     renderMyScheduleEditor();
     renderChangesView();
     renderSettingsView();
-    setMyShiftsDataNotice(`Загружено смен: ${state.myShifts.length}.`, "success");
+    const staffMeta = state.staffShifts.length
+      ? ` Данных по коллегам: ${state.staffShifts.length}.`
+      : "";
+    setMyShiftsDataNotice(`Загружено смен: ${state.myShifts.length}.${staffMeta}`, "success");
   } catch (error) {
     setMyShiftsDataNotice(
       error instanceof Error ? `Ошибка импорта: ${error.message}` : "Ошибка импорта истории.",
@@ -4552,27 +4710,87 @@ function normalizeShiftRecords(records) {
 
   return records
     .filter((item) => item && typeof item === "object")
-    .map((item) => ({
-      id: String(item.id || createShiftId()),
+    .map((item) => {
+      const facility = resolveImportedFacility(item);
+      return {
+        id: String(item.id || createShiftId()),
+        date: String(item.date || ""),
+        facilityId: String(facility.facilityId || ""),
+        facilityName: String(facility.facilityName || ""),
+        start: normalizeTime(String(item.start || "")),
+        end: normalizeTime(String(item.end || "")),
+        note: normalizeShiftNote(item.note),
+        coworkers: normalizeCoworkers(
+          item.coworkers ||
+            item.instructors ||
+            item.withWhom ||
+            item.with_whom ||
+            item.coworker ||
+            item.coworkersText ||
+            ""
+        ),
+        createdAt: String(item.createdAt || ""),
+      };
+    })
+    .filter((item) => (
+      /^\d{4}-\d{2}-\d{2}$/.test(item.date)
+      && item.facilityId
+      && item.start
+      && item.end
+      && toMinutes(item.end) > toMinutes(item.start)
+    ))
+    .sort(compareMyShift);
+}
+
+function normalizeStaffShiftRecords(records) {
+  if (!Array.isArray(records)) {
+    return [];
+  }
+
+  const facilityMap = new Map(getMyFacilityOptions().map((facility) => [String(facility.id), facility.name]));
+  const unique = new Map();
+
+  for (const item of records.filter((entry) => entry && typeof entry === "object")) {
+    const facility = resolveImportedFacility(item);
+    const facilityId = String(facility.facilityId || "");
+    const name = String(
+      item.name || item.employee || item.instructor || item.person || item.fullName || item.fio || ""
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+    const normalized = {
       date: String(item.date || ""),
-      facilityId: String(item.facilityId || ""),
-      facilityName: String(item.facilityName || ""),
+      facilityId,
+      facilityName: String(facility.facilityName || facilityMap.get(facilityId) || ""),
+      name,
       start: normalizeTime(String(item.start || "")),
       end: normalizeTime(String(item.end || "")),
-      note: normalizeShiftNote(item.note),
-      coworkers: normalizeCoworkers(
-        item.coworkers ||
-          item.instructors ||
-          item.withWhom ||
-          item.with_whom ||
-          item.coworker ||
-          item.coworkersText ||
-          ""
-      ),
-      createdAt: String(item.createdAt || ""),
-    }))
-    .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item.date) && item.start && item.end && toMinutes(item.end) > toMinutes(item.start))
-    .sort(compareMyShift);
+    };
+    if (!normalized.name || !normalized.facilityId || !/^\d{4}-\d{2}-\d{2}$/.test(normalized.date) || !normalized.start || !normalized.end) {
+      continue;
+    }
+    if (toMinutes(normalized.end) <= toMinutes(normalized.start)) {
+      continue;
+    }
+
+    const key = [
+      normalized.date,
+      normalized.facilityId,
+      normalizeDiffText(normalized.name),
+      normalized.start,
+      normalized.end,
+    ].join("|");
+    unique.set(key, normalized);
+  }
+
+  return Array.from(unique.values())
+    .sort((a, b) => (
+      a.date.localeCompare(b.date)
+      || String(a.facilityId).localeCompare(String(b.facilityId))
+      || toMinutes(a.start) - toMinutes(b.start)
+      || toMinutes(a.end) - toMinutes(b.end)
+      || a.name.localeCompare(b.name, "ru")
+    ));
 }
 
 function loadMyShifts() {
@@ -4590,8 +4808,47 @@ function loadMyShifts() {
   }
 }
 
+function loadStaffShifts() {
+  try {
+    const raw = localStorage.getItem(STORAGE.myShifts);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    const records = Array.isArray(parsed?.staffShifts) ? parsed.staffShifts : [];
+    return normalizeStaffShiftRecords(records);
+  } catch {
+    return [];
+  }
+}
+
+function syncStaffShiftsWithMyShifts() {
+  const previous = JSON.stringify(state.staffShifts || []);
+  const activeKeys = new Set(
+    (state.myShifts || [])
+      .map((shift) => `${String(shift?.date || "")}|${String(shift?.facilityId || "")}`)
+      .filter((key) => !key.startsWith("|") && !key.endsWith("|"))
+  );
+  const next = activeKeys.size
+    ? normalizeStaffShiftRecords(
+        (state.staffShifts || []).filter((entry) => activeKeys.has(`${String(entry?.date || "")}|${String(entry?.facilityId || "")}`))
+      )
+    : [];
+
+  state.staffShifts = next;
+  return previous !== JSON.stringify(next);
+}
+
 function saveMyShifts() {
-  localStorage.setItem(STORAGE.myShifts, JSON.stringify(state.myShifts));
+  syncStaffShiftsWithMyShifts();
+  localStorage.setItem(
+    STORAGE.myShifts,
+    JSON.stringify({
+      shifts: state.myShifts,
+      staffShifts: state.staffShifts,
+    })
+  );
 }
 
 function loadSettings() {

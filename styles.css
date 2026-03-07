@@ -2560,6 +2560,14 @@ body::before {
   color: #94a3b8;
 }
 
+.my-shift-site-coworkers {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #bfdbfe;
+}
+
 .my-shift-site-break {
   display: flex;
   align-items: center;
@@ -3626,6 +3634,10 @@ html.light .my-shift-site-activity {
 
 html.light .my-shift-site-note {
   color: #64748b;
+}
+
+html.light .my-shift-site-coworkers {
+  color: #1d4ed8;
 }
 
 html.light .my-shift-site-summary {
