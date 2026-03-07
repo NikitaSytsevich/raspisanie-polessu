@@ -21,6 +21,12 @@ const DEFAULT_INSTRUCTORS = [
   { id: "moiseenko_vv", name: "Моисеенко В.В." },
   { id: "karavaychik_kv", name: "Каравайчик К.В." },
 ];
+const DEFAULT_FACILITY_OPTIONS = [
+  { id: "ice_arena", name: "Ледовая арена" },
+  { id: "sports_pool", name: "Спортивный бассейн" },
+  { id: "small_pool", name: "Малый бассейн" },
+  { id: "rowing_base", name: "Гребная база" },
+];
 
 const MY_SCHEDULE_RANGE = {
   DAY: "day",
@@ -1337,19 +1343,18 @@ function renderMyScheduleFacilityOptions() {
 }
 
 function getMyFacilityOptions() {
-  if (state.data?.facilities?.length) {
-    return state.data.facilities.map((facility) => ({
+  return getFacilityOptionsFromData(state.data);
+}
+
+function getFacilityOptionsFromData(data) {
+  if (data?.facilities?.length) {
+    return data.facilities.map((facility) => ({
       id: String(facility.id),
       name: String(facility.name),
     }));
   }
 
-  return [
-    { id: "ice_arena", name: "Ледовая арена" },
-    { id: "sports_pool", name: "Спортивный бассейн" },
-    { id: "small_pool", name: "Малый бассейн" },
-    { id: "rowing_base", name: "Гребная база" },
-  ];
+  return DEFAULT_FACILITY_OPTIONS;
 }
 
 function normalizeFacilityLookupKey(value) {
@@ -1362,8 +1367,8 @@ function normalizeFacilityLookupKey(value) {
     .trim();
 }
 
-function resolveImportedFacility(item) {
-  const options = getMyFacilityOptions();
+function resolveImportedFacility(item, facilityOptions = DEFAULT_FACILITY_OPTIONS) {
+  const options = Array.isArray(facilityOptions) && facilityOptions.length ? facilityOptions : DEFAULT_FACILITY_OPTIONS;
   const rawId = String(item?.facilityId || item?.facility_id || "").trim();
   const rawName = String(item?.facilityName || item?.facility || item?.object || item?.location || "")
     .replace(/\s+/g, " ")
@@ -4702,7 +4707,7 @@ function normalizeShiftNote(value) {
   return note;
 }
 
-function normalizeShiftRecords(records) {
+function normalizeShiftRecords(records, facilityOptions = DEFAULT_FACILITY_OPTIONS) {
   if (!Array.isArray(records)) {
     return [];
   }
@@ -4710,7 +4715,7 @@ function normalizeShiftRecords(records) {
   return records
     .filter((item) => item && typeof item === "object")
     .map((item) => {
-      const facility = resolveImportedFacility(item);
+      const facility = resolveImportedFacility(item, facilityOptions);
       return {
         id: String(item.id || createShiftId()),
         date: String(item.date || ""),
@@ -4741,16 +4746,16 @@ function normalizeShiftRecords(records) {
     .sort(compareMyShift);
 }
 
-function normalizeStaffShiftRecords(records) {
+function normalizeStaffShiftRecords(records, facilityOptions = DEFAULT_FACILITY_OPTIONS) {
   if (!Array.isArray(records)) {
     return [];
   }
 
-  const facilityMap = new Map(getMyFacilityOptions().map((facility) => [String(facility.id), facility.name]));
+  const facilityMap = new Map(facilityOptions.map((facility) => [String(facility.id), facility.name]));
   const unique = new Map();
 
   for (const item of records.filter((entry) => entry && typeof entry === "object")) {
-    const facility = resolveImportedFacility(item);
+    const facility = resolveImportedFacility(item, facilityOptions);
     const facilityId = String(facility.facilityId || "");
     const name = String(
       item.name || item.employee || item.instructor || item.person || item.fullName || item.fio || ""
@@ -4801,7 +4806,7 @@ function loadMyShifts() {
 
     const parsed = JSON.parse(raw);
     const records = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.shifts) ? parsed.shifts : [];
-    return normalizeShiftRecords(records);
+    return normalizeShiftRecords(records, DEFAULT_FACILITY_OPTIONS);
   } catch {
     return [];
   }
@@ -4816,7 +4821,7 @@ function loadStaffShifts() {
 
     const parsed = JSON.parse(raw);
     const records = Array.isArray(parsed?.staffShifts) ? parsed.staffShifts : [];
-    return normalizeStaffShiftRecords(records);
+    return normalizeStaffShiftRecords(records, DEFAULT_FACILITY_OPTIONS);
   } catch {
     return [];
   }
@@ -4832,6 +4837,7 @@ function syncStaffShiftsWithMyShifts() {
   const next = activeKeys.size
     ? normalizeStaffShiftRecords(
         (state.staffShifts || []).filter((entry) => activeKeys.has(`${String(entry?.date || "")}|${String(entry?.facilityId || "")}`))
+        , getMyFacilityOptions()
       )
     : [];
 
