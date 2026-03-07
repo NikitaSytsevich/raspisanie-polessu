@@ -3416,8 +3416,7 @@ function renderShiftCoworkersLine(shift, className, options = {}) {
 function renderMyShiftSiteTimeline(shift, verification) {
   const sessions = Array.isArray(verification.siteSessions) ? verification.siteSessions : [];
   const staffEntries = getShiftStaffOverlapEntries(shift);
-  const hasSessionCoworkers = sessions.some((session) => getSessionCoworkerNames(session, staffEntries).length);
-  if (verification.status === "matched" && !hasSessionCoworkers) {
+  if (!sessions.length && !String(verification.detail || "").trim()) {
     return "";
   }
 
