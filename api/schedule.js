@@ -11,6 +11,7 @@ const siteChangesUtils = require("../shared/site_changes.js");
 const FACILITIES = [
   {
     id: "ice_arena",
+    parserId: "ice_arena",
     name: "Ледовая арена",
     emoji: "❄️",
     mode: "dated",
@@ -25,6 +26,7 @@ const FACILITIES = [
   },
   {
     id: "sports_pool",
+    parserId: "sports_pool",
     name: "Большой бассейн",
     emoji: "🏊",
     mode: "dated",
@@ -39,6 +41,7 @@ const FACILITIES = [
   },
   {
     id: "small_pool",
+    parserId: "small_pool",
     name: "Малый бассейн",
     emoji: "🌊",
     mode: "dated",
@@ -53,6 +56,7 @@ const FACILITIES = [
   },
   {
     id: "rowing_base",
+    parserId: "rowing_base",
     name: "Гребная база",
     emoji: "🚣",
     mode: "dailyTemplate",
@@ -75,6 +79,25 @@ let memoryCache = {
 let sourceDiscoveryCache = {
   at: 0,
   urls: [],
+};
+
+const FACILITY_PARSERS = {
+  ice_arena: {
+    id: "ice_arena",
+    parse: parseIceArenaFacility,
+  },
+  sports_pool: {
+    id: "sports_pool",
+    parse: parseSportsPoolFacility,
+  },
+  small_pool: {
+    id: "small_pool",
+    parse: parseSmallPoolFacility,
+  },
+  rowing_base: {
+    id: "rowing_base",
+    parse: parseRowingBaseFacility,
+  },
 };
 
 module.exports = async function handler(req, res) {
@@ -265,16 +288,22 @@ async function parseFacilityWithFallback(facility, previousFacility) {
 
 async function parseFacilityFromUrl(facility, sourceUrl) {
   const html = await fetchHtml(sourceUrl);
-  const lines = htmlToLines(extractFieldContent(html));
-  const parsed =
-    facility.mode === "dated" ? parseDated(lines, facility) : parseDailyTemplate(lines, facility, DEFAULT_DAYS_WINDOW);
-
-  if (!isParsedResultUsable(parsed)) {
-    const warning = Array.isArray(parsed?.warnings) ? parsed.warnings.find((item) => /не найдено/i.test(String(item || ""))) : "";
-    throw new Error(String(warning || "На странице нет пригодного расписания"));
+  const parser = resolveFacilityParser(facility);
+  if (!parser) {
+    throw new Error(`Не найден parserId для объекта ${facility?.id || "unknown"}`);
   }
 
-  return parsed;
+  const context = buildFacilityParserContext(html);
+  const parsed = parser.parse(context, facility);
+
+  if (!isParsedResultUsable(parsed)) {
+    throw new Error("На странице нет пригодного расписания");
+  }
+
+  return {
+    ...parsed,
+    parserId: parser.id,
+  };
 }
 
 function isParsedResultUsable(parsed) {
@@ -282,8 +311,24 @@ function isParsedResultUsable(parsed) {
   if (!days.length) {
     return false;
   }
-  const warnings = Array.isArray(parsed?.warnings) ? parsed.warnings : [];
-  return !warnings.some((item) => /не найдено (датированного расписания|шаблонных интервалов времени)/i.test(String(item || "")));
+  return days.some((day) => (
+    (Array.isArray(day?.sessions) && day.sessions.length > 0)
+    || Boolean(String(day?.closedReason || "").trim())
+  ));
+}
+
+function resolveFacilityParser(facility) {
+  const parserId = String(facility?.parserId || facility?.id || "").trim();
+  return parserId ? FACILITY_PARSERS[parserId] || null : null;
+}
+
+function buildFacilityParserContext(html) {
+  const contentHtml = extractFieldContent(html);
+  return {
+    html,
+    contentHtml,
+    lines: htmlToLines(contentHtml),
+  };
 }
 
 function canReusePreviousFacility(previousFacility) {
@@ -484,57 +529,48 @@ function decodeHtml(value) {
     .replace(/&mdash;/gi, "-");
 }
 
-function parseDated(lines, facility) {
+function parseIceArenaFacility(context, facility) {
+  const lines = Array.isArray(context?.lines) ? context.lines : [];
   const dayMap = new Map();
   const notes = [];
   const warnings = [];
-  const extraPrograms = extractSupplementaryPrograms(lines);
-
   let currentDate = null;
   let currentWeekday = null;
   let pendingClosureRange = null;
 
   for (const rawLine of lines) {
     const line = normalizeLine(rawLine);
-    if (!line) {
+    if (!line || isTechnicalOrServiceLine(line)) {
       continue;
     }
 
-    if (isTechnicalOrServiceLine(line)) {
+    if (/^Расписание массового катания$/i.test(line)) {
       continue;
     }
 
-    const rangeHeader = line.match(
-      /^(\p{L}+?)\s+(\d{2}\.\d{2}\.\d{4})\s*[-]\s*(\p{L}+?)\s+(\d{2}\.\d{2}\.\d{4})$/u
-    );
-    if (rangeHeader) {
-      pendingClosureRange = {
-        startDate: ddmmyyyyToIso(rangeHeader[2]),
-        endDate: ddmmyyyyToIso(rangeHeader[4]),
-        weekdayStart: rangeHeader[1],
-        weekdayEnd: rangeHeader[3],
-      };
+    const closureRange = extractClosureRangeHeader(line);
+    if (closureRange) {
+      pendingClosureRange = closureRange;
       continue;
     }
 
-    const datedHeader = line.match(/^(\p{L}+?)\s+(\d{2}\.\d{2}\.\d{4})(.*)$/u);
+    const datedHeader = extractDatedHeader(line);
     if (datedHeader) {
-      currentWeekday = capitalizeWord(datedHeader[1]);
-      currentDate = ddmmyyyyToIso(datedHeader[2]);
+      currentDate = datedHeader.date;
+      currentWeekday = datedHeader.weekday;
       ensureDay(dayMap, currentDate, currentWeekday);
-
-      const tail = normalizeLine(datedHeader[3]);
-      if (tail) {
-        upsertTimeRangesFromLine(dayMap, currentDate, facility, tail);
+      if (datedHeader.tail) {
+        appendSessionsFromLine(dayMap, currentDate, currentWeekday, line, (range) => ({
+          activity: facility.defaults.activity,
+          note: sanitizeNote(range.note),
+        }));
       }
       continue;
     }
 
     if (pendingClosureRange && /не работает|санитарный|техническим причинам/i.test(line)) {
-      const closureDates = expandDateRange(pendingClosureRange.startDate, pendingClosureRange.endDate);
-      for (const date of closureDates) {
-        const weekday = weekdayNameRu(date);
-        const day = ensureDay(dayMap, date, weekday);
+      for (const date of expandDateRange(pendingClosureRange.startDate, pendingClosureRange.endDate)) {
+        const day = ensureDay(dayMap, date, weekdayNameRu(date));
         day.closedReason = line;
       }
       pendingClosureRange = null;
@@ -542,7 +578,7 @@ function parseDated(lines, facility) {
     }
 
     if (!currentDate) {
-      if (/расписан/i.test(line)) {
+      if (/изменени|уточнения информации|обращаться по номеру/i.test(line)) {
         notes.push(line);
       }
       continue;
@@ -561,21 +597,171 @@ function parseDated(lines, facility) {
       continue;
     }
 
-    const rangesAdded = upsertTimeRangesFromLine(dayMap, currentDate, facility, line);
-    if (!rangesAdded && /расписан|изменени|обучени|абонемент|оплат/i.test(line)) {
+    const added = appendSessionsFromLine(dayMap, currentDate, currentWeekday, line, (range) => ({
+      activity: facility.defaults.activity,
+      note: sanitizeNote(range.note),
+    }));
+    if (!added && /изменени/i.test(line)) {
       notes.push(line);
     }
   }
 
-  const days = Array.from(dayMap.values())
-    .map((day) => ({
-      ...day,
-      sessions: day.sessions.sort((a, b) => toMinutes(a.start) - toMinutes(b.start)),
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const days = finalizeDayMap(dayMap);
+  if (!days.length) {
+    warnings.push("На странице ледовой арены не найдено расписание сеансов");
+  }
 
-  if (days.length === 0) {
-    warnings.push("На странице не найдено датированного расписания");
+  return {
+    days,
+    template: null,
+    extraPrograms: [],
+    notes: uniq(notes),
+    warnings,
+    comparisonMode: "dated",
+  };
+}
+
+function parseSportsPoolFacility(context, facility) {
+  const lines = Array.isArray(context?.lines) ? context.lines : [];
+  const dayMap = new Map();
+  const notes = [];
+  const warnings = [];
+  const extraPrograms = extractSupplementaryPrograms(lines);
+  let currentDate = null;
+  let currentWeekday = null;
+
+  for (const rawLine of lines) {
+    const line = normalizeLine(rawLine);
+    if (!line || isTechnicalOrServiceLine(line)) {
+      continue;
+    }
+
+    if (/^Расписание работы большого плавательного бассейна$/i.test(line)) {
+      continue;
+    }
+
+    if (/уважаемые посетители|приносим свои извинения/i.test(line)) {
+      warnings.push(line);
+      continue;
+    }
+
+    const datedHeader = extractDatedHeader(line);
+    if (datedHeader) {
+      currentDate = datedHeader.date;
+      currentWeekday = datedHeader.weekday;
+      ensureDay(dayMap, currentDate, currentWeekday);
+      if (datedHeader.tail) {
+        appendSessionsFromLine(dayMap, currentDate, currentWeekday, line, (range) => ({
+          activity: facility.defaults.activity,
+          note: sanitizeNote(range.note),
+        }));
+      }
+      continue;
+    }
+
+    if (!currentDate) {
+      if (/расписан|абонемент|оплат/i.test(line)) {
+        notes.push(line);
+      }
+      continue;
+    }
+
+    if (isPostScheduleSection(line)) {
+      currentDate = null;
+      currentWeekday = null;
+      notes.push(line);
+      continue;
+    }
+
+    if (/санитарный день|не работает|техническим причинам/i.test(line)) {
+      const day = ensureDay(dayMap, currentDate, currentWeekday || weekdayNameRu(currentDate));
+      day.closedReason = line;
+      continue;
+    }
+
+    const added = appendSessionsFromLine(dayMap, currentDate, currentWeekday, line, (range) => ({
+      activity: facility.defaults.activity,
+      note: sanitizeNote(range.note),
+    }));
+    if (!added && /расписан|абонемент|оплат/i.test(line)) {
+      notes.push(line);
+    }
+  }
+
+  const days = finalizeDayMap(dayMap);
+  if (!days.length) {
+    warnings.push("На странице большого бассейна не найдено расписание");
+  }
+
+  return {
+    days,
+    template: null,
+    extraPrograms,
+    notes: uniq(notes),
+    warnings: uniq(warnings),
+    comparisonMode: "dated",
+  };
+}
+
+function parseSmallPoolFacility(context, facility) {
+  const lines = Array.isArray(context?.lines) ? context.lines : [];
+  const dayMap = new Map();
+  const notes = [];
+  const warnings = [];
+  const extraPrograms = extractSupplementaryPrograms(lines);
+  let currentDate = null;
+  let currentWeekday = null;
+
+  for (const rawLine of lines) {
+    const line = normalizeLine(rawLine);
+    if (!line || isTechnicalOrServiceLine(line)) {
+      continue;
+    }
+
+    if (/^Расписание малого бассейна$/i.test(line)) {
+      continue;
+    }
+
+    const datedHeader = extractDatedHeader(line);
+    if (datedHeader) {
+      currentDate = datedHeader.date;
+      currentWeekday = datedHeader.weekday;
+      ensureDay(dayMap, currentDate, currentWeekday);
+      if (datedHeader.tail) {
+        appendSessionsFromLine(dayMap, currentDate, currentWeekday, line, (range) => normalizeSmallPoolRange(range, facility));
+      }
+      continue;
+    }
+
+    if (!currentDate) {
+      if (/расписан|абонемент|оплат|стоимость/i.test(line)) {
+        notes.push(line);
+      }
+      continue;
+    }
+
+    if (isPostScheduleSection(line)) {
+      currentDate = null;
+      currentWeekday = null;
+      notes.push(line);
+      continue;
+    }
+
+    if (/санитарный день|не работает|техническим причинам/i.test(line)) {
+      const day = ensureDay(dayMap, currentDate, currentWeekday || weekdayNameRu(currentDate));
+      day.closedReason = line;
+      continue;
+    }
+
+    const added = appendSessionsFromLine(dayMap, currentDate, currentWeekday, line, (range) => normalizeSmallPoolRange(range, facility));
+    if (!added && /расписан|абонемент|оплат|стоимость/i.test(line)) {
+      notes.push(line);
+    }
+  }
+
+  const days = finalizeDayMap(dayMap);
+  if (!days.length) {
+    warnings.push("На странице малого бассейна не найдено расписание");
   }
 
   return {
@@ -584,14 +770,18 @@ function parseDated(lines, facility) {
     extraPrograms,
     notes: uniq(notes),
     warnings,
+    comparisonMode: "dated",
   };
 }
 
-function parseDailyTemplate(lines, facility, daysWindow) {
-  const notes = [];
+function parseRowingBaseFacility(context, facility) {
+  const lines = Array.isArray(context?.lines) ? context.lines : [];
+  const notes = [
+    "Источник публикует только интервалы без конкретных дат и дней недели; применен шаблон на ближайшие дни",
+  ];
   const warnings = [];
-
   const templateSessions = [];
+  let scheduleStarted = false;
 
   for (const rawLine of lines) {
     const line = normalizeLine(rawLine);
@@ -599,83 +789,201 @@ function parseDailyTemplate(lines, facility, daysWindow) {
       continue;
     }
 
-    if (/расписан/i.test(line) && !timeRangeRegex().test(line)) {
-      notes.push(line);
+    if (/ТРЕНАЖЕРНОГО ЗАЛА.*ЗАЛА СИЛОВОЙ ПОДГОТОВКИ/i.test(line)) {
+      scheduleStarted = true;
       continue;
+    }
+
+    if (isPostScheduleSection(line)) {
+      break;
     }
 
     const ranges = extractRangesFromLine(line);
-    if (ranges.length === 0) {
-      if (/ерип|стоимост|впечатлен/i.test(line)) {
-        continue;
+    if (ranges.length) {
+      scheduleStarted = true;
+      for (const range of ranges) {
+        templateSessions.push({
+          start: range.start,
+          end: range.end,
+          activity: facility.defaults.activity,
+          note: sanitizeNote(range.note),
+          sourceLine: line,
+        });
       }
-      notes.push(line);
       continue;
     }
 
-    for (const range of ranges) {
-      templateSessions.push({
-        start: range.start,
-        end: range.end,
-        activity: range.note || facility.defaults.activity,
-        note: range.note || null,
-        sourceLine: line,
-      });
+    if (scheduleStarted && !/^расписание/i.test(line)) {
+      notes.push(line);
     }
   }
 
-  const uniqueTemplate = dedupeSessions(templateSessions);
+  const uniqueTemplate = dedupeSessions(templateSessions)
+    .map((session) => ({
+      start: session.start,
+      end: session.end,
+      activity: session.activity,
+      note: session.note || null,
+    }))
+    .sort((a, b) => toMinutes(a.start) - toMinutes(b.start) || toMinutes(a.end) - toMinutes(b.end));
 
-  if (uniqueTemplate.length === 0) {
-    warnings.push("На странице не найдено шаблонных интервалов времени");
+  if (!uniqueTemplate.length) {
+    warnings.push("На странице гребной базы не найдены интервалы работы");
   }
 
-  const today = todayIsoInTimezone(TIMEZONE);
-  const days = [];
-  const closedWeekdays = facility.id === "rowing_base" ? [0, 6] : [];
-
-  for (let i = 0; i < daysWindow; i += 1) {
-    const date = addDays(today, i);
-    const weekday = weekdayNameRu(date);
-    const isRowingWeekendClosed = closedWeekdays.length > 0 && isWeekendIso(date);
-
-    days.push({
-      date,
-      weekday,
-      sessions: isRowingWeekendClosed
-        ? []
-        : uniqueTemplate.map((session) => ({
-            ...session,
-            date,
-            weekday,
-          })),
-      closedReason: isRowingWeekendClosed ? "Выходной день" : null,
-      sourceType: "template",
-    });
-  }
-
-  notes.unshift("Источник публикует интервалы без конкретных дат; применен шаблон на ближайшие дни");
-  if (facility.id === "rowing_base") {
-    notes.unshift("Для гребной базы суббота и воскресенье отмечаются как выходные дни");
-  }
+  const templateModel = buildTemplateDays(uniqueTemplate, DEFAULT_DAYS_WINDOW, {
+    closedWeekdays: [],
+  });
 
   return {
-    days,
+    days: templateModel.days,
     template: {
-      sessions: uniqueTemplate.map((session) => ({
-        start: session.start,
-        end: session.end,
-        activity: session.activity,
-        note: session.note || null,
-      })),
-      closedWeekdays,
-      windowStart: days[0]?.date || null,
-      windowEnd: days[days.length - 1]?.date || null,
+      sessions: uniqueTemplate,
+      closedWeekdays: [],
+      windowStart: templateModel.windowStart,
+      windowEnd: templateModel.windowEnd,
     },
     extraPrograms: [],
     notes: uniq(notes),
     warnings,
+    comparisonMode: "template",
   };
+}
+
+function extractDatedHeader(line) {
+  const match = String(line || "").match(/^(\p{L}+?)\s+(\d{2}\.\d{2}\.\d{4})(.*)$/u);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    weekday: capitalizeWord(match[1]),
+    date: ddmmyyyyToIso(match[2]),
+    tail: normalizeLine(match[3] || ""),
+  };
+}
+
+function extractClosureRangeHeader(line) {
+  const match = String(line || "").match(
+    /^(\p{L}+?)\s+(\d{2}\.\d{2}\.\d{4})\s*[-]\s*(\p{L}+?)\s+(\d{2}\.\d{2}\.\d{4})$/u
+  );
+  if (!match) {
+    return null;
+  }
+
+  return {
+    startDate: ddmmyyyyToIso(match[2]),
+    endDate: ddmmyyyyToIso(match[4]),
+  };
+}
+
+function appendSessionsFromLine(dayMap, date, weekday, line, buildSession) {
+  const ranges = extractRangesFromLine(line);
+  if (!ranges.length) {
+    return 0;
+  }
+
+  const day = ensureDay(dayMap, date, weekday || weekdayNameRu(date));
+  const nextSessions = [];
+
+  for (const range of ranges) {
+    const sessionMeta = typeof buildSession === "function" ? buildSession(range, line) : null;
+    if (!sessionMeta || !sessionMeta.activity) {
+      continue;
+    }
+
+    nextSessions.push({
+      date,
+      weekday: day.weekday,
+      start: range.start,
+      end: range.end,
+      activity: sessionMeta.activity,
+      note: sessionMeta.note || null,
+      sourceLine: line,
+    });
+  }
+
+  if (!nextSessions.length) {
+    return 0;
+  }
+
+  day.sessions = dedupeSessions([...day.sessions, ...nextSessions]);
+  return nextSessions.length;
+}
+
+function normalizeSmallPoolRange(range, facility) {
+  const label = sanitizeNote(range?.note);
+  if (!label) {
+    return {
+      activity: facility.defaults.activity,
+      note: null,
+    };
+  }
+
+  const trainingMatch = label.match(/^(Обучение плаванию)(?:\s*\((.*?)\))?$/i);
+  if (trainingMatch) {
+    return {
+      activity: trainingMatch[1],
+      note: sanitizeNote(trainingMatch[2] || ""),
+    };
+  }
+
+  return {
+    activity: label,
+    note: null,
+  };
+}
+
+function finalizeDayMap(dayMap) {
+  return Array.from(dayMap.values())
+    .map((day) => ({
+      ...day,
+      sessions: day.sessions.sort((a, b) => toMinutes(a.start) - toMinutes(b.start) || toMinutes(a.end) - toMinutes(b.end)),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function buildTemplateDays(templateSessions, daysWindow, options = {}) {
+  const today = todayIsoInTimezone(TIMEZONE);
+  const closedWeekdays = Array.isArray(options?.closedWeekdays) ? options.closedWeekdays : [];
+  const days = [];
+
+  for (let index = 0; index < daysWindow; index += 1) {
+    const date = addDays(today, index);
+    const weekday = weekdayNameRu(date);
+    const weekdayIndex = getIsoWeekdayIndex(date);
+    const isClosed = closedWeekdays.includes(weekdayIndex);
+
+    days.push({
+      date,
+      weekday,
+      sessions: isClosed
+        ? []
+        : templateSessions.map((session) => ({
+            ...session,
+            date,
+            weekday,
+          })),
+      closedReason: isClosed ? "Выходной день" : null,
+      sourceType: "template",
+    });
+  }
+
+  return {
+    days,
+    windowStart: days[0]?.date || null,
+    windowEnd: days[days.length - 1]?.date || null,
+  };
+}
+
+function getIsoWeekdayIndex(isoDate) {
+  const text = String(isoDate || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return -1;
+  }
+
+  const date = new Date(text + "T12:00:00Z");
+  return Number.isNaN(date.getTime()) ? -1 : date.getUTCDay();
 }
 
 function ensureDay(dayMap, date, weekday) {
@@ -690,29 +998,6 @@ function ensureDay(dayMap, date, weekday) {
   }
 
   return dayMap.get(date);
-}
-
-function upsertTimeRangesFromLine(dayMap, date, facility, line) {
-  const ranges = extractRangesFromLine(line);
-  if (ranges.length === 0) {
-    return 0;
-  }
-
-  const day = dayMap.get(date);
-  for (const range of ranges) {
-    day.sessions.push({
-      date,
-      weekday: day.weekday,
-      start: range.start,
-      end: range.end,
-      activity: range.note || facility.defaults.activity,
-      note: range.note || null,
-      sourceLine: line,
-    });
-  }
-
-  day.sessions = dedupeSessions(day.sessions);
-  return ranges.length;
 }
 
 function extractRangesFromLine(line) {
