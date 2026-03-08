@@ -38,6 +38,16 @@ const MY_SHIFT_KIND = {
   DAY_OFF: "day_off",
 };
 
+const WEEKDAY_OPTIONS = [
+  { value: 1, short: "Пн", label: "Понедельник" },
+  { value: 2, short: "Вт", label: "Вторник" },
+  { value: 3, short: "Ср", label: "Среда" },
+  { value: 4, short: "Чт", label: "Четверг" },
+  { value: 5, short: "Пт", label: "Пятница" },
+  { value: 6, short: "Сб", label: "Суббота" },
+  { value: 0, short: "Вс", label: "Воскресенье" },
+];
+
 const SITE_CHANGES_HISTORY_LIMIT = 20;
 const SITE_CHANGES_EVENTS_LIMIT = 24;
 const SITE_CHANGES_LATEST_EVENTS_LIMIT = 8;
@@ -49,6 +59,7 @@ const state = {
   view: "my_schedule",
   settings: loadSettings(),
   myShifts: loadMyShifts(),
+  weeklyDayOffWeekday: loadWeeklyDayOffWeekday(),
   staffShifts: loadStaffShifts(),
   siteChangesHistory: loadSiteChangesHistory(),
   siteChangesLastCheckedAt: loadSiteChangesLastCheckedAt(),
@@ -107,12 +118,7 @@ const el = {
   myTimelineTitle: document.getElementById("myTimelineTitle"),
   myShiftForm: document.getElementById("myShiftForm"),
   myShiftDateInput: document.getElementById("myShiftDateInput"),
-  myShiftKindWorkInput: document.getElementById("myShiftKindWorkInput"),
-  myShiftKindDayOffInput: document.getElementById("myShiftKindDayOffInput"),
   myShiftWorkFields: document.getElementById("myShiftWorkFields"),
-  myShiftDayOffOptions: document.getElementById("myShiftDayOffOptions"),
-  myDayOffSpanOneInput: document.getElementById("myDayOffSpanOneInput"),
-  myDayOffSpanTwoInput: document.getElementById("myDayOffSpanTwoInput"),
   myShiftFacilitySelect: document.getElementById("myShiftFacilitySelect"),
   myShiftInstructorsList: document.getElementById("myShiftInstructorsList"),
   myShiftStartInput: document.getElementById("myShiftStartInput"),
@@ -124,6 +130,8 @@ const el = {
   myEditorShiftList: document.getElementById("myEditorShiftList"),
   myEditorTitle: document.getElementById("myEditorTitle"),
   myEditorSummary: document.getElementById("myEditorSummary"),
+  myWeeklyDayOffOptions: document.getElementById("myWeeklyDayOffOptions"),
+  myWeeklyDayOffSummary: document.getElementById("myWeeklyDayOffSummary"),
   myShiftSubmitButton: document.getElementById("myShiftSubmitButton"),
   myShiftCancelEditButton: document.getElementById("myShiftCancelEditButton"),
   myDeleteHistoryButton: document.getElementById("myDeleteHistoryButton"),
@@ -214,19 +222,14 @@ function bindEvents() {
 
   if (el.myShiftForm) {
     el.myShiftForm.addEventListener("submit", handleMyShiftSubmit);
-    el.myShiftForm.addEventListener("change", syncMyToggleChipState);
-  }
-
-  if (el.myShiftKindWorkInput) {
-    el.myShiftKindWorkInput.addEventListener("change", syncMyShiftEditorFormState);
-  }
-
-  if (el.myShiftKindDayOffInput) {
-    el.myShiftKindDayOffInput.addEventListener("change", syncMyShiftEditorFormState);
   }
 
   if (el.myShiftInstructorsList) {
     el.myShiftInstructorsList.addEventListener("change", syncInstructorChipState);
+  }
+
+  if (el.myWeeklyDayOffOptions) {
+    el.myWeeklyDayOffOptions.addEventListener("click", handleWeeklyDayOffPickerClick);
   }
 
   if (el.myScheduleTimeline) {
@@ -642,7 +645,10 @@ function buildSettingsOverviewModel() {
     .length;
   const hasData = Boolean(state.data?.generatedAt);
   const autoRefreshMins = Number(state.settings.autoRefreshMins || 0);
-  const exportableItems = state.myShifts.length + (Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory.length : 0);
+  const exportableItems =
+    state.myShifts.length
+    + (hasWeeklyDayOffConfigured() ? 1 : 0)
+    + (Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory.length : 0);
 
   let status = "setup";
   if (!hasData) {
@@ -674,7 +680,7 @@ function buildSettingsOverviewModel() {
     unreadChanges,
     autoRefreshMins,
     exportableItems,
-    hasMyShifts: state.myShifts.length > 0,
+    hasMyShifts: state.myShifts.length > 0 || hasWeeklyDayOffConfigured(),
     hasHistory: Array.isArray(state.siteChangesHistory) && state.siteChangesHistory.length > 0,
     headline: buildSettingsHeadline(status, changesModel, sourceIssues),
     pill: buildSettingsPill(status),
@@ -779,7 +785,7 @@ function renderSettingsView() {
   el.settingsDataCard.innerHTML = renderSettingsDataCard();
   el.settingsPromptsCard.innerHTML = renderSettingsPromptsCard();
   if (el.exportMyShiftsButton) {
-    el.exportMyShiftsButton.disabled = !state.myShifts.length;
+    el.exportMyShiftsButton.disabled = !state.myShifts.length && !hasWeeklyDayOffConfigured();
   }
 }
 
@@ -873,6 +879,7 @@ function renderSettingsSourceIssues(issues) {
 }
 
 function renderSettingsDataCard() {
+  const hasScheduleData = state.myShifts.length > 0 || hasWeeklyDayOffConfigured();
   const facilityCount = new Set(
     state.myShifts
       .map((shift) => String(shift.facilityId || "").trim())
@@ -886,13 +893,14 @@ function renderSettingsDataCard() {
   ).size;
   const metrics = [
     { label: "Смены", value: String(state.myShifts.length) },
+    { label: "Выходной", value: hasWeeklyDayOffConfigured() ? getWeeklyDayOffLabel(state.weeklyDayOffWeekday, { short: true }) : "—" },
     { label: "Объекты", value: String(facilityCount) },
     { label: "Коллеги", value: String(staffPeopleCount) },
     { label: "Тема", value: resolveThemeLabel(state.settings.theme) },
   ];
 
   let summary = "Скачанный файл можно хранить как резервную копию и потом вернуть обратно одним импортом.";
-  if (!state.myShifts.length) {
+  if (!hasScheduleData) {
     summary = "Если GPT уже собрал JSON по скриншотам, его можно сразу загрузить сюда без ручного редактирования.";
   }
 
@@ -901,9 +909,9 @@ function renderSettingsDataCard() {
       <div class="settings-surface-head">
         <div>
           <p class="settings-surface-kicker">JSON для приложения</p>
-          <h3>${escapeHtml(state.myShifts.length ? "Ваш график готов к резервной копии" : "Можно загрузить готовый график")}</h3>
+          <h3>${escapeHtml(hasScheduleData ? "Ваш график готов к резервной копии" : "Можно загрузить готовый график")}</h3>
         </div>
-        <span class="settings-surface-chip">${escapeHtml(state.myShifts.length ? "Есть смены" : "Пока пусто")}</span>
+        <span class="settings-surface-chip">${escapeHtml(hasScheduleData ? "Есть график" : "Пока пусто")}</span>
       </div>
       <p class="settings-surface-text">${escapeHtml(summary)}</p>
       <div class="settings-surface-metrics">
@@ -1163,7 +1171,9 @@ function hydrateMyScheduleUI() {
   }
 
   if (!state.myScheduleFocusDate) {
-    state.myScheduleFocusDate = todayIso();
+    state.myScheduleFocusDate = hasWeeklyDayOffConfigured()
+      ? findNextIsoDateForWeekday(todayIso(), state.weeklyDayOffWeekday)
+      : todayIso();
   }
 
   renderMyScheduleFacilityOptions();
@@ -1198,42 +1208,16 @@ function getMyScheduleRangeMode() {
 }
 
 function buildMyScheduleTimelineItems(records) {
-  const items = [];
-
-  for (const shift of (Array.isArray(records) ? records : []).slice().sort(compareMyShift)) {
-    if (isDayOffShift(shift)) {
-      for (const date of getMyShiftCoveredDates(shift)) {
-        items.push({
-          kind: MY_SHIFT_KIND.DAY_OFF,
-          date,
-          shift,
-          verification: null,
-        });
-      }
-      continue;
-    }
-
-    items.push({
+  return (Array.isArray(records) ? records : [])
+    .filter(isWorkingShiftRecord)
+    .slice()
+    .sort(compareMyShift)
+    .map((shift) => ({
       kind: MY_SHIFT_KIND.WORK,
       date: shift.date,
       shift,
       verification: getShiftVerification(shift),
-    });
-  }
-
-  return items.sort(compareMyScheduleTimelineItem);
-}
-
-function compareMyScheduleTimelineItem(a, b) {
-  if (a.date !== b.date) {
-    return a.date.localeCompare(b.date);
-  }
-
-  if (a.kind !== b.kind) {
-    return a.kind === MY_SHIFT_KIND.DAY_OFF ? -1 : 1;
-  }
-
-  return compareMyShift(a.shift, b.shift);
+    }));
 }
 
 function renderMySchedule() {
@@ -1248,7 +1232,7 @@ function renderMySchedule() {
   renderMyScheduleFacilityOptions();
   let rangeMode = getMyScheduleRangeMode();
   if (el.myEditorLaunchWrap) {
-    el.myEditorLaunchWrap.hidden = !state.myShifts.length;
+    el.myEditorLaunchWrap.hidden = !state.myShifts.length && !hasWeeklyDayOffConfigured();
   }
 
   const timelineItems = buildMyScheduleTimelineItems(state.myShifts);
@@ -1278,7 +1262,7 @@ function renderMySchedule() {
     }
   }
 
-  if (!state.myShifts.length) {
+  if (!state.myShifts.length && !hasWeeklyDayOffConfigured()) {
     el.myScheduleTimeline.innerHTML = renderMyScheduleEmptyState();
     renderMyChangesSummary();
     return;
@@ -1544,133 +1528,122 @@ function getSelectedMyShiftInstructors() {
   return normalizeCoworkers(values);
 }
 
-function syncMyToggleChipState() {
-  if (!el.myShiftForm) {
-    return;
-  }
-
-  const chips = Array.from(el.myShiftForm.querySelectorAll(".my-toggle-chip"));
-  chips.forEach((chip) => {
-    const input = chip.querySelector("input");
-    chip.classList.toggle("is-active", Boolean(input?.checked));
-  });
-}
-
 function normalizeMyShiftKind(value) {
   return String(value || "").trim() === MY_SHIFT_KIND.DAY_OFF ? MY_SHIFT_KIND.DAY_OFF : MY_SHIFT_KIND.WORK;
 }
 
-function normalizeDayOffSpanDays(value) {
-  return Number(value) === 2 ? 2 : 1;
-}
-
-function isDayOffShift(shift) {
-  return normalizeMyShiftKind(shift?.kind) === MY_SHIFT_KIND.DAY_OFF;
+function normalizeWeekdayValue(value) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0 || number > 6) {
+    return null;
+  }
+  return number;
 }
 
 function isWorkingShiftRecord(shift) {
-  return Boolean(shift && !isDayOffShift(shift));
+  return Boolean(shift && normalizeMyShiftKind(shift?.kind) !== MY_SHIFT_KIND.DAY_OFF);
 }
 
-function getMyShiftCoveredDates(shift) {
-  const date = String(shift?.date || "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return [];
+function getIsoDateWeekday(isoDate) {
+  const [year, month, day] = String(isoDate || "").split("-").map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  return date.getUTCDay();
+}
+
+function hasWeeklyDayOffConfigured() {
+  return normalizeWeekdayValue(state.weeklyDayOffWeekday) !== null;
+}
+
+function getWeeklyDayOffLabel(weekday, options = {}) {
+  const normalized = normalizeWeekdayValue(weekday);
+  if (normalized === null) {
+    return "";
   }
 
-  const spanDays = isDayOffShift(shift) ? normalizeDayOffSpanDays(shift?.days) : 1;
-  return Array.from({ length: spanDays }, (_, index) => addDays(date, index));
-}
-
-function getMyShiftFormKind() {
-  return el.myShiftKindDayOffInput?.checked ? MY_SHIFT_KIND.DAY_OFF : MY_SHIFT_KIND.WORK;
-}
-
-function setMyShiftFormKind(kind) {
-  const normalizedKind = normalizeMyShiftKind(kind);
-  if (el.myShiftKindWorkInput) {
-    el.myShiftKindWorkInput.checked = normalizedKind === MY_SHIFT_KIND.WORK;
+  const { short = false } = options;
+  const item = WEEKDAY_OPTIONS.find((entry) => entry.value === normalized) || null;
+  if (!item) {
+    return "";
   }
-  if (el.myShiftKindDayOffInput) {
-    el.myShiftKindDayOffInput.checked = normalizedKind === MY_SHIFT_KIND.DAY_OFF;
-  }
+
+  return short ? item.short : item.label;
 }
 
-function getMyDayOffSpanDays() {
-  return el.myDayOffSpanTwoInput?.checked ? 2 : 1;
+function isWeeklyDayOffDate(isoDate) {
+  const configured = normalizeWeekdayValue(state.weeklyDayOffWeekday);
+  if (configured === null) {
+    return false;
+  }
+  return getIsoDateWeekday(isoDate) === configured;
 }
 
-function setMyDayOffSpanDays(days) {
-  const normalizedDays = normalizeDayOffSpanDays(days);
-  if (el.myDayOffSpanOneInput) {
-    el.myDayOffSpanOneInput.checked = normalizedDays === 1;
+function findNextIsoDateForWeekday(fromIsoDate, weekday) {
+  const normalized = normalizeWeekdayValue(weekday);
+  if (normalized === null) {
+    return String(fromIsoDate || todayIso());
   }
-  if (el.myDayOffSpanTwoInput) {
-    el.myDayOffSpanTwoInput.checked = normalizedDays === 2;
-  }
-}
 
-function findMyShiftRecordByCoveredDate(date, predicate = () => true, excludedIds = []) {
-  const excluded = new Set((Array.isArray(excludedIds) ? excludedIds : [excludedIds]).filter(Boolean));
-  return (state.myShifts || []).find((item) => {
-    if (!item || excluded.has(item.id) || !predicate(item)) {
-      return false;
+  let cursor = /^\d{4}-\d{2}-\d{2}$/.test(String(fromIsoDate || "")) ? String(fromIsoDate) : todayIso();
+  for (let index = 0; index < 7; index += 1) {
+    if (getIsoDateWeekday(cursor) === normalized) {
+      return cursor;
     }
-    return getMyShiftCoveredDates(item).includes(date);
-  }) || null;
+    cursor = addDays(cursor, 1);
+  }
+  return cursor;
 }
 
-function buildMyShiftConflictMessage(record, date) {
-  const formattedDate = formatMyDayHeading(date);
-  if (isDayOffShift(record)) {
-    return `На ${formattedDate} уже отмечен выходной день.`;
+function countUpcomingShiftsOnWeekday(weekday) {
+  const normalized = normalizeWeekdayValue(weekday);
+  if (normalized === null) {
+    return 0;
   }
-  return `На ${formattedDate} уже есть рабочая смена ${record.start} — ${record.end}.`;
+
+  const today = todayIso();
+  return (state.myShifts || [])
+    .filter(isWorkingShiftRecord)
+    .filter((shift) => String(shift.date || "") >= today)
+    .filter((shift) => getIsoDateWeekday(shift.date) === normalized)
+    .length;
+}
+
+function buildWeeklyDayOffConflictMessage(weekday, count) {
+  const label = getWeeklyDayOffLabel(weekday);
+  return `Нельзя выбрать ${label.toLowerCase()} выходным: в будущих сменах уже есть ${count} ${pluralizeRu(count, "запись", "записи", "записей")} на этот день.`;
+}
+
+function buildMyShiftConflictMessage(date) {
+  if (!isWeeklyDayOffDate(date)) {
+    return "";
+  }
+  return `На ${formatMyDayHeading(date)} выпадает выбранный еженедельный выходной.`;
 }
 
 function buildMyShiftDeletePrompt(shift) {
-  if (isDayOffShift(shift)) {
-    return `Удалить ${normalizeDayOffSpanDays(shift.days) === 2 ? "выходные" : "выходной"} ${getDayOffRangeLabel(shift)}?`;
-  }
   return `Удалить смену ${shift.date} ${shift.start}–${shift.end}?`;
 }
 
-function getDayOffRangeLabel(shift) {
-  const dates = getMyShiftCoveredDates(shift);
-  if (!dates.length) {
-    return "Выходной день";
-  }
-
-  if (dates.length === 1) {
-    return formatMyDayHeading(dates[0]);
-  }
-
-  return `${formatMyDayHeading(dates[0])} — ${formatMyDayHeading(dates[dates.length - 1])}`;
-}
-
-function getDayOffTimelineMeta(shift, renderDate) {
-  const dates = getMyShiftCoveredDates(shift);
-  const dayIndex = Math.max(0, dates.indexOf(renderDate));
-  if (dates.length === 2) {
+function getRecurringDayOffMeta(renderDate) {
+  const weekdayLabel = getWeeklyDayOffLabel(state.weeklyDayOffWeekday);
+  if (!weekdayLabel) {
     return {
-      badge: `${dayIndex + 1} из 2`,
-      summary:
-        dayIndex === 0
-          ? `Начало двухдневного выходного · ${formatMonthDayShort(dates[0])} — ${formatMonthDayShort(dates[1])}`
-          : `Второй день двухдневного выходного · ${formatMonthDayShort(dates[0])} — ${formatMonthDayShort(dates[1])}`,
+      badge: "",
+      summary: "",
     };
   }
 
   return {
-    badge: "1 день",
-    summary: "День отмечен как выходной.",
+    badge: capitalize(weekdayLabel),
+    summary: `${formatMonthDayShort(renderDate)} автоматически отмечен как еженедельный выходной.`,
   };
 }
 
 function handleMyShiftSubmit(event) {
   event.preventDefault();
 
-  const kind = getMyShiftFormKind();
   const date = String(el.myShiftDateInput.value || "");
   const note = String(el.myShiftNoteInput.value || "").trim();
 
@@ -1682,50 +1655,6 @@ function handleMyShiftSubmit(event) {
   const editingShift = state.myEditingShiftId
     ? state.myShifts.find((item) => item.id === state.myEditingShiftId) || null
     : null;
-
-  if (kind === MY_SHIFT_KIND.DAY_OFF) {
-    const days = getMyDayOffSpanDays();
-    const coveredDates = Array.from({ length: days }, (_, index) => addDays(date, index));
-    const blockingRecord = coveredDates
-      .map((targetDate) => ({
-        targetDate,
-        record: findMyShiftRecordByCoveredDate(targetDate, () => true, editingShift?.id || ""),
-      }))
-      .find((item) => item.record);
-
-    if (blockingRecord?.record) {
-      setMyScheduleNotice(buildMyShiftConflictMessage(blockingRecord.record, blockingRecord.targetDate), "error");
-      return;
-    }
-
-    const dayOffRecord = {
-      id: editingShift ? editingShift.id : createShiftId(),
-      kind: MY_SHIFT_KIND.DAY_OFF,
-      date,
-      days,
-      note,
-      coworkers: [],
-      createdAt: editingShift?.createdAt || new Date().toISOString(),
-    };
-
-    if (editingShift) {
-      state.myShifts = state.myShifts
-        .map((item) => (item.id === editingShift.id ? dayOffRecord : item))
-        .sort(compareMyShift);
-    } else {
-      state.myShifts = [...state.myShifts, dayOffRecord].sort(compareMyShift);
-    }
-
-    saveMyShifts();
-    state.myScheduleFocusDate = date;
-    state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
-    state.myEditingShiftId = null;
-    resetMyShiftForm({ preserveDate: date });
-    setMyScheduleNotice(editingShift ? "Выходной обновлён." : (days === 2 ? "Выходные добавлены." : "Выходной добавлен."), "success");
-    renderMySchedule();
-    renderMyScheduleEditor();
-    return;
-  }
 
   const facilityId = String(el.myShiftFacilitySelect.value || "");
   const start = normalizeTime(String(el.myShiftStartInput.value || ""));
@@ -1747,9 +1676,8 @@ function handleMyShiftSubmit(event) {
     return;
   }
 
-  const blockingDayOff = findMyShiftRecordByCoveredDate(date, isDayOffShift, editingShift?.id || "");
-  if (blockingDayOff) {
-    setMyScheduleNotice(buildMyShiftConflictMessage(blockingDayOff, date), "error");
+  if (date >= todayIso() && isWeeklyDayOffDate(date)) {
+    setMyScheduleNotice(buildMyShiftConflictMessage(date), "error");
     return;
   }
 
@@ -1793,14 +1721,11 @@ function resetMyShiftForm(options = {}) {
 
   el.myShiftForm.reset();
   delete el.myShiftForm.dataset.boundShiftId;
-  setMyShiftFormKind(MY_SHIFT_KIND.WORK);
-  setMyDayOffSpanDays(1);
   el.myShiftDateInput.value = preserveDate || state.myScheduleFocusDate || todayIso();
   el.myShiftStartInput.value = "08:00";
   el.myShiftEndInput.value = "10:00";
   renderMyScheduleFacilityOptions();
   renderMyInstructorOptions();
-  syncMyToggleChipState();
   syncMyShiftEditorFormState();
 }
 
@@ -1810,39 +1735,25 @@ function syncMyShiftEditorFormState() {
     : null;
 
   if (editingShift) {
-    const recordKind = normalizeMyShiftKind(editingShift.kind);
     const shouldSeedForm = String(el.myShiftForm?.dataset.boundShiftId || "") !== editingShift.id;
     if (shouldSeedForm) {
-      setMyShiftFormKind(recordKind);
       el.myShiftDateInput.value = editingShift.date;
       el.myShiftNoteInput.value = editingShift.note || "";
-      if (recordKind === MY_SHIFT_KIND.DAY_OFF) {
-        setMyDayOffSpanDays(editingShift.days || 1);
-        renderMyInstructorOptions([]);
-      } else {
-        el.myShiftFacilitySelect.value = editingShift.facilityId;
-        el.myShiftStartInput.value = editingShift.start;
-        el.myShiftEndInput.value = editingShift.end;
-        renderMyInstructorOptions(editingShift.coworkers || []);
-      }
+      el.myShiftFacilitySelect.value = editingShift.facilityId;
+      el.myShiftStartInput.value = editingShift.start;
+      el.myShiftEndInput.value = editingShift.end;
+      renderMyInstructorOptions(editingShift.coworkers || []);
       el.myShiftForm.dataset.boundShiftId = editingShift.id;
     }
-    const activeKind = getMyShiftFormKind();
-    syncMyToggleChipState();
-    syncMyShiftFormSections(activeKind);
 
     if (el.myEditorTitle) {
-      el.myEditorTitle.textContent = activeKind === MY_SHIFT_KIND.DAY_OFF ? "Редактирование выходного" : "Редактирование смены";
+      el.myEditorTitle.textContent = "Редактирование смены";
     }
     if (el.myEditorSummary) {
-      el.myEditorSummary.textContent =
-        activeKind === MY_SHIFT_KIND.DAY_OFF
-          ? "Выберите дату и длительность выходного, затем сохраните запись."
-          : "Измените поля и сохраните обновлённую запись.";
+      el.myEditorSummary.textContent = "Измените поля и сохраните обновлённую запись.";
     }
     if (el.myShiftSubmitButton) {
-      el.myShiftSubmitButton.textContent =
-        activeKind === MY_SHIFT_KIND.DAY_OFF ? "Сохранить выходной" : "Сохранить изменения";
+      el.myShiftSubmitButton.textContent = "Сохранить изменения";
     }
     if (el.myShiftCancelEditButton) {
       el.myShiftCancelEditButton.hidden = false;
@@ -1851,51 +1762,21 @@ function syncMyShiftEditorFormState() {
   }
 
   delete el.myShiftForm.dataset.boundShiftId;
-  const selectedKind = getMyShiftFormKind();
   const selectedCoworkers = getSelectedMyShiftInstructors();
-  syncMyToggleChipState();
-  syncMyShiftFormSections(selectedKind);
 
   if (el.myEditorTitle) {
-    el.myEditorTitle.textContent = selectedKind === MY_SHIFT_KIND.DAY_OFF ? "Добавить выходной" : "Добавить смену";
+    el.myEditorTitle.textContent = "Добавить смену";
   }
   if (el.myEditorSummary) {
-    el.myEditorSummary.textContent =
-      selectedKind === MY_SHIFT_KIND.DAY_OFF
-        ? "Отметьте один или два выходных дня подряд."
-        : "Заполните смену и сохраните её в график.";
+    el.myEditorSummary.textContent = "Заполните смену и сохраните её в график.";
   }
   if (el.myShiftSubmitButton) {
-    el.myShiftSubmitButton.textContent = selectedKind === MY_SHIFT_KIND.DAY_OFF ? "Сохранить выходной" : "Сохранить смену";
+    el.myShiftSubmitButton.textContent = "Сохранить смену";
   }
   if (el.myShiftCancelEditButton) {
     el.myShiftCancelEditButton.hidden = true;
   }
   renderMyInstructorOptions(selectedCoworkers);
-}
-
-function syncMyShiftFormSections(kind) {
-  const normalizedKind = normalizeMyShiftKind(kind);
-  const isDayOff = normalizedKind === MY_SHIFT_KIND.DAY_OFF;
-
-  if (el.myShiftWorkFields) {
-    el.myShiftWorkFields.hidden = isDayOff;
-  }
-  if (el.myShiftDayOffOptions) {
-    el.myShiftDayOffOptions.hidden = !isDayOff;
-  }
-  if (el.myShiftFacilitySelect) {
-    el.myShiftFacilitySelect.required = !isDayOff;
-    el.myShiftFacilitySelect.disabled = isDayOff;
-  }
-  if (el.myShiftStartInput) {
-    el.myShiftStartInput.required = !isDayOff;
-    el.myShiftStartInput.disabled = isDayOff;
-  }
-  if (el.myShiftEndInput) {
-    el.myShiftEndInput.required = !isDayOff;
-    el.myShiftEndInput.disabled = isDayOff;
-  }
 }
 
 function renderMyScheduleEditor() {
@@ -1905,14 +1786,15 @@ function renderMyScheduleEditor() {
 
   renderMyScheduleFacilityOptions();
   syncMyShiftEditorFormState();
+  renderWeeklyDayOffEditor();
   if (el.myDeleteHistoryButton) {
-    el.myDeleteHistoryButton.hidden = !state.myShifts.length;
+    el.myDeleteHistoryButton.hidden = !state.myShifts.length && !hasWeeklyDayOffConfigured();
   }
 
   if (!state.myShifts.length) {
     el.myEditorShiftList.innerHTML = `
       <div class="my-timeline-empty">
-        <p>Смен пока нет. Добавьте первую запись через форму выше.</p>
+        <p>${escapeHtml(hasWeeklyDayOffConfigured() ? "Смен пока нет. Еженедельный выходной уже можно настраивать в блоке выше." : "Смен пока нет. Добавьте первую запись через форму выше.")}</p>
       </div>
     `;
     return;
@@ -1927,11 +1809,74 @@ function renderMyScheduleEditor() {
     .join("");
 }
 
-function renderMyEditorShiftCard(shift) {
-  if (isDayOffShift(shift)) {
-    return renderMyEditorDayOffCard(shift);
+function renderWeeklyDayOffEditor() {
+  if (!el.myWeeklyDayOffOptions || !el.myWeeklyDayOffSummary) {
+    return;
   }
 
+  const current = normalizeWeekdayValue(state.weeklyDayOffWeekday);
+  el.myWeeklyDayOffOptions.innerHTML = WEEKDAY_OPTIONS
+    .map((item) => {
+      const isActive = current === item.value;
+      return `
+        <button
+          type="button"
+          class="my-weekday-chip ${isActive ? "is-active" : ""}"
+          data-weekly-day-off="${String(item.value)}"
+          aria-pressed="${isActive ? "true" : "false"}"
+          title="${escapeHtml(item.label)}"
+        >
+          <span>${escapeHtml(item.short)}</span>
+        </button>
+      `;
+    })
+    .join("");
+
+  el.myWeeklyDayOffSummary.textContent = current === null
+    ? "День ещё не выбран. Нажмите на нужный день недели."
+    : `Сейчас выходной: ${getWeeklyDayOffLabel(current).toLowerCase()}. Он будет автоматически отмечаться в графике.`;
+}
+
+function handleWeeklyDayOffPickerClick(event) {
+  const button = event.target.closest("button[data-weekly-day-off]");
+  if (!button) {
+    return;
+  }
+
+  const weekday = normalizeWeekdayValue(button.dataset.weeklyDayOff || "");
+  if (weekday === null) {
+    return;
+  }
+
+  const nextWeekday = normalizeWeekdayValue(state.weeklyDayOffWeekday) === weekday ? null : weekday;
+  if (nextWeekday !== null) {
+    const conflictCount = countUpcomingShiftsOnWeekday(nextWeekday);
+    if (conflictCount > 0) {
+      setMyScheduleNotice(buildWeeklyDayOffConflictMessage(nextWeekday, conflictCount), "error");
+      return;
+    }
+  }
+
+  state.weeklyDayOffWeekday = nextWeekday;
+  if (nextWeekday !== null) {
+    const today = todayIso();
+    const focusBase = state.myScheduleFocusDate && state.myScheduleFocusDate > today
+      ? state.myScheduleFocusDate
+      : today;
+    state.myScheduleFocusDate = findNextIsoDateForWeekday(focusBase, nextWeekday);
+  }
+  saveMyShifts();
+  renderMySchedule();
+  renderMyScheduleEditor();
+  setMyScheduleNotice(
+    nextWeekday === null
+      ? "Еженедельный выходной снят."
+      : `Еженедельный выходной установлен: ${getWeeklyDayOffLabel(nextWeekday).toLowerCase()}.`,
+    "success"
+  );
+}
+
+function renderMyEditorShiftCard(shift) {
   const verification = getShiftVerification(shift);
   const labelDate = formatMyDayHeading(shift.date);
   const note = normalizeShiftNote(shift.note);
@@ -1950,31 +1895,6 @@ function renderMyEditorShiftCard(shift) {
         <div class="my-editor-shift-meta">
           <span class="my-shift-duration">${escapeHtml(shiftDuration)}</span>
           <span class="my-shift-verify ${escapeHtml(verification.badgeClass)}">${escapeHtml(verification.label)}</span>
-        </div>
-      </div>
-      <div class="my-editor-shift-actions">
-        <button type="button" class="my-editor-action-btn" data-edit-shift="${escapeHtml(shift.id)}">Изменить</button>
-        <button type="button" class="my-editor-action-btn danger" data-delete-shift="${escapeHtml(shift.id)}">Удалить</button>
-      </div>
-    </article>
-  `;
-}
-
-function renderMyEditorDayOffCard(shift) {
-  const note = normalizeShiftNote(shift.note);
-  const noteHtml = note ? `<p class="my-editor-shift-note">${escapeHtml(note)}</p>` : "";
-  const rangeLabel = getDayOffRangeLabel(shift);
-  const spanDays = normalizeDayOffSpanDays(shift.days);
-
-  return `
-    <article class="my-editor-shift-card is-day-off">
-      <div class="my-editor-shift-main">
-        <p class="my-editor-shift-date">${escapeHtml(rangeLabel)}</p>
-        <h4 class="my-editor-shift-title">${escapeHtml(spanDays === 2 ? "Выходные дни" : "Выходной день")}</h4>
-        <p class="my-editor-shift-place">${escapeHtml(spanDays === 2 ? "Два дня подряд без рабочих смен" : "День без рабочих смен")}</p>
-        ${noteHtml}
-        <div class="my-editor-shift-meta">
-          <span class="my-editor-day-off-pill">${escapeHtml(spanDays === 2 ? "2 дня подряд" : "1 день")}</span>
         </div>
       </div>
       <div class="my-editor-shift-actions">
@@ -3501,24 +3421,28 @@ function handleMyEditorShiftListClick(event) {
     resetMyShiftForm();
   }
 
-  setMyScheduleNotice(isDayOffShift(shift) ? "Выходной удалён." : "Смена удалена.", "info");
+  setMyScheduleNotice("Смена удалена.", "info");
   renderMySchedule();
   renderMyScheduleEditor();
 }
 
 function handleDeleteMyShiftsHistory() {
-  if (!state.myShifts.length && !state.staffShifts.length) {
+  if (!state.myShifts.length && !state.staffShifts.length && !hasWeeklyDayOffConfigured()) {
     setMyScheduleNotice("История уже пустая.", "info");
     return;
   }
 
-  const confirmed = window.confirm("Удалить всю историю смен? Это действие нельзя отменить.");
+  const confirmMessage = hasWeeklyDayOffConfigured()
+    ? "Удалить всю историю смен и выбранный еженедельный выходной? Это действие нельзя отменить."
+    : "Удалить всю историю смен? Это действие нельзя отменить.";
+  const confirmed = window.confirm(confirmMessage);
   if (!confirmed) {
     return;
   }
 
   state.myShifts = [];
   state.staffShifts = [];
+  state.weeklyDayOffWeekday = null;
   saveMyShifts();
   state.myEditingShiftId = null;
   state.myScheduleFocusDate = todayIso();
@@ -3574,7 +3498,7 @@ function handleMyScheduleTimelineClick(event) {
 function renderMyScheduleDay(date, timelineItems, options = {}) {
   const { spotlight = false } = options;
   const workingItems = timelineItems.filter((item) => item.kind === MY_SHIFT_KIND.WORK);
-  const hasDayOff = timelineItems.some((item) => item.kind === MY_SHIFT_KIND.DAY_OFF);
+  const hasDayOff = !workingItems.length && isWeeklyDayOffDate(date);
   const dayTotalMinutes = workingItems.reduce((sum, item) => sum + getShiftDurationMinutes(item.shift), 0);
   const dayClasses = ["my-timeline-day"];
   if (spotlight) {
@@ -3592,9 +3516,7 @@ function renderMyScheduleDay(date, timelineItems, options = {}) {
     : hasDayOff
       ? "Выходной день"
       : "Свободный день";
-  const dayBody = timelineItems.length
-    ? renderMyScheduleDayItems(timelineItems)
-    : `<div class="my-day-empty">На эти сутки смены не добавлены.</div>`;
+  const dayBody = renderMyScheduleDayItems(date, workingItems);
 
   return `
     <section class="${dayClasses.join(" ")}">
@@ -3612,17 +3534,17 @@ function renderMyScheduleDay(date, timelineItems, options = {}) {
   `;
 }
 
-function renderMyScheduleDayItems(timelineItems) {
+function renderMyScheduleDayItems(date, workingItems) {
+  if (!workingItems.length) {
+    return isWeeklyDayOffDate(date)
+      ? renderMyDayOffCard(date)
+      : `<div class="my-day-empty">На эти сутки смены не добавлены.</div>`;
+  }
+
   const parts = [];
   let previousWorkItem = null;
 
-  for (const item of timelineItems) {
-    if (item.kind === MY_SHIFT_KIND.DAY_OFF) {
-      previousWorkItem = null;
-      parts.push(renderMyDayOffCard(item.shift, { renderDate: item.date }));
-      continue;
-    }
-
+  for (const item of workingItems) {
     if (previousWorkItem) {
       const gapModel = buildMyShiftGapModel(previousWorkItem, item);
       const gapHtml = renderMyShiftGapDivider(gapModel);
@@ -3756,11 +3678,8 @@ function renderMyShiftGapDivider(gapModel) {
   `;
 }
 
-function renderMyDayOffCard(shift, options = {}) {
-  const renderDate = String(options.renderDate || shift?.date || "");
-  const note = normalizeShiftNote(shift?.note);
-  const noteHtml = note ? `<p class="my-day-off-note">${escapeHtml(note)}</p>` : "";
-  const meta = getDayOffTimelineMeta(shift, renderDate);
+function renderMyDayOffCard(renderDate) {
+  const meta = getRecurringDayOffMeta(renderDate);
 
   return `
     <article class="my-day-off-card">
@@ -3772,7 +3691,6 @@ function renderMyDayOffCard(shift, options = {}) {
         <span class="my-day-off-badge">${escapeHtml(meta.badge)}</span>
       </div>
       <p class="my-day-off-summary">${escapeHtml(meta.summary)}</p>
-      ${noteHtml}
     </article>
   `;
 }
@@ -4147,12 +4065,6 @@ function compareMyShift(a, b) {
     return a.date.localeCompare(b.date);
   }
 
-  const kindA = normalizeMyShiftKind(a?.kind);
-  const kindB = normalizeMyShiftKind(b?.kind);
-  if (kindA !== kindB) {
-    return kindA === MY_SHIFT_KIND.DAY_OFF ? -1 : 1;
-  }
-
   return toMinutes(String(a.start || "00:00")) - toMinutes(String(b.start || "00:00"));
 }
 
@@ -4243,11 +4155,12 @@ function exportMyShiftsHistory() {
     : [];
 
   const payload = {
-    version: 6,
+    version: 7,
     app: "Расписание",
     exportedAt: new Date().toISOString(),
     timezone: state.data?.timezone || "Europe/Minsk",
     shifts: state.myShifts,
+    weeklyDayOffWeekday: normalizeWeekdayValue(state.weeklyDayOffWeekday),
     staffShifts: state.staffShifts,
     siteChanges: {
       lastCheckedAt: state.siteChangesLastCheckedAt || "",
@@ -4286,11 +4199,12 @@ async function handleMyShiftsImport(event) {
     }
 
     const normalized = normalizeShiftRecords(records);
-    if (!normalized.length && records.length) {
+    const importedWeeklyDayOffWeekday = extractWeeklyDayOffWeekdayFromPayload(parsed, records);
+    if (!normalized.length && records.length && importedWeeklyDayOffWeekday === null) {
       throw new Error("Не удалось найти корректные записи смен.");
     }
 
-    if (state.myShifts.length) {
+    if (state.myShifts.length || hasWeeklyDayOffConfigured()) {
       const confirmed = window.confirm("Заменить текущий график загруженным JSON?");
       if (!confirmed) {
         setMyShiftsDataNotice("Загрузка отменена.", "info");
@@ -4303,6 +4217,7 @@ async function handleMyShiftsImport(event) {
     const importedStaffShifts = normalizeStaffShiftRecords(parsed?.staffShifts || parsed?.staff || parsed?.roster || []);
 
     state.myShifts = normalized;
+    state.weeklyDayOffWeekday = importedWeeklyDayOffWeekday;
     state.staffShifts = importedStaffShifts;
     saveMyShifts();
 
@@ -4316,7 +4231,11 @@ async function handleMyShiftsImport(event) {
       saveSiteChangesAcknowledgedSignature();
     }
 
-    state.myScheduleFocusDate = state.myShifts.length ? state.myShifts[0].date : todayIso();
+    state.myScheduleFocusDate = state.myShifts.length
+      ? state.myShifts[0].date
+      : importedWeeklyDayOffWeekday === null
+        ? todayIso()
+        : findNextIsoDateForWeekday(todayIso(), importedWeeklyDayOffWeekday);
     state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
     state.myEditingShiftId = null;
     resetMyShiftForm();
@@ -4328,7 +4247,10 @@ async function handleMyShiftsImport(event) {
     const staffMeta = state.staffShifts.length
       ? ` Данных по коллегам: ${state.staffShifts.length}.`
       : "";
-    setMyShiftsDataNotice(`Загружено смен: ${state.myShifts.length}.${staffMeta}`, "success");
+    const dayOffMeta = state.weeklyDayOffWeekday === null
+      ? ""
+      : ` Выходной: ${getWeeklyDayOffLabel(state.weeklyDayOffWeekday).toLowerCase()}.`;
+    setMyShiftsDataNotice(`Загружено смен: ${state.myShifts.length}.${staffMeta}${dayOffMeta}`, "success");
   } catch (error) {
     setMyShiftsDataNotice(
       error instanceof Error ? `Ошибка импорта: ${error.message}` : "Ошибка импорта истории.",
@@ -5164,15 +5086,7 @@ function normalizeShiftRecords(records, facilityOptions = DEFAULT_FACILITY_OPTIO
     .map((item) => {
       const kind = normalizeMyShiftKind(item.kind || item.type);
       if (kind === MY_SHIFT_KIND.DAY_OFF) {
-        return {
-          id: String(item.id || createShiftId()),
-          kind,
-          date: String(item.date || ""),
-          days: normalizeDayOffSpanDays(item.days || item.dayCount || item.duration || item.length),
-          note: normalizeShiftNote(item.note),
-          coworkers: [],
-          createdAt: String(item.createdAt || ""),
-        };
+        return null;
       }
 
       const facility = resolveImportedFacility(item, facilityOptions);
@@ -5197,12 +5111,10 @@ function normalizeShiftRecords(records, facilityOptions = DEFAULT_FACILITY_OPTIO
         createdAt: String(item.createdAt || ""),
       };
     })
+    .filter(Boolean)
     .filter((item) => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
         return false;
-      }
-      if (isDayOffShift(item)) {
-        return true;
       }
       return Boolean(
         item.facilityId
@@ -5265,6 +5177,37 @@ function normalizeStaffShiftRecords(records, facilityOptions = DEFAULT_FACILITY_
     ));
 }
 
+function inferLegacyWeeklyDayOffWeekday(records) {
+  if (!Array.isArray(records)) {
+    return null;
+  }
+
+  const legacy = records.find((item) => normalizeMyShiftKind(item?.kind || item?.type) === MY_SHIFT_KIND.DAY_OFF) || null;
+  return legacy?.date ? normalizeWeekdayValue(getIsoDateWeekday(legacy.date)) : null;
+}
+
+function extractWeeklyDayOffWeekdayFromPayload(payload, records = null) {
+  const direct = normalizeWeekdayValue(
+    payload?.weeklyDayOffWeekday
+      ?? payload?.weeklyDayOff?.weekday
+      ?? payload?.dayOffWeekday
+      ?? payload?.dayOff?.weekday
+  );
+  if (direct !== null) {
+    return direct;
+  }
+
+  const sourceRecords = Array.isArray(records)
+    ? records
+    : Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.shifts)
+        ? payload.shifts
+        : [];
+
+  return inferLegacyWeeklyDayOffWeekday(sourceRecords);
+}
+
 function loadMyShifts() {
   try {
     const raw = localStorage.getItem(STORAGE.myShifts);
@@ -5277,6 +5220,20 @@ function loadMyShifts() {
     return normalizeShiftRecords(records, DEFAULT_FACILITY_OPTIONS);
   } catch {
     return [];
+  }
+}
+
+function loadWeeklyDayOffWeekday() {
+  try {
+    const raw = localStorage.getItem(STORAGE.myShifts);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    return extractWeeklyDayOffWeekdayFromPayload(parsed);
+  } catch {
+    return null;
   }
 }
 
@@ -5320,6 +5277,7 @@ function saveMyShifts() {
     STORAGE.myShifts,
     JSON.stringify({
       shifts: state.myShifts,
+      weeklyDayOffWeekday: normalizeWeekdayValue(state.weeklyDayOffWeekday),
       staffShifts: state.staffShifts,
     })
   );

@@ -234,20 +234,6 @@
 
           <form id="myShiftForm" class="my-shift-form" autocomplete="off">
             <label class="my-field">
-              <span>Тип записи</span>
-              <div class="my-choice-row" role="radiogroup" aria-label="Тип записи">
-                <label class="my-toggle-chip is-wide">
-                  <input id="myShiftKindWorkInput" type="radio" name="myShiftKind" value="shift" checked />
-                  <span>Смена</span>
-                </label>
-                <label class="my-toggle-chip is-wide">
-                  <input id="myShiftKindDayOffInput" type="radio" name="myShiftKind" value="day_off" />
-                  <span>Выходной</span>
-                </label>
-              </div>
-            </label>
-
-            <label class="my-field">
               <span>Дата</span>
               <input id="myShiftDateInput" type="date" required />
             </label>
@@ -276,30 +262,13 @@
               </div>
             </div>
 
-            <div id="myShiftDayOffOptions" class="my-shift-dayoff-fields" hidden>
-              <label class="my-field">
-                <span>Длительность</span>
-                <div class="my-choice-row" role="radiogroup" aria-label="Длительность выходного">
-                  <label class="my-toggle-chip is-wide">
-                    <input id="myDayOffSpanOneInput" type="radio" name="myDayOffSpan" value="1" checked />
-                    <span>1 день</span>
-                  </label>
-                  <label class="my-toggle-chip is-wide">
-                    <input id="myDayOffSpanTwoInput" type="radio" name="myDayOffSpan" value="2" />
-                    <span>2 дня</span>
-                  </label>
-                </div>
-                <small class="my-field-hint">Можно сразу отметить два выходных дня подряд.</small>
-              </label>
-            </div>
-
             <label class="my-field">
               <span>Комментарий (опционально)</span>
               <input
                 id="myShiftNoteInput"
                 type="text"
                 maxlength="80"
-                placeholder="Например: подмена, тренажёрный зал или личный выходной"
+                placeholder="Например: подмена, тренажёрный зал"
               />
             </label>
 
@@ -312,6 +281,15 @@
           </form>
 
           <p id="myScheduleNotice" hidden class="my-schedule-notice"></p>
+        </section>
+
+        <section class="my-editor-dayoff-card">
+          <div class="my-editor-head">
+            <h3>Еженедельный выходной</h3>
+            <p>Выберите один день недели. Он будет автоматически отмечаться в графике как выходной.</p>
+          </div>
+          <div id="myWeeklyDayOffOptions" class="my-weekday-picker" role="group" aria-label="Выбор еженедельного выходного"></div>
+          <p id="myWeeklyDayOffSummary" class="my-weekday-summary"></p>
         </section>
 
         <section class="my-editor-list-card">

@@ -1879,48 +1879,7 @@ body::before {
   color: #94a3b8;
 }
 
-.my-choice-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.my-toggle-chip {
-  position: relative;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(30, 41, 59, 0.46);
-  color: #cbd5e1;
-  padding: 10px 12px;
-  font-size: 12px;
-  line-height: 1.1;
-  font-weight: 800;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease, transform 150ms ease;
-}
-
-.my-toggle-chip input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.my-toggle-chip.is-active,
-.my-toggle-chip:has(input:checked) {
-  border-color: rgba(59, 130, 246, 0.55);
-  background: rgba(37, 99, 235, 0.26);
-  color: #dbeafe;
-}
-
-.my-toggle-chip:active {
-  transform: scale(0.99);
-}
-
-.my-shift-work-fields,
-.my-shift-dayoff-fields {
+.my-shift-work-fields {
   display: flex;
   flex-direction: column;
   gap: 9px;
@@ -2092,7 +2051,8 @@ body::before {
 }
 
 .my-editor-form-card,
-.my-editor-list-card {
+.my-editor-list-card,
+.my-editor-dayoff-card {
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(28, 28, 30, 0.88), rgba(15, 23, 42, 0.58));
@@ -2113,6 +2073,46 @@ body::before {
   font-size: 13px;
   line-height: 1.4;
   font-weight: 600;
+  color: #cbd5e1;
+}
+
+.my-weekday-picker {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.my-weekday-chip {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.46);
+  color: #cbd5e1;
+  border-radius: 14px;
+  padding: 12px 6px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease, transform 150ms ease;
+}
+
+.my-weekday-chip.is-active {
+  border-color: rgba(14, 165, 233, 0.48);
+  background: rgba(8, 145, 178, 0.24);
+  color: #cffafe;
+}
+
+.my-weekday-chip:active {
+  transform: scale(0.98);
+}
+
+.my-weekday-summary {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 700;
   color: #cbd5e1;
 }
 
@@ -2176,12 +2176,6 @@ body::before {
   gap: 8px;
 }
 
-.my-editor-shift-card.is-day-off {
-  border-color: rgba(14, 165, 233, 0.28);
-  background:
-    radial-gradient(140% 150% at 0% 0%, rgba(8, 145, 178, 0.16), rgba(15, 23, 42, 0.56) 56%, rgba(15, 23, 42, 0.48) 100%);
-}
-
 .my-editor-shift-main {
   display: flex;
   flex-direction: column;
@@ -2236,19 +2230,6 @@ body::before {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-.my-editor-day-off-pill {
-  border-radius: 9999px;
-  border: 1px solid rgba(103, 232, 249, 0.34);
-  background: rgba(8, 145, 178, 0.18);
-  color: #cffafe;
-  padding: 4px 8px;
-  font-size: 10px;
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .my-editor-shift-actions {
@@ -3536,19 +3517,6 @@ html.light .my-field-hint {
   color: #64748b;
 }
 
-html.light .my-toggle-chip {
-  border-color: rgba(148, 163, 184, 0.5);
-  background: rgba(241, 245, 249, 0.9);
-  color: #334155;
-}
-
-html.light .my-toggle-chip.is-active,
-html.light .my-toggle-chip:has(input:checked) {
-  border-color: rgba(37, 99, 235, 0.48);
-  background: rgba(219, 234, 254, 0.92);
-  color: #1d4ed8;
-}
-
 html.light .my-instructor-chip {
   border-color: rgba(148, 163, 184, 0.5);
   background: rgba(241, 245, 249, 0.9);
@@ -3574,7 +3542,8 @@ html.light .my-shift-cancel-btn {
 }
 
 html.light .my-editor-form-card,
-html.light .my-editor-list-card {
+html.light .my-editor-list-card,
+html.light .my-editor-dayoff-card {
   border-color: rgba(148, 163, 184, 0.28);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
@@ -3589,6 +3558,22 @@ html.light .my-editor-head p {
   color: #334155;
 }
 
+html.light .my-weekday-chip {
+  border-color: rgba(148, 163, 184, 0.44);
+  background: rgba(241, 245, 249, 0.92);
+  color: #334155;
+}
+
+html.light .my-weekday-chip.is-active {
+  border-color: rgba(8, 145, 178, 0.36);
+  background: rgba(207, 250, 254, 0.92);
+  color: #0f766e;
+}
+
+html.light .my-weekday-summary {
+  color: #334155;
+}
+
 html.light .my-editor-history-delete-btn {
   border-color: rgba(220, 38, 38, 0.35);
   background: rgba(254, 226, 226, 0.92);
@@ -3598,12 +3583,6 @@ html.light .my-editor-history-delete-btn {
 html.light .my-editor-shift-card {
   border-color: rgba(148, 163, 184, 0.45);
   background: #ffffff;
-}
-
-html.light .my-editor-shift-card.is-day-off {
-  border-color: rgba(8, 145, 178, 0.24);
-  background:
-    radial-gradient(140% 150% at 0% 0%, rgba(207, 250, 254, 0.96), rgba(255, 255, 255, 0.98) 58%, rgba(248, 250, 252, 0.98) 100%);
 }
 
 html.light .my-editor-shift-date {
@@ -3624,12 +3603,6 @@ html.light .my-editor-shift-note {
 
 html.light .my-editor-shift-coworkers {
   color: #0369a1;
-}
-
-html.light .my-editor-day-off-pill {
-  border-color: rgba(8, 145, 178, 0.24);
-  background: rgba(207, 250, 254, 0.92);
-  color: #0f766e;
 }
 
 html.light .my-editor-action-btn {
@@ -5097,6 +5070,10 @@ html.dark .history-data-notice.info {
 
   .my-editor-shift-actions {
     grid-template-columns: 1fr;
+  }
+
+  .my-weekday-picker {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .my-time-row {
