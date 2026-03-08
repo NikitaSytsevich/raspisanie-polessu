@@ -2604,6 +2604,20 @@ body::before {
   color: #bfdbfe;
 }
 
+.my-shift-leading-gap {
+  margin: 0 0 10px;
+}
+
+.my-shift-leading-gap span {
+  white-space: normal;
+  text-align: center;
+}
+
+.my-shift-leading-gap.is-cross-facility span {
+  background: rgba(8, 145, 178, 0.16);
+  color: #a5f3fc;
+}
+
 .my-shift-meta {
   display: flex;
   align-items: center;
@@ -3664,6 +3678,11 @@ html.light .my-shift-site-break span {
 html.light .my-shift-site-break.is-ice-fill span {
   background: rgba(219, 234, 254, 0.82);
   color: #1d4ed8;
+}
+
+html.light .my-shift-leading-gap.is-cross-facility span {
+  background: rgba(207, 250, 254, 0.92);
+  color: #0f766e;
 }
 
 html.light .my-shift-status {

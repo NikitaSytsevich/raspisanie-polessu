@@ -3275,7 +3275,13 @@ function renderMyScheduleDay(date, shiftChecks, options = {}) {
     ? `${shiftChecks.length} ${pluralizeRu(shiftChecks.length, "смена", "смены", "смен")} · ${formatDuration(dayTotalMinutes)}`
     : "Свободный день";
   const dayBody = isWorkingDay
-    ? shiftChecks.map((item) => renderMyShiftCard(item.shift, item.verification)).join("")
+    ? shiftChecks
+      .map((item, index) =>
+        renderMyShiftCard(item.shift, item.verification, {
+          leadingGap: index > 0 ? buildMyShiftGapModel(shiftChecks[index - 1], item) : null,
+        })
+      )
+      .join("")
     : `<div class="my-day-empty">На эти сутки смены не добавлены.</div>`;
 
   return `
@@ -3345,7 +3351,75 @@ function buildMyChangesWidgetFooter(model) {
   return "Открыть разбор";
 }
 
-function renderMyShiftCard(shift, verification = getShiftVerification(shift)) {
+function buildMyShiftGapModel(previousCheck, nextCheck) {
+  const previousSiteEnd = getShiftVerificationBoundaryMinutes(previousCheck?.verification, "end");
+  const nextSiteStart = getShiftVerificationBoundaryMinutes(nextCheck?.verification, "start");
+  if (!Number.isFinite(previousSiteEnd) || !Number.isFinite(nextSiteStart)) {
+    return null;
+  }
+
+  const minutes = nextSiteStart - previousSiteEnd;
+  if (minutes <= 0) {
+    return null;
+  }
+
+  const previousFacilityId = String(previousCheck?.shift?.facilityId || "");
+  const nextFacilityId = String(nextCheck?.shift?.facilityId || "");
+  const isCrossFacility = previousFacilityId && nextFacilityId && previousFacilityId !== nextFacilityId;
+
+  if (isCrossFacility) {
+    return {
+      minutes,
+      label: minutes >= 120 ? "Перерыв между объектами" : "Переход между объектами",
+      modifierClass: "is-cross-facility",
+    };
+  }
+
+  const breakLabel = classifyBreak(minutes, previousCheck?.shift?.facilityId);
+  return {
+    minutes,
+    label: `${breakLabel.charAt(0).toUpperCase()}${breakLabel.slice(1)}`,
+    modifierClass: breakLabel === "заливка льда" ? "is-ice-fill" : "",
+  };
+}
+
+function getShiftVerificationBoundaryMinutes(verification, edge) {
+  const sessions = Array.isArray(verification?.siteSessions) ? verification.siteSessions : [];
+  if (!sessions.length) {
+    return null;
+  }
+
+  const session = edge === "end" ? sessions[sessions.length - 1] : sessions[0];
+  if (!session) {
+    return null;
+  }
+
+  const minutes = edge === "end"
+    ? (Number.isFinite(session.siteEndMinutes) ? session.siteEndMinutes : session.endMinutes)
+    : (Number.isFinite(session.siteStartMinutes) ? session.siteStartMinutes : session.startMinutes);
+
+  return Number.isFinite(minutes) ? minutes : null;
+}
+
+function renderMyShiftLeadingGap(gapModel) {
+  if (!gapModel || !Number.isFinite(gapModel.minutes) || gapModel.minutes <= 0) {
+    return "";
+  }
+
+  const classes = ["my-shift-site-break", "my-shift-leading-gap"];
+  if (gapModel.modifierClass) {
+    classes.push(gapModel.modifierClass);
+  }
+
+  return `
+    <div class="${escapeHtml(classes.join(" "))}">
+      <span>${escapeHtml(`${gapModel.label} · ${formatDuration(gapModel.minutes)}`)}</span>
+    </div>
+  `;
+}
+
+function renderMyShiftCard(shift, verification = getShiftVerification(shift), options = {}) {
+  const { leadingGap = null } = options;
   const status = getMyShiftStatus(shift);
   const shiftDuration = formatDuration(getShiftDurationMinutes(shift));
   const coworkersHtml = renderShiftCoworkersLine(shift, "my-shift-coworkers", { labelText: "По смене" });
@@ -3354,9 +3428,11 @@ function renderMyShiftCard(shift, verification = getShiftVerification(shift)) {
   const supportHtml = [coworkersHtml, noteHtml].filter(Boolean).join("");
   const siteDetailsHtml = renderMyShiftSiteTimeline(shift, verification);
   const runtimeMeta = [status.label, shiftDuration].filter(Boolean).join(" · ");
+  const leadingGapHtml = renderMyShiftLeadingGap(leadingGap);
 
   return `
     <article class="my-shift-card ${escapeHtml(status.className)} ${escapeHtml(verification.cardClass)}">
+      ${leadingGapHtml}
       <div class="my-shift-top">
         <div class="my-shift-time-wrap">
           <div class="my-shift-time">${escapeHtml(`${shift.start} — ${shift.end}`)}</div>
@@ -3645,6 +3721,10 @@ function getOverlapSiteSessions(sessions, shiftStartText, shiftEndText) {
       end: minutesToTime(overlapEnd),
       startMinutes: overlapStart,
       endMinutes: overlapEnd,
+      siteStart: normalizedStart,
+      siteEnd: normalizedEnd,
+      siteStartMinutes: sessionStart,
+      siteEndMinutes: sessionEnd,
       activity: String(session.activity || session.note || "Сеанс"),
       note: String(session.note || ""),
       clipped: overlapStart !== sessionStart || overlapEnd !== sessionEnd,
