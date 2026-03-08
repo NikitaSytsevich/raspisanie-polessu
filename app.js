@@ -33,6 +33,11 @@ const MY_SCHEDULE_RANGE = {
   FULL: "full",
 };
 
+const MY_SHIFT_KIND = {
+  WORK: "shift",
+  DAY_OFF: "day_off",
+};
+
 const SITE_CHANGES_HISTORY_LIMIT = 20;
 const SITE_CHANGES_EVENTS_LIMIT = 24;
 const SITE_CHANGES_LATEST_EVENTS_LIMIT = 8;
@@ -102,6 +107,12 @@ const el = {
   myTimelineTitle: document.getElementById("myTimelineTitle"),
   myShiftForm: document.getElementById("myShiftForm"),
   myShiftDateInput: document.getElementById("myShiftDateInput"),
+  myShiftKindWorkInput: document.getElementById("myShiftKindWorkInput"),
+  myShiftKindDayOffInput: document.getElementById("myShiftKindDayOffInput"),
+  myShiftWorkFields: document.getElementById("myShiftWorkFields"),
+  myShiftDayOffOptions: document.getElementById("myShiftDayOffOptions"),
+  myDayOffSpanOneInput: document.getElementById("myDayOffSpanOneInput"),
+  myDayOffSpanTwoInput: document.getElementById("myDayOffSpanTwoInput"),
   myShiftFacilitySelect: document.getElementById("myShiftFacilitySelect"),
   myShiftInstructorsList: document.getElementById("myShiftInstructorsList"),
   myShiftStartInput: document.getElementById("myShiftStartInput"),
@@ -203,6 +214,15 @@ function bindEvents() {
 
   if (el.myShiftForm) {
     el.myShiftForm.addEventListener("submit", handleMyShiftSubmit);
+    el.myShiftForm.addEventListener("change", syncMyToggleChipState);
+  }
+
+  if (el.myShiftKindWorkInput) {
+    el.myShiftKindWorkInput.addEventListener("change", syncMyShiftEditorFormState);
+  }
+
+  if (el.myShiftKindDayOffInput) {
+    el.myShiftKindDayOffInput.addEventListener("change", syncMyShiftEditorFormState);
   }
 
   if (el.myShiftInstructorsList) {
@@ -1177,6 +1197,45 @@ function getMyScheduleRangeMode() {
   return MY_SCHEDULE_RANGE.DAY;
 }
 
+function buildMyScheduleTimelineItems(records) {
+  const items = [];
+
+  for (const shift of (Array.isArray(records) ? records : []).slice().sort(compareMyShift)) {
+    if (isDayOffShift(shift)) {
+      for (const date of getMyShiftCoveredDates(shift)) {
+        items.push({
+          kind: MY_SHIFT_KIND.DAY_OFF,
+          date,
+          shift,
+          verification: null,
+        });
+      }
+      continue;
+    }
+
+    items.push({
+      kind: MY_SHIFT_KIND.WORK,
+      date: shift.date,
+      shift,
+      verification: getShiftVerification(shift),
+    });
+  }
+
+  return items.sort(compareMyScheduleTimelineItem);
+}
+
+function compareMyScheduleTimelineItem(a, b) {
+  if (a.date !== b.date) {
+    return a.date.localeCompare(b.date);
+  }
+
+  if (a.kind !== b.kind) {
+    return a.kind === MY_SHIFT_KIND.DAY_OFF ? -1 : 1;
+  }
+
+  return compareMyShift(a.shift, b.shift);
+}
+
 function renderMySchedule() {
   if (!el.myScheduleTimeline) {
     return;
@@ -1192,20 +1251,14 @@ function renderMySchedule() {
     el.myEditorLaunchWrap.hidden = !state.myShifts.length;
   }
 
-  const allShiftChecks = state.myShifts
-    .slice()
-    .sort(compareMyShift)
-    .map((shift) => ({
-      shift,
-      verification: getShiftVerification(shift),
-    }));
+  const timelineItems = buildMyScheduleTimelineItems(state.myShifts);
 
   const groupedByDate = new Map();
-  for (const item of allShiftChecks) {
-    if (!groupedByDate.has(item.shift.date)) {
-      groupedByDate.set(item.shift.date, []);
+  for (const item of timelineItems) {
+    if (!groupedByDate.has(item.date)) {
+      groupedByDate.set(item.date, []);
     }
-    groupedByDate.get(item.shift.date).push(item);
+    groupedByDate.get(item.date).push(item);
   }
 
   const focusDate = state.myScheduleFocusDate;
@@ -1491,20 +1544,193 @@ function getSelectedMyShiftInstructors() {
   return normalizeCoworkers(values);
 }
 
+function syncMyToggleChipState() {
+  if (!el.myShiftForm) {
+    return;
+  }
+
+  const chips = Array.from(el.myShiftForm.querySelectorAll(".my-toggle-chip"));
+  chips.forEach((chip) => {
+    const input = chip.querySelector("input");
+    chip.classList.toggle("is-active", Boolean(input?.checked));
+  });
+}
+
+function normalizeMyShiftKind(value) {
+  return String(value || "").trim() === MY_SHIFT_KIND.DAY_OFF ? MY_SHIFT_KIND.DAY_OFF : MY_SHIFT_KIND.WORK;
+}
+
+function normalizeDayOffSpanDays(value) {
+  return Number(value) === 2 ? 2 : 1;
+}
+
+function isDayOffShift(shift) {
+  return normalizeMyShiftKind(shift?.kind) === MY_SHIFT_KIND.DAY_OFF;
+}
+
+function isWorkingShiftRecord(shift) {
+  return Boolean(shift && !isDayOffShift(shift));
+}
+
+function getMyShiftCoveredDates(shift) {
+  const date = String(shift?.date || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return [];
+  }
+
+  const spanDays = isDayOffShift(shift) ? normalizeDayOffSpanDays(shift?.days) : 1;
+  return Array.from({ length: spanDays }, (_, index) => addDays(date, index));
+}
+
+function getMyShiftFormKind() {
+  return el.myShiftKindDayOffInput?.checked ? MY_SHIFT_KIND.DAY_OFF : MY_SHIFT_KIND.WORK;
+}
+
+function setMyShiftFormKind(kind) {
+  const normalizedKind = normalizeMyShiftKind(kind);
+  if (el.myShiftKindWorkInput) {
+    el.myShiftKindWorkInput.checked = normalizedKind === MY_SHIFT_KIND.WORK;
+  }
+  if (el.myShiftKindDayOffInput) {
+    el.myShiftKindDayOffInput.checked = normalizedKind === MY_SHIFT_KIND.DAY_OFF;
+  }
+}
+
+function getMyDayOffSpanDays() {
+  return el.myDayOffSpanTwoInput?.checked ? 2 : 1;
+}
+
+function setMyDayOffSpanDays(days) {
+  const normalizedDays = normalizeDayOffSpanDays(days);
+  if (el.myDayOffSpanOneInput) {
+    el.myDayOffSpanOneInput.checked = normalizedDays === 1;
+  }
+  if (el.myDayOffSpanTwoInput) {
+    el.myDayOffSpanTwoInput.checked = normalizedDays === 2;
+  }
+}
+
+function findMyShiftRecordByCoveredDate(date, predicate = () => true, excludedIds = []) {
+  const excluded = new Set((Array.isArray(excludedIds) ? excludedIds : [excludedIds]).filter(Boolean));
+  return (state.myShifts || []).find((item) => {
+    if (!item || excluded.has(item.id) || !predicate(item)) {
+      return false;
+    }
+    return getMyShiftCoveredDates(item).includes(date);
+  }) || null;
+}
+
+function buildMyShiftConflictMessage(record, date) {
+  const formattedDate = formatMyDayHeading(date);
+  if (isDayOffShift(record)) {
+    return `На ${formattedDate} уже отмечен выходной день.`;
+  }
+  return `На ${formattedDate} уже есть рабочая смена ${record.start} — ${record.end}.`;
+}
+
+function buildMyShiftDeletePrompt(shift) {
+  if (isDayOffShift(shift)) {
+    return `Удалить ${normalizeDayOffSpanDays(shift.days) === 2 ? "выходные" : "выходной"} ${getDayOffRangeLabel(shift)}?`;
+  }
+  return `Удалить смену ${shift.date} ${shift.start}–${shift.end}?`;
+}
+
+function getDayOffRangeLabel(shift) {
+  const dates = getMyShiftCoveredDates(shift);
+  if (!dates.length) {
+    return "Выходной день";
+  }
+
+  if (dates.length === 1) {
+    return formatMyDayHeading(dates[0]);
+  }
+
+  return `${formatMyDayHeading(dates[0])} — ${formatMyDayHeading(dates[dates.length - 1])}`;
+}
+
+function getDayOffTimelineMeta(shift, renderDate) {
+  const dates = getMyShiftCoveredDates(shift);
+  const dayIndex = Math.max(0, dates.indexOf(renderDate));
+  if (dates.length === 2) {
+    return {
+      badge: `${dayIndex + 1} из 2`,
+      summary:
+        dayIndex === 0
+          ? `Начало двухдневного выходного · ${formatMonthDayShort(dates[0])} — ${formatMonthDayShort(dates[1])}`
+          : `Второй день двухдневного выходного · ${formatMonthDayShort(dates[0])} — ${formatMonthDayShort(dates[1])}`,
+    };
+  }
+
+  return {
+    badge: "1 день",
+    summary: "День отмечен как выходной.",
+  };
+}
+
 function handleMyShiftSubmit(event) {
   event.preventDefault();
 
+  const kind = getMyShiftFormKind();
   const date = String(el.myShiftDateInput.value || "");
-  const facilityId = String(el.myShiftFacilitySelect.value || "");
-  const start = normalizeTime(String(el.myShiftStartInput.value || ""));
-  const end = normalizeTime(String(el.myShiftEndInput.value || ""));
   const note = String(el.myShiftNoteInput.value || "").trim();
-  const coworkers = getSelectedMyShiftInstructors();
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     setMyScheduleNotice("Выберите корректную дату смены.", "error");
     return;
   }
+
+  const editingShift = state.myEditingShiftId
+    ? state.myShifts.find((item) => item.id === state.myEditingShiftId) || null
+    : null;
+
+  if (kind === MY_SHIFT_KIND.DAY_OFF) {
+    const days = getMyDayOffSpanDays();
+    const coveredDates = Array.from({ length: days }, (_, index) => addDays(date, index));
+    const blockingRecord = coveredDates
+      .map((targetDate) => ({
+        targetDate,
+        record: findMyShiftRecordByCoveredDate(targetDate, () => true, editingShift?.id || ""),
+      }))
+      .find((item) => item.record);
+
+    if (blockingRecord?.record) {
+      setMyScheduleNotice(buildMyShiftConflictMessage(blockingRecord.record, blockingRecord.targetDate), "error");
+      return;
+    }
+
+    const dayOffRecord = {
+      id: editingShift ? editingShift.id : createShiftId(),
+      kind: MY_SHIFT_KIND.DAY_OFF,
+      date,
+      days,
+      note,
+      coworkers: [],
+      createdAt: editingShift?.createdAt || new Date().toISOString(),
+    };
+
+    if (editingShift) {
+      state.myShifts = state.myShifts
+        .map((item) => (item.id === editingShift.id ? dayOffRecord : item))
+        .sort(compareMyShift);
+    } else {
+      state.myShifts = [...state.myShifts, dayOffRecord].sort(compareMyShift);
+    }
+
+    saveMyShifts();
+    state.myScheduleFocusDate = date;
+    state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
+    state.myEditingShiftId = null;
+    resetMyShiftForm({ preserveDate: date });
+    setMyScheduleNotice(editingShift ? "Выходной обновлён." : (days === 2 ? "Выходные добавлены." : "Выходной добавлен."), "success");
+    renderMySchedule();
+    renderMyScheduleEditor();
+    return;
+  }
+
+  const facilityId = String(el.myShiftFacilitySelect.value || "");
+  const start = normalizeTime(String(el.myShiftStartInput.value || ""));
+  const end = normalizeTime(String(el.myShiftEndInput.value || ""));
+  const coworkers = getSelectedMyShiftInstructors();
 
   if (!start || !end) {
     setMyScheduleNotice("Укажите корректное время начала и окончания.", "error");
@@ -1521,12 +1747,16 @@ function handleMyShiftSubmit(event) {
     return;
   }
 
-  const editingShift = state.myEditingShiftId
-    ? state.myShifts.find((item) => item.id === state.myEditingShiftId) || null
-    : null;
+  const blockingDayOff = findMyShiftRecordByCoveredDate(date, isDayOffShift, editingShift?.id || "");
+  if (blockingDayOff) {
+    setMyScheduleNotice(buildMyShiftConflictMessage(blockingDayOff, date), "error");
+    return;
+  }
+
   const facility = getMyFacilityOptions().find((item) => item.id === facilityId);
   const shift = {
     id: editingShift ? editingShift.id : createShiftId(),
+    kind: MY_SHIFT_KIND.WORK,
     date,
     facilityId,
     facilityName: facility ? facility.name : "Объект",
@@ -1562,11 +1792,15 @@ function resetMyShiftForm(options = {}) {
   }
 
   el.myShiftForm.reset();
+  delete el.myShiftForm.dataset.boundShiftId;
+  setMyShiftFormKind(MY_SHIFT_KIND.WORK);
+  setMyDayOffSpanDays(1);
   el.myShiftDateInput.value = preserveDate || state.myScheduleFocusDate || todayIso();
   el.myShiftStartInput.value = "08:00";
   el.myShiftEndInput.value = "10:00";
   renderMyScheduleFacilityOptions();
   renderMyInstructorOptions();
+  syncMyToggleChipState();
   syncMyShiftEditorFormState();
 }
 
@@ -1576,21 +1810,39 @@ function syncMyShiftEditorFormState() {
     : null;
 
   if (editingShift) {
-    el.myShiftDateInput.value = editingShift.date;
-    el.myShiftFacilitySelect.value = editingShift.facilityId;
-    el.myShiftStartInput.value = editingShift.start;
-    el.myShiftEndInput.value = editingShift.end;
-    el.myShiftNoteInput.value = editingShift.note || "";
-    renderMyInstructorOptions(editingShift.coworkers || []);
+    const recordKind = normalizeMyShiftKind(editingShift.kind);
+    const shouldSeedForm = String(el.myShiftForm?.dataset.boundShiftId || "") !== editingShift.id;
+    if (shouldSeedForm) {
+      setMyShiftFormKind(recordKind);
+      el.myShiftDateInput.value = editingShift.date;
+      el.myShiftNoteInput.value = editingShift.note || "";
+      if (recordKind === MY_SHIFT_KIND.DAY_OFF) {
+        setMyDayOffSpanDays(editingShift.days || 1);
+        renderMyInstructorOptions([]);
+      } else {
+        el.myShiftFacilitySelect.value = editingShift.facilityId;
+        el.myShiftStartInput.value = editingShift.start;
+        el.myShiftEndInput.value = editingShift.end;
+        renderMyInstructorOptions(editingShift.coworkers || []);
+      }
+      el.myShiftForm.dataset.boundShiftId = editingShift.id;
+    }
+    const activeKind = getMyShiftFormKind();
+    syncMyToggleChipState();
+    syncMyShiftFormSections(activeKind);
 
     if (el.myEditorTitle) {
-      el.myEditorTitle.textContent = "Редактирование смены";
+      el.myEditorTitle.textContent = activeKind === MY_SHIFT_KIND.DAY_OFF ? "Редактирование выходного" : "Редактирование смены";
     }
     if (el.myEditorSummary) {
-      el.myEditorSummary.textContent = "Измените поля и сохраните обновлённую запись.";
+      el.myEditorSummary.textContent =
+        activeKind === MY_SHIFT_KIND.DAY_OFF
+          ? "Выберите дату и длительность выходного, затем сохраните запись."
+          : "Измените поля и сохраните обновлённую запись.";
     }
     if (el.myShiftSubmitButton) {
-      el.myShiftSubmitButton.textContent = "Сохранить изменения";
+      el.myShiftSubmitButton.textContent =
+        activeKind === MY_SHIFT_KIND.DAY_OFF ? "Сохранить выходной" : "Сохранить изменения";
     }
     if (el.myShiftCancelEditButton) {
       el.myShiftCancelEditButton.hidden = false;
@@ -1598,19 +1850,52 @@ function syncMyShiftEditorFormState() {
     return;
   }
 
+  delete el.myShiftForm.dataset.boundShiftId;
+  const selectedKind = getMyShiftFormKind();
+  const selectedCoworkers = getSelectedMyShiftInstructors();
+  syncMyToggleChipState();
+  syncMyShiftFormSections(selectedKind);
+
   if (el.myEditorTitle) {
-    el.myEditorTitle.textContent = "Добавить смену";
+    el.myEditorTitle.textContent = selectedKind === MY_SHIFT_KIND.DAY_OFF ? "Добавить выходной" : "Добавить смену";
   }
   if (el.myEditorSummary) {
-    el.myEditorSummary.textContent = "Заполните смену и сохраните её в график.";
+    el.myEditorSummary.textContent =
+      selectedKind === MY_SHIFT_KIND.DAY_OFF
+        ? "Отметьте один или два выходных дня подряд."
+        : "Заполните смену и сохраните её в график.";
   }
   if (el.myShiftSubmitButton) {
-    el.myShiftSubmitButton.textContent = "Сохранить смену";
+    el.myShiftSubmitButton.textContent = selectedKind === MY_SHIFT_KIND.DAY_OFF ? "Сохранить выходной" : "Сохранить смену";
   }
   if (el.myShiftCancelEditButton) {
     el.myShiftCancelEditButton.hidden = true;
   }
-  renderMyInstructorOptions();
+  renderMyInstructorOptions(selectedCoworkers);
+}
+
+function syncMyShiftFormSections(kind) {
+  const normalizedKind = normalizeMyShiftKind(kind);
+  const isDayOff = normalizedKind === MY_SHIFT_KIND.DAY_OFF;
+
+  if (el.myShiftWorkFields) {
+    el.myShiftWorkFields.hidden = isDayOff;
+  }
+  if (el.myShiftDayOffOptions) {
+    el.myShiftDayOffOptions.hidden = !isDayOff;
+  }
+  if (el.myShiftFacilitySelect) {
+    el.myShiftFacilitySelect.required = !isDayOff;
+    el.myShiftFacilitySelect.disabled = isDayOff;
+  }
+  if (el.myShiftStartInput) {
+    el.myShiftStartInput.required = !isDayOff;
+    el.myShiftStartInput.disabled = isDayOff;
+  }
+  if (el.myShiftEndInput) {
+    el.myShiftEndInput.required = !isDayOff;
+    el.myShiftEndInput.disabled = isDayOff;
+  }
 }
 
 function renderMyScheduleEditor() {
@@ -1638,11 +1923,16 @@ function renderMyScheduleEditor() {
   const list = [...sorted.filter((item) => item.date >= today), ...sorted.filter((item) => item.date < today).reverse()];
 
   el.myEditorShiftList.innerHTML = list
-    .map((shift) => renderMyEditorShiftCard(shift, getShiftVerification(shift)))
+    .map((shift) => renderMyEditorShiftCard(shift))
     .join("");
 }
 
-function renderMyEditorShiftCard(shift, verification) {
+function renderMyEditorShiftCard(shift) {
+  if (isDayOffShift(shift)) {
+    return renderMyEditorDayOffCard(shift);
+  }
+
+  const verification = getShiftVerification(shift);
   const labelDate = formatMyDayHeading(shift.date);
   const note = normalizeShiftNote(shift.note);
   const noteHtml = note ? `<p class="my-editor-shift-note">${escapeHtml(note)}</p>` : "";
@@ -1660,6 +1950,31 @@ function renderMyEditorShiftCard(shift, verification) {
         <div class="my-editor-shift-meta">
           <span class="my-shift-duration">${escapeHtml(shiftDuration)}</span>
           <span class="my-shift-verify ${escapeHtml(verification.badgeClass)}">${escapeHtml(verification.label)}</span>
+        </div>
+      </div>
+      <div class="my-editor-shift-actions">
+        <button type="button" class="my-editor-action-btn" data-edit-shift="${escapeHtml(shift.id)}">Изменить</button>
+        <button type="button" class="my-editor-action-btn danger" data-delete-shift="${escapeHtml(shift.id)}">Удалить</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderMyEditorDayOffCard(shift) {
+  const note = normalizeShiftNote(shift.note);
+  const noteHtml = note ? `<p class="my-editor-shift-note">${escapeHtml(note)}</p>` : "";
+  const rangeLabel = getDayOffRangeLabel(shift);
+  const spanDays = normalizeDayOffSpanDays(shift.days);
+
+  return `
+    <article class="my-editor-shift-card is-day-off">
+      <div class="my-editor-shift-main">
+        <p class="my-editor-shift-date">${escapeHtml(rangeLabel)}</p>
+        <h4 class="my-editor-shift-title">${escapeHtml(spanDays === 2 ? "Выходные дни" : "Выходной день")}</h4>
+        <p class="my-editor-shift-place">${escapeHtml(spanDays === 2 ? "Два дня подряд без рабочих смен" : "День без рабочих смен")}</p>
+        ${noteHtml}
+        <div class="my-editor-shift-meta">
+          <span class="my-editor-day-off-pill">${escapeHtml(spanDays === 2 ? "2 дня подряд" : "1 день")}</span>
         </div>
       </div>
       <div class="my-editor-shift-actions">
@@ -2661,7 +2976,7 @@ function buildEntryMyShiftImpact(entry) {
 }
 
 function isShiftRelevantForImpact(shift) {
-  return Boolean(shift && typeof shift === "object" && String(shift.date || "") >= todayIso());
+  return Boolean(isWorkingShiftRecord(shift) && String(shift.date || "") >= todayIso());
 }
 
 function doesEventAffectShift(event, shift) {
@@ -3174,7 +3489,7 @@ function handleMyEditorShiftListClick(event) {
     return;
   }
 
-  const confirmed = window.confirm(`Удалить смену ${shift.date} ${shift.start}–${shift.end}?`);
+  const confirmed = window.confirm(buildMyShiftDeletePrompt(shift));
   if (!confirmed) {
     return;
   }
@@ -3186,7 +3501,7 @@ function handleMyEditorShiftListClick(event) {
     resetMyShiftForm();
   }
 
-  setMyScheduleNotice("Смена удалена.", "info");
+  setMyScheduleNotice(isDayOffShift(shift) ? "Выходной удалён." : "Смена удалена.", "info");
   renderMySchedule();
   renderMyScheduleEditor();
 }
@@ -3256,14 +3571,15 @@ function handleMyScheduleTimelineClick(event) {
   setView("my_schedule_editor");
 }
 
-function renderMyScheduleDay(date, shiftChecks, options = {}) {
+function renderMyScheduleDay(date, timelineItems, options = {}) {
   const { spotlight = false } = options;
-  const dayTotalMinutes = shiftChecks.reduce((sum, item) => sum + getShiftDurationMinutes(item.shift), 0);
+  const workingItems = timelineItems.filter((item) => item.kind === MY_SHIFT_KIND.WORK);
+  const hasDayOff = timelineItems.some((item) => item.kind === MY_SHIFT_KIND.DAY_OFF);
+  const dayTotalMinutes = workingItems.reduce((sum, item) => sum + getShiftDurationMinutes(item.shift), 0);
   const dayClasses = ["my-timeline-day"];
   if (spotlight) {
     dayClasses.push("is-spotlight");
   }
-  const isWorkingDay = shiftChecks.length > 0;
   if (date === todayIso()) {
     dayClasses.push("is-today");
   }
@@ -3271,17 +3587,13 @@ function renderMyScheduleDay(date, shiftChecks, options = {}) {
     dayClasses.push("is-weekend");
   }
 
-  const daySummary = isWorkingDay
-    ? `${shiftChecks.length} ${pluralizeRu(shiftChecks.length, "смена", "смены", "смен")} · ${formatDuration(dayTotalMinutes)}`
-    : "Свободный день";
-  const dayBody = isWorkingDay
-    ? shiftChecks
-      .map((item, index) =>
-        renderMyShiftCard(item.shift, item.verification, {
-          leadingGap: index > 0 ? buildMyShiftGapModel(shiftChecks[index - 1], item) : null,
-        })
-      )
-      .join("")
+  const daySummary = workingItems.length
+    ? `${workingItems.length} ${pluralizeRu(workingItems.length, "смена", "смены", "смен")} · ${formatDuration(dayTotalMinutes)}`
+    : hasDayOff
+      ? "Выходной день"
+      : "Свободный день";
+  const dayBody = timelineItems.length
+    ? renderMyScheduleDayItems(timelineItems)
     : `<div class="my-day-empty">На эти сутки смены не добавлены.</div>`;
 
   return `
@@ -3298,6 +3610,32 @@ function renderMyScheduleDay(date, shiftChecks, options = {}) {
       </div>
     </section>
   `;
+}
+
+function renderMyScheduleDayItems(timelineItems) {
+  const parts = [];
+  let previousWorkItem = null;
+
+  for (const item of timelineItems) {
+    if (item.kind === MY_SHIFT_KIND.DAY_OFF) {
+      previousWorkItem = null;
+      parts.push(renderMyDayOffCard(item.shift, { renderDate: item.date }));
+      continue;
+    }
+
+    if (previousWorkItem) {
+      const gapModel = buildMyShiftGapModel(previousWorkItem, item);
+      const gapHtml = renderMyShiftGapDivider(gapModel);
+      if (gapHtml) {
+        parts.push(gapHtml);
+      }
+    }
+
+    parts.push(renderMyShiftCard(item.shift, item.verification));
+    previousWorkItem = item;
+  }
+
+  return parts.join("");
 }
 
 function renderMyChangesSummary() {
@@ -3401,12 +3739,12 @@ function getShiftVerificationBoundaryMinutes(verification, edge) {
   return Number.isFinite(minutes) ? minutes : null;
 }
 
-function renderMyShiftLeadingGap(gapModel) {
+function renderMyShiftGapDivider(gapModel) {
   if (!gapModel || !Number.isFinite(gapModel.minutes) || gapModel.minutes <= 0) {
     return "";
   }
 
-  const classes = ["my-shift-site-break", "my-shift-leading-gap"];
+  const classes = ["my-shift-site-break", "my-day-gap-divider"];
   if (gapModel.modifierClass) {
     classes.push(gapModel.modifierClass);
   }
@@ -3418,8 +3756,28 @@ function renderMyShiftLeadingGap(gapModel) {
   `;
 }
 
-function renderMyShiftCard(shift, verification = getShiftVerification(shift), options = {}) {
-  const { leadingGap = null } = options;
+function renderMyDayOffCard(shift, options = {}) {
+  const renderDate = String(options.renderDate || shift?.date || "");
+  const note = normalizeShiftNote(shift?.note);
+  const noteHtml = note ? `<p class="my-day-off-note">${escapeHtml(note)}</p>` : "";
+  const meta = getDayOffTimelineMeta(shift, renderDate);
+
+  return `
+    <article class="my-day-off-card">
+      <div class="my-day-off-top">
+        <div>
+          <p class="my-day-off-kicker">Личный график</p>
+          <h3>Выходной день</h3>
+        </div>
+        <span class="my-day-off-badge">${escapeHtml(meta.badge)}</span>
+      </div>
+      <p class="my-day-off-summary">${escapeHtml(meta.summary)}</p>
+      ${noteHtml}
+    </article>
+  `;
+}
+
+function renderMyShiftCard(shift, verification = getShiftVerification(shift)) {
   const status = getMyShiftStatus(shift);
   const shiftDuration = formatDuration(getShiftDurationMinutes(shift));
   const coworkersHtml = renderShiftCoworkersLine(shift, "my-shift-coworkers", { labelText: "По смене" });
@@ -3428,11 +3786,9 @@ function renderMyShiftCard(shift, verification = getShiftVerification(shift), op
   const supportHtml = [coworkersHtml, noteHtml].filter(Boolean).join("");
   const siteDetailsHtml = renderMyShiftSiteTimeline(shift, verification);
   const runtimeMeta = [status.label, shiftDuration].filter(Boolean).join(" · ");
-  const leadingGapHtml = renderMyShiftLeadingGap(leadingGap);
 
   return `
     <article class="my-shift-card ${escapeHtml(status.className)} ${escapeHtml(verification.cardClass)}">
-      ${leadingGapHtml}
       <div class="my-shift-top">
         <div class="my-shift-time-wrap">
           <div class="my-shift-time">${escapeHtml(`${shift.start} — ${shift.end}`)}</div>
@@ -3759,6 +4115,10 @@ function getMergedSessionMinutes(sessions) {
 }
 
 function getShiftDurationMinutes(shift) {
+  if (!isWorkingShiftRecord(shift)) {
+    return 0;
+  }
+
   const start = toMinutes(String(shift?.start || ""));
   const end = toMinutes(String(shift?.end || ""));
 
@@ -3786,7 +4146,14 @@ function compareMyShift(a, b) {
   if (a.date !== b.date) {
     return a.date.localeCompare(b.date);
   }
-  return toMinutes(a.start) - toMinutes(b.start);
+
+  const kindA = normalizeMyShiftKind(a?.kind);
+  const kindB = normalizeMyShiftKind(b?.kind);
+  if (kindA !== kindB) {
+    return kindA === MY_SHIFT_KIND.DAY_OFF ? -1 : 1;
+  }
+
+  return toMinutes(String(a.start || "00:00")) - toMinutes(String(b.start || "00:00"));
 }
 
 function normalizeTime(value) {
@@ -4795,9 +5162,23 @@ function normalizeShiftRecords(records, facilityOptions = DEFAULT_FACILITY_OPTIO
   return records
     .filter((item) => item && typeof item === "object")
     .map((item) => {
+      const kind = normalizeMyShiftKind(item.kind || item.type);
+      if (kind === MY_SHIFT_KIND.DAY_OFF) {
+        return {
+          id: String(item.id || createShiftId()),
+          kind,
+          date: String(item.date || ""),
+          days: normalizeDayOffSpanDays(item.days || item.dayCount || item.duration || item.length),
+          note: normalizeShiftNote(item.note),
+          coworkers: [],
+          createdAt: String(item.createdAt || ""),
+        };
+      }
+
       const facility = resolveImportedFacility(item, facilityOptions);
       return {
         id: String(item.id || createShiftId()),
+        kind,
         date: String(item.date || ""),
         facilityId: String(facility.facilityId || ""),
         facilityName: String(facility.facilityName || ""),
@@ -4816,13 +5197,20 @@ function normalizeShiftRecords(records, facilityOptions = DEFAULT_FACILITY_OPTIO
         createdAt: String(item.createdAt || ""),
       };
     })
-    .filter((item) => (
-      /^\d{4}-\d{2}-\d{2}$/.test(item.date)
-      && item.facilityId
-      && item.start
-      && item.end
-      && toMinutes(item.end) > toMinutes(item.start)
-    ))
+    .filter((item) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
+        return false;
+      }
+      if (isDayOffShift(item)) {
+        return true;
+      }
+      return Boolean(
+        item.facilityId
+        && item.start
+        && item.end
+        && toMinutes(item.end) > toMinutes(item.start)
+      );
+    })
     .sort(compareMyShift);
 }
 
@@ -4911,6 +5299,7 @@ function syncStaffShiftsWithMyShifts() {
   const previous = JSON.stringify(state.staffShifts || []);
   const activeKeys = new Set(
     (state.myShifts || [])
+      .filter(isWorkingShiftRecord)
       .map((shift) => `${String(shift?.date || "")}|${String(shift?.facilityId || "")}`)
       .filter((key) => !key.startsWith("|") && !key.endsWith("|"))
   );

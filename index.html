@@ -234,29 +234,62 @@
 
           <form id="myShiftForm" class="my-shift-form" autocomplete="off">
             <label class="my-field">
+              <span>Тип записи</span>
+              <div class="my-choice-row" role="radiogroup" aria-label="Тип записи">
+                <label class="my-toggle-chip is-wide">
+                  <input id="myShiftKindWorkInput" type="radio" name="myShiftKind" value="shift" checked />
+                  <span>Смена</span>
+                </label>
+                <label class="my-toggle-chip is-wide">
+                  <input id="myShiftKindDayOffInput" type="radio" name="myShiftKind" value="day_off" />
+                  <span>Выходной</span>
+                </label>
+              </div>
+            </label>
+
+            <label class="my-field">
               <span>Дата</span>
               <input id="myShiftDateInput" type="date" required />
             </label>
 
-            <label class="my-field">
-              <span>Объект</span>
-              <select id="myShiftFacilitySelect" required></select>
-            </label>
-
-            <label class="my-field">
-              <span>С кем работаю</span>
-              <div id="myShiftInstructorsList" class="my-instructors-list" role="group" aria-label="Выбор инструкторов"></div>
-              <small class="my-field-hint">Можно выбрать одного или нескольких инструкторов.</small>
-            </label>
-
-            <div class="my-time-row">
+            <div id="myShiftWorkFields" class="my-shift-work-fields">
               <label class="my-field">
-                <span>Начало</span>
-                <input id="myShiftStartInput" type="time" required />
+                <span>Объект</span>
+                <select id="myShiftFacilitySelect" required></select>
               </label>
+
               <label class="my-field">
-                <span>Конец</span>
-                <input id="myShiftEndInput" type="time" required />
+                <span>С кем работаю</span>
+                <div id="myShiftInstructorsList" class="my-instructors-list" role="group" aria-label="Выбор инструкторов"></div>
+                <small class="my-field-hint">Можно выбрать одного или нескольких инструкторов.</small>
+              </label>
+
+              <div class="my-time-row">
+                <label class="my-field">
+                  <span>Начало</span>
+                  <input id="myShiftStartInput" type="time" required />
+                </label>
+                <label class="my-field">
+                  <span>Конец</span>
+                  <input id="myShiftEndInput" type="time" required />
+                </label>
+              </div>
+            </div>
+
+            <div id="myShiftDayOffOptions" class="my-shift-dayoff-fields" hidden>
+              <label class="my-field">
+                <span>Длительность</span>
+                <div class="my-choice-row" role="radiogroup" aria-label="Длительность выходного">
+                  <label class="my-toggle-chip is-wide">
+                    <input id="myDayOffSpanOneInput" type="radio" name="myDayOffSpan" value="1" checked />
+                    <span>1 день</span>
+                  </label>
+                  <label class="my-toggle-chip is-wide">
+                    <input id="myDayOffSpanTwoInput" type="radio" name="myDayOffSpan" value="2" />
+                    <span>2 дня</span>
+                  </label>
+                </div>
+                <small class="my-field-hint">Можно сразу отметить два выходных дня подряд.</small>
               </label>
             </div>
 
@@ -266,7 +299,7 @@
                 id="myShiftNoteInput"
                 type="text"
                 maxlength="80"
-                placeholder="Например: подмена, тренажёрный зал"
+                placeholder="Например: подмена, тренажёрный зал или личный выходной"
               />
             </label>
 
