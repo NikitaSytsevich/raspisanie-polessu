@@ -1676,10 +1676,7 @@ function handleMyShiftSubmit(event) {
     return;
   }
 
-  if (date >= todayIso() && isWeeklyDayOffDate(date)) {
-    setMyScheduleNotice(buildMyShiftConflictMessage(date), "error");
-    return;
-  }
+  const isWeeklyDayOff = date >= todayIso() && isWeeklyDayOffDate(date);
 
   const facility = getMyFacilityOptions().find((item) => item.id === facilityId);
   const shift = {
@@ -1708,7 +1705,9 @@ function handleMyShiftSubmit(event) {
   state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
   state.myEditingShiftId = null;
   resetMyShiftForm({ preserveDate: date });
-  setMyScheduleNotice(editingShift ? "Смена обновлена." : "Смена добавлена в график.", "success");
+  const baseMessage = editingShift ? "Смена обновлена." : "Смена добавлена в график.";
+  const noticeMessage = isWeeklyDayOff ? `${baseMessage} ${buildMyShiftConflictMessage(date)}` : baseMessage;
+  setMyScheduleNotice(noticeMessage, "success");
   renderMySchedule();
   renderMyScheduleEditor();
 }
