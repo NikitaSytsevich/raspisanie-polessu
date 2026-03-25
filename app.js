@@ -22,10 +22,26 @@ const DEFAULT_INSTRUCTORS = [
   { id: "karavaychik_kv", name: "Каравайчик К.В." },
 ];
 const DEFAULT_FACILITY_OPTIONS = [
-  { id: "ice_arena", name: "Ледовая арена" },
-  { id: "sports_pool", name: "Спортивный бассейн" },
-  { id: "small_pool", name: "Малый бассейн" },
-  { id: "rowing_base", name: "Гребная база" },
+  {
+    id: "ice_arena",
+    name: "Ледовая арена",
+    sourceUrl: "https://www.polessu.by/%D0%BB%D0%B5%D0%B4%D0%BE%D0%B2%D0%B0%D1%8F-%D0%B0%D1%80%D0%B5%D0%BD%D0%B0-%D0%BF%D0%BE%D0%BB%D0%B5%D1%81%D0%B3%D1%83",
+  },
+  {
+    id: "sports_pool",
+    name: "Спортивный бассейн",
+    sourceUrl: "https://www.polessu.by/%D0%B1%D0%BE%D0%BB%D1%8C%D1%88%D0%BE%D0%B9-%D0%B1%D0%B0%D1%81%D1%81%D0%B5%D0%B9%D0%BD",
+  },
+  {
+    id: "small_pool",
+    name: "Малый бассейн",
+    sourceUrl: "https://www.polessu.by/%D0%BC%D0%B0%D0%BB%D1%8B%D0%B9-%D0%B1%D0%B0%D1%81%D1%81%D0%B5%D0%B9%D0%BD",
+  },
+  {
+    id: "rowing_base",
+    name: "Гребная база",
+    sourceUrl: "https://www.polessu.by/%D1%80%D0%B0%D1%81%D0%BF%D0%B8%D1%81%D0%B0%D0%BD%D0%B8%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B-%D1%82%D1%80%D0%B5%D0%BD%D0%B0%D0%B6%D0%B5%D1%80%D0%BD%D0%BE%D0%B3%D0%BE-%D0%B7%D0%B0%D0%BB%D0%B0-%D0%B8-%D0%B7%D0%B0%D0%BB%D0%B0-%D1%88%D1%82%D0%B0%D0%BD%D0%B3%D0%B8-%D0%B3%D1%80%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F-%D0%B1%D0%B0%D0%B7%D0%B0-%E2%84%961",
+  },
 ];
 
 const MY_SCHEDULE_RANGE = {
@@ -1388,6 +1404,7 @@ function getFacilityOptionsFromData(data) {
     return data.facilities.map((facility) => ({
       id: String(facility.id),
       name: String(facility.name),
+      sourceUrl: sanitizeHttpUrl(facility.sourceUrl),
     }));
   }
 
@@ -3303,11 +3320,11 @@ function resolveSiteChangeEventUrl(event) {
 
 function resolveFacilitySourceUrl(facilityId) {
   const targetId = String(facilityId || "").trim();
-  if (!targetId || !Array.isArray(state.data?.facilities)) {
+  if (!targetId) {
     return "";
   }
 
-  const facility = state.data.facilities.find((item) => String(item?.id || "") === targetId) || null;
+  const facility = getMyFacilityOptions().find((item) => String(item?.id || "") === targetId) || null;
   return sanitizeHttpUrl(facility?.sourceUrl);
 }
 
@@ -3770,7 +3787,8 @@ function renderShiftCoworkersLine(shift, className, options = {}) {
 function renderMyShiftSiteTimeline(shift, verification) {
   const sessions = Array.isArray(verification.siteSessions) ? verification.siteSessions : [];
   const staffEntries = getShiftStaffOverlapEntries(shift);
-  if (!sessions.length && !String(verification.detail || "").trim()) {
+  const sourceUrl = resolveFacilitySourceUrl(shift?.facilityId);
+  if (!sessions.length && !String(verification.detail || "").trim() && !sourceUrl) {
     return "";
   }
 
@@ -3811,6 +3829,24 @@ function renderMyShiftSiteTimeline(shift, verification) {
 
   const toneClass =
     verification.status === "missing" ? "is-alert" : verification.status === "unknown" ? "is-muted" : "is-partial";
+  const sourceLinkLabel = `Открыть расписание ${resolveShiftFacilityName(shift)} на polessu.by`;
+  const sourceLinkHtml = sourceUrl
+    ? `
+      <div class="my-shift-site-actions">
+        <a
+          class="my-shift-site-link"
+          href="${escapeHtml(sourceUrl)}"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="${escapeHtml(sourceLinkLabel)}"
+          title="${escapeHtml(sourceLinkLabel)}"
+        >
+          <span>Официальное расписание</span>
+          <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+        </a>
+      </div>
+    `
+    : "";
 
   return `
     <div class="my-shift-site-strip ${escapeHtml(toneClass)}">
@@ -3820,6 +3856,7 @@ function renderMyShiftSiteTimeline(shift, verification) {
       </div>
       ${detailText ? `<p class="my-shift-site-message">${escapeHtml(detailText)}</p>` : ""}
       ${rows.length ? `<div class="my-shift-site-list">${rows.join("")}</div>` : ""}
+      ${sourceLinkHtml}
     </div>
   `;
 }

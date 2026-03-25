@@ -2600,6 +2600,11 @@ body::before {
   gap: 7px;
 }
 
+.my-shift-site-actions {
+  display: flex;
+  margin-top: 2px;
+}
+
 .my-shift-site-title {
   margin: 0;
   font-size: 11px;
@@ -2675,6 +2680,55 @@ body::before {
   line-height: 1.35;
   font-weight: 700;
   color: #bfdbfe;
+}
+
+.my-shift-site-link {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(96, 165, 250, 0.24);
+  background:
+    linear-gradient(180deg, rgba(37, 99, 235, 0.24), rgba(29, 78, 216, 0.16)),
+    rgba(15, 23, 42, 0.28);
+  color: #dbeafe;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  box-sizing: border-box;
+  transition:
+    transform 140ms ease,
+    border-color 180ms ease,
+    box-shadow 200ms ease,
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.my-shift-site-link .material-symbols-outlined {
+  font-size: 18px;
+  line-height: 1;
+  color: #93c5fd;
+  flex-shrink: 0;
+}
+
+.my-shift-site-link:hover,
+.my-shift-site-link:focus-visible {
+  border-color: rgba(125, 211, 252, 0.44);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.18);
+}
+
+.my-shift-site-link:focus-visible {
+  outline: none;
+}
+
+.my-shift-site-link:active {
+  transform: scale(0.99);
 }
 
 .my-shift-site-break {
@@ -3806,6 +3860,25 @@ html.light .my-shift-site-note {
 
 html.light .my-shift-site-coworkers {
   color: #1d4ed8;
+}
+
+html.light .my-shift-site-link {
+  border-color: rgba(37, 99, 235, 0.2);
+  background:
+    linear-gradient(180deg, rgba(219, 234, 254, 0.96), rgba(239, 246, 255, 0.94)),
+    #ffffff;
+  color: #1d4ed8;
+  box-shadow: none;
+}
+
+html.light .my-shift-site-link .material-symbols-outlined {
+  color: #2563eb;
+}
+
+html.light .my-shift-site-link:hover,
+html.light .my-shift-site-link:focus-visible {
+  border-color: rgba(37, 99, 235, 0.34);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.1);
 }
 
 html.light .my-shift-site-summary {
