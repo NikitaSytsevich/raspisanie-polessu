@@ -309,7 +309,7 @@ async function parseFacilityFromUrl(facility, sourceUrl) {
 function isParsedResultUsable(parsed) {
   const days = Array.isArray(parsed?.days) ? parsed.days : [];
   if (!days.length) {
-    return false;
+    return Boolean(String(parsed?.serviceNotice?.message || "").trim());
   }
   return days.some((day) => (
     (Array.isArray(day?.sessions) && day.sessions.length > 0)
@@ -627,6 +627,7 @@ function parseSportsPoolFacility(context, facility) {
   const notes = [];
   const warnings = [];
   const extraPrograms = extractSupplementaryPrograms(lines);
+  const prefaceLines = [];
   let currentDate = null;
   let currentWeekday = null;
 
@@ -637,11 +638,6 @@ function parseSportsPoolFacility(context, facility) {
     }
 
     if (/^Расписание работы большого плавательного бассейна$/i.test(line)) {
-      continue;
-    }
-
-    if (/уважаемые посетители|приносим свои извинения/i.test(line)) {
-      warnings.push(line);
       continue;
     }
 
@@ -662,6 +658,8 @@ function parseSportsPoolFacility(context, facility) {
     if (!currentDate) {
       if (/расписан|абонемент|оплат/i.test(line)) {
         notes.push(line);
+      } else if (!isPostScheduleSection(line) && !extractRangesFromLine(line).length) {
+        prefaceLines.push(line);
       }
       continue;
     }
@@ -689,8 +687,12 @@ function parseSportsPoolFacility(context, facility) {
   }
 
   const days = finalizeDayMap(dayMap);
+  const serviceNotice = buildFacilityServiceNotice(prefaceLines, {
+    facilityName: facility?.name,
+    hasSchedule: days.length > 0,
+  });
   if (!days.length) {
-    warnings.push("На странице большого бассейна не найдено расписание");
+    warnings.push(serviceNotice?.message || "На странице большого бассейна не найдено расписание");
   }
 
   return {
@@ -699,6 +701,8 @@ function parseSportsPoolFacility(context, facility) {
     extraPrograms,
     notes: uniq(notes),
     warnings: uniq(warnings),
+    serviceNotice,
+    dataQuality: serviceNotice && !days.length ? "notice" : "exact",
     comparisonMode: "dated",
   };
 }
@@ -709,6 +713,7 @@ function parseSmallPoolFacility(context, facility) {
   const notes = [];
   const warnings = [];
   const extraPrograms = extractSupplementaryPrograms(lines);
+  const prefaceLines = [];
   let currentDate = null;
   let currentWeekday = null;
 
@@ -736,6 +741,8 @@ function parseSmallPoolFacility(context, facility) {
     if (!currentDate) {
       if (/расписан|абонемент|оплат|стоимость/i.test(line)) {
         notes.push(line);
+      } else if (!isPostScheduleSection(line) && !extractRangesFromLine(line).length) {
+        prefaceLines.push(line);
       }
       continue;
     }
@@ -760,8 +767,12 @@ function parseSmallPoolFacility(context, facility) {
   }
 
   const days = finalizeDayMap(dayMap);
+  const serviceNotice = buildFacilityServiceNotice(prefaceLines, {
+    facilityName: facility?.name,
+    hasSchedule: days.length > 0,
+  });
   if (!days.length) {
-    warnings.push("На странице малого бассейна не найдено расписание");
+    warnings.push(serviceNotice?.message || "На странице малого бассейна не найдено расписание");
   }
 
   return {
@@ -769,7 +780,9 @@ function parseSmallPoolFacility(context, facility) {
     template: null,
     extraPrograms,
     notes: uniq(notes),
-    warnings,
+    warnings: uniq(warnings),
+    serviceNotice,
+    dataQuality: serviceNotice && !days.length ? "notice" : "exact",
     comparisonMode: "dated",
   };
 }
@@ -848,6 +861,161 @@ function parseRowingBaseFacility(context, facility) {
     warnings,
     comparisonMode: "template",
   };
+}
+
+function buildFacilityServiceNotice(lines, options = {}) {
+  const facilityName = String(options?.facilityName || "").trim().toLowerCase();
+  const compactLines = compactNoticeLines(lines)
+    .filter((line) => line.toLowerCase() !== facilityName)
+    .filter((line) => !/^расписание\b/i.test(line))
+    .filter((line) => !/^уважаемые посетители!?$/i.test(line));
+  const meaningfulLines = compactLines.filter((line) => !/^приносим свои извинения[.!]?$/i.test(line));
+  if (!meaningfulLines.length) {
+    return null;
+  }
+
+  const message = compactLines.join(" ").replace(/\s+/g, " ").trim();
+  if (!message) {
+    return null;
+  }
+
+  const kind = classifyFacilityServiceNotice(message);
+  const dates = extractIsoDatesFromText(message);
+  const startDate = dates[0] || null;
+  const endDate = dates[1] || null;
+  const hasSchedule = Boolean(options?.hasSchedule);
+  const blocksSchedule = kind !== "notice" || !hasSchedule;
+
+  return {
+    kind,
+    tone: blocksSchedule ? "warning" : "info",
+    badge: resolveFacilityServiceNoticeBadge(kind, blocksSchedule),
+    summary: buildFacilityServiceNoticeSummary(kind, startDate, blocksSchedule),
+    message,
+    startDate,
+    endDate,
+    blocksSchedule,
+    lines: compactLines,
+  };
+}
+
+function compactNoticeLines(lines) {
+  const result = [];
+
+  for (const rawLine of lines || []) {
+    const line = sanitizeFacilityNoticeLine(rawLine);
+    if (!line) {
+      continue;
+    }
+
+    if (!result.length) {
+      result.push(line);
+      continue;
+    }
+
+    const previous = result[result.length - 1];
+    const shouldMerge = !/[.!?…:]$/.test(previous) || /^[а-яё(]/i.test(line);
+    if (shouldMerge) {
+      result[result.length - 1] = `${previous} ${line}`.replace(/\s+/g, " ").trim();
+    } else {
+      result.push(line);
+    }
+  }
+
+  return result;
+}
+
+function sanitizeFacilityNoticeLine(line) {
+  return normalizeLine(String(line || ""))
+    .replace(/^объявление[:\s-]*/i, "")
+    .replace(/^уважаемые посетители!?[\s:-]*/i, "")
+    .trim();
+}
+
+function classifyFacilityServiceNotice(message) {
+  const text = String(message || "").toLowerCase();
+  if (/ремонт|техничес|профилактик|аварийн|внепланов/i.test(text)) {
+    return "maintenance";
+  }
+  if (/не работает|приостанов|закрыт|закрыта|закрыто|отмен/i.test(text)) {
+    return "closure";
+  }
+  return "notice";
+}
+
+function resolveFacilityServiceNoticeBadge(kind, blocksSchedule) {
+  if (kind === "maintenance") {
+    return "Техработы";
+  }
+  if (kind === "closure") {
+    return "Закрыто";
+  }
+  return blocksSchedule ? "Внимание" : "Сообщение";
+}
+
+function buildFacilityServiceNoticeSummary(kind, startDate, blocksSchedule) {
+  const formattedDate = formatIsoDateRu(startDate);
+  if (kind === "maintenance") {
+    return formattedDate ? `Техработы с ${formattedDate}` : "Идут техработы";
+  }
+  if (kind === "closure") {
+    return formattedDate ? `Работа приостановлена с ${formattedDate}` : "Работа временно приостановлена";
+  }
+  return blocksSchedule ? "На сайте опубликовано служебное сообщение" : "На сайте опубликовано информационное сообщение";
+}
+
+function extractIsoDatesFromText(text) {
+  const source = String(text || "");
+  const result = [];
+  const digitRegex = /(\d{2}\.\d{2}\.\d{4})/g;
+  const wordRegex =
+    /\b(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+(\d{4})\b/gi;
+  const monthMap = {
+    января: "01",
+    февраля: "02",
+    марта: "03",
+    апреля: "04",
+    мая: "05",
+    июня: "06",
+    июля: "07",
+    августа: "08",
+    сентября: "09",
+    октября: "10",
+    ноября: "11",
+    декабря: "12",
+  };
+
+  for (const match of source.matchAll(digitRegex)) {
+    const iso = ddmmyyyyToIso(match[1]);
+    if (iso) {
+      result.push(iso);
+    }
+  }
+
+  for (const match of source.matchAll(wordRegex)) {
+    const day = String(match[1]).padStart(2, "0");
+    const month = monthMap[String(match[2] || "").toLowerCase()];
+    const year = String(match[3] || "");
+    if (month && year) {
+      result.push(`${year}-${month}-${day}`);
+    }
+  }
+
+  return uniq(result);
+}
+
+function formatIsoDateRu(isoDate) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(isoDate || ""))) {
+    return "";
+  }
+
+  const date = new Date(`${isoDate}T12:00:00Z`);
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: TIMEZONE,
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
 }
 
 function extractDatedHeader(line) {

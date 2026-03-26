@@ -68,6 +68,9 @@ const SITE_CHANGES_HISTORY_LIMIT = 20;
 const SITE_CHANGES_EVENTS_LIMIT = 24;
 const SITE_CHANGES_LATEST_EVENTS_LIMIT = 8;
 const SITE_CHANGES_HISTORY_PREVIEW_LIMIT = 8;
+const SHIFT_EDGE_OVERLAP_MINUTES = 20;
+const SHIFT_EDGE_OVERLAP_MAX_MINUTES = 30;
+const SHIFT_EDGE_OVERLAP_MAX_RATIO = 0.5;
 const siteChangesUtils = window.SiteChangesUtils || null;
 
 const state = {
@@ -3828,7 +3831,13 @@ function renderMyShiftSiteTimeline(shift, verification) {
   }
 
   const toneClass =
-    verification.status === "missing" ? "is-alert" : verification.status === "unknown" ? "is-muted" : "is-partial";
+    verification.status === "missing"
+      ? "is-alert"
+      : verification.status === "unknown"
+        ? "is-muted"
+        : verification.status === "edge"
+          ? "is-edge"
+          : "is-partial";
   const sourceLinkLabel = `Открыть расписание ${resolveShiftFacilityName(shift)} на polessu.by`;
   const sourceLinkHtml = sourceUrl
     ? `
@@ -3875,6 +3884,14 @@ function renderMyShiftBreak(minutes, facilityId) {
 function buildMyShiftSiteSummary(verification, sessions) {
   if (verification.status === "unknown") {
     return "Нет данных";
+  }
+
+  if (verification.status === "edge") {
+    return buildEdgeOverlapSummary(verification.edgeSessions);
+  }
+
+  if (verification.status === "notice") {
+    return String(verification.serviceNotice?.summary || verification.label || "Сообщение сайта");
   }
 
   if (verification.status === "missing") {
@@ -3924,6 +3941,8 @@ function getShiftVerification(shift) {
   const fallback = {
     siteSessions: [],
     confirmedMinutes: 0,
+    edgeSessions: [],
+    serviceNotice: null,
   };
   if (!state.data?.facilities?.length) {
     return {
@@ -3952,6 +3971,20 @@ function getShiftVerification(shift) {
 
   const day = facility.days?.find((item) => item.date === shift.date);
   const sessions = Array.isArray(day?.sessions) ? day.sessions : [];
+  const serviceNotice = resolveFacilityServiceNoticeForDate(facility, shift.date);
+  if (serviceNotice && !sessions.length) {
+    return {
+      ...fallback,
+      status: "notice",
+      label: String(serviceNotice.badge || "Сообщение"),
+      badgeClass: "verify-notice",
+      cardClass: "shift-notice",
+      strike: false,
+      detail: String(serviceNotice.message || "На сайте опубликовано служебное сообщение."),
+      serviceNotice,
+    };
+  }
+
   if (!sessions.length) {
     return {
       status: "missing",
@@ -3965,7 +3998,6 @@ function getShiftVerification(shift) {
   }
 
   const overlapSessions = getOverlapSiteSessions(sessions, shift.start, shift.end);
-  const confirmedMinutes = getMergedSessionMinutes(overlapSessions);
   if (!overlapSessions.length) {
     return {
       status: "missing",
@@ -3978,9 +4010,27 @@ function getShiftVerification(shift) {
     };
   }
 
+  const overlapModel = buildShiftOverlapModel(overlapSessions);
+  const confirmedMinutes = getMergedSessionMinutes(overlapModel.primarySessions);
+
   const hasExact = sessions.some(
     (session) => normalizeTime(String(session.start || "")) === shift.start && normalizeTime(String(session.end || "")) === shift.end
   );
+  if (!overlapModel.primarySessions.length && overlapModel.edgeSessions.length) {
+    return {
+      ...fallback,
+      status: "edge",
+      label: "На границе",
+      badgeClass: "verify-edge",
+      cardClass: "shift-edge",
+      strike: false,
+      siteSessions: [],
+      confirmedMinutes: 0,
+      edgeSessions: overlapModel.edgeSessions,
+      detail: buildEdgeOverlapDetail(overlapModel.edgeSessions),
+    };
+  }
+
   if (hasExact) {
     return {
       status: "matched",
@@ -3988,9 +4038,10 @@ function getShiftVerification(shift) {
       badgeClass: "verify-matched",
       cardClass: "",
       strike: false,
-      siteSessions: overlapSessions,
+      siteSessions: overlapModel.primarySessions,
       confirmedMinutes,
-      detail: "",
+      edgeSessions: overlapModel.edgeSessions,
+      detail: overlapModel.edgeSessions.length ? buildMixedEdgeOverlapDetail(overlapModel.edgeSessions) : "",
     };
   }
 
@@ -4000,10 +4051,37 @@ function getShiftVerification(shift) {
     badgeClass: "verify-partial",
     cardClass: "",
     strike: false,
-    siteSessions: overlapSessions,
+    siteSessions: overlapModel.primarySessions,
     confirmedMinutes,
-    detail: "На сайте совпадает только часть смены.",
+    edgeSessions: overlapModel.edgeSessions,
+    detail: overlapModel.edgeSessions.length
+      ? `Часть смены совпадает с сайтом. ${buildMixedEdgeOverlapDetail(overlapModel.edgeSessions)}`
+      : "На сайте совпадает только часть смены.",
   };
+}
+
+function resolveFacilityServiceNoticeForDate(facility, isoDate) {
+  const notice = facility?.serviceNotice;
+  if (!notice || !String(notice.message || "").trim()) {
+    return null;
+  }
+
+  if (!Boolean(notice.blocksSchedule) && Array.isArray(facility?.days) && facility.days.length) {
+    return null;
+  }
+
+  const startDate = String(notice.startDate || "").trim();
+  const endDate = String(notice.endDate || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(isoDate || ""))) {
+    if (startDate && isoDate < startDate) {
+      return null;
+    }
+    if (endDate && isoDate > endDate) {
+      return null;
+    }
+  }
+
+  return notice;
 }
 
 function getOverlapSiteSessions(sessions, shiftStartText, shiftEndText) {
@@ -4031,10 +4109,14 @@ function getOverlapSiteSessions(sessions, shiftStartText, shiftEndText) {
       end: minutesToTime(overlapEnd),
       startMinutes: overlapStart,
       endMinutes: overlapEnd,
+      overlapMinutes: overlapEnd - overlapStart,
       siteStart: normalizedStart,
       siteEnd: normalizedEnd,
       siteStartMinutes: sessionStart,
       siteEndMinutes: sessionEnd,
+      siteDurationMinutes: sessionEnd - sessionStart,
+      touchesShiftStart: overlapStart === shiftStart,
+      touchesShiftEnd: overlapEnd === shiftEnd,
       activity: String(session.activity || session.note || "Сеанс"),
       note: String(session.note || ""),
       clipped: overlapStart !== sessionStart || overlapEnd !== sessionEnd,
@@ -4042,6 +4124,96 @@ function getOverlapSiteSessions(sessions, shiftStartText, shiftEndText) {
   }
 
   return overlaps.sort((a, b) => a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes);
+}
+
+function buildShiftOverlapModel(overlapSessions) {
+  const primarySessions = [];
+  const edgeSessions = [];
+
+  for (const session of overlapSessions || []) {
+    if (isShiftEdgeOverlapSession(session)) {
+      edgeSessions.push(session);
+    } else {
+      primarySessions.push(session);
+    }
+  }
+
+  return {
+    primarySessions,
+    edgeSessions,
+  };
+}
+
+function isShiftEdgeOverlapSession(session) {
+  if (!session?.clipped) {
+    return false;
+  }
+
+  if (!session.touchesShiftStart && !session.touchesShiftEnd) {
+    return false;
+  }
+
+  const overlapMinutes = Number(session.overlapMinutes);
+  const siteDurationMinutes = Number(session.siteDurationMinutes);
+  if (!Number.isFinite(overlapMinutes) || overlapMinutes <= 0) {
+    return false;
+  }
+
+  if (overlapMinutes <= SHIFT_EDGE_OVERLAP_MINUTES) {
+    return true;
+  }
+
+  if (!Number.isFinite(siteDurationMinutes) || siteDurationMinutes <= 0) {
+    return false;
+  }
+
+  return overlapMinutes <= SHIFT_EDGE_OVERLAP_MAX_MINUTES
+    && overlapMinutes / siteDurationMinutes < SHIFT_EDGE_OVERLAP_MAX_RATIO;
+}
+
+function buildEdgeOverlapSummary(edgeSessions) {
+  const session = Array.isArray(edgeSessions) ? edgeSessions[0] : null;
+  if (!session || !Number.isFinite(session.overlapMinutes)) {
+    return "Пограничное совпадение";
+  }
+
+  return `В смену попадает только ${formatDuration(session.overlapMinutes)}`;
+}
+
+function buildEdgeOverlapDetail(edgeSessions) {
+  const sessions = Array.isArray(edgeSessions) ? edgeSessions.filter(Boolean) : [];
+  if (!sessions.length) {
+    return "";
+  }
+
+  const lead = formatEdgeOverlapExplanation(sessions[0]);
+  if (sessions.length === 1) {
+    return `Сеанс сайта касается только границы смены: ${lead}.`;
+  }
+
+  const extraCount = sessions.length - 1;
+  return `${sessions.length} сеанса сайта касаются только границы смены. Первый: ${lead}. Ещё ${extraCount} ${pluralizeRu(extraCount, "случай", "случая", "случаев")}.`;
+}
+
+function buildMixedEdgeOverlapDetail(edgeSessions) {
+  const sessions = Array.isArray(edgeSessions) ? edgeSessions.filter(Boolean) : [];
+  if (!sessions.length) {
+    return "";
+  }
+
+  const lead = formatEdgeOverlapExplanation(sessions[0]);
+  if (sessions.length === 1) {
+    return `Ещё один сеанс касается только границы смены: ${lead}.`;
+  }
+
+  return `Есть ${sessions.length} пограничных пересечения с сеансами сайта. Первый: ${lead}.`;
+}
+
+function formatEdgeOverlapExplanation(session) {
+  const siteLabel = `${session.siteStart} — ${session.siteEnd}`;
+  const overlapLabel = `${session.start} — ${session.end}`;
+  const overlapDuration = formatDuration(Number(session.overlapMinutes) || 0);
+  return `сайт ${siteLabel}, в смену попадает ${overlapDuration} (${overlapLabel})`;
 }
 
 function getMergedSessionMinutes(sessions) {

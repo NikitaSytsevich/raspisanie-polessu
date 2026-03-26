@@ -2577,6 +2577,11 @@ body::before {
   background: rgba(120, 53, 15, 0.12);
 }
 
+.my-shift-site-strip.is-edge {
+  border-color: rgba(251, 191, 36, 0.22);
+  background: rgba(92, 45, 5, 0.14);
+}
+
 .my-shift-site-strip.is-alert {
   border-color: rgba(248, 113, 113, 0.24);
   background: rgba(127, 29, 29, 0.14);
@@ -2849,10 +2854,22 @@ body::before {
   background: rgba(245, 158, 11, 0.14);
 }
 
+.my-shift-verify.verify-edge {
+  border: 1px solid rgba(251, 191, 36, 0.42);
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.18);
+}
+
 .my-shift-verify.verify-missing {
   border: 1px solid rgba(248, 113, 113, 0.4);
   color: #fecaca;
   background: rgba(248, 113, 113, 0.14);
+}
+
+.my-shift-verify.verify-notice {
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.16);
 }
 
 .my-shift-verify.verify-unknown {
@@ -2866,8 +2883,26 @@ body::before {
   background: rgba(15, 23, 42, 0.62);
 }
 
+.my-shift-card.shift-notice {
+  border-color: rgba(245, 158, 11, 0.24);
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.my-shift-card.shift-edge {
+  border-color: rgba(251, 191, 36, 0.24);
+  background: rgba(15, 23, 42, 0.58);
+}
+
 .my-shift-card.shift-missing::before {
   background: linear-gradient(180deg, rgba(248, 113, 113, 0.95), rgba(220, 38, 38, 0.92));
+}
+
+.my-shift-card.shift-edge::before {
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.96), rgba(217, 119, 6, 0.92));
+}
+
+.my-shift-card.shift-notice::before {
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.95), rgba(217, 119, 6, 0.9));
 }
 
 .my-shift-text-missing {
@@ -3832,6 +3867,11 @@ html.light .my-shift-site-strip.is-partial {
   background: rgba(255, 247, 237, 0.94);
 }
 
+html.light .my-shift-site-strip.is-edge {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(255, 251, 235, 0.96);
+}
+
 html.light .my-shift-site-strip.is-alert {
   border-color: rgba(239, 68, 68, 0.24);
   background: rgba(254, 242, 242, 0.96);
@@ -3936,10 +3976,22 @@ html.light .my-shift-verify.verify-partial {
   background: rgba(254, 243, 199, 0.9);
 }
 
+html.light .my-shift-verify.verify-edge {
+  border-color: rgba(217, 119, 6, 0.36);
+  color: #92400e;
+  background: rgba(254, 243, 199, 0.96);
+}
+
 html.light .my-shift-verify.verify-missing {
   border-color: rgba(220, 38, 38, 0.38);
   color: #991b1b;
   background: rgba(254, 226, 226, 0.94);
+}
+
+html.light .my-shift-verify.verify-notice {
+  border-color: rgba(217, 119, 6, 0.34);
+  color: #92400e;
+  background: rgba(254, 243, 199, 0.94);
 }
 
 html.light .my-shift-verify.verify-unknown {
@@ -3950,6 +4002,16 @@ html.light .my-shift-verify.verify-unknown {
 
 html.light .my-shift-card.shift-missing {
   border-color: rgba(220, 38, 38, 0.24);
+  background: #ffffff;
+}
+
+html.light .my-shift-card.shift-notice {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: #ffffff;
+}
+
+html.light .my-shift-card.shift-edge {
+  border-color: rgba(245, 158, 11, 0.26);
   background: #ffffff;
 }
 
