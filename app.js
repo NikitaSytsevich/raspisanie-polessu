@@ -610,7 +610,7 @@ function classifyBreak(minutes, facilityId) {
     return "пауза";
   }
 
-  return "переход";
+  return "перерыв";
 }
 
 function formatAutoRefreshLabel(minutes, options = {}) {
@@ -630,11 +630,23 @@ function buildCurrentSourceIssues() {
   return state.data.facilities.flatMap((facility) => {
     const facilityName = String(facility?.name || "Источник");
     const sourceUrl = sanitizeHttpUrl(facility?.sourceUrl);
+    const blockingNotice = getFacilityBlockingNotice(facility);
+    if (blockingNotice) {
+      return [{
+        facilityName,
+        description: String(blockingNotice.message || blockingNotice.summary || "На сайте опубликовано служебное сообщение."),
+        kind: "notice",
+        title: String(blockingNotice.badge || "Служебное сообщение"),
+        sourceUrl,
+      }];
+    }
+
     if (facility?.error) {
       return [{
         facilityName,
-        description: String(facility.error),
+        description: String(getFacilitySourceIssueText(facility) || facility.error),
         kind: "error",
+        title: getFacilityIssueTitle(facility),
         sourceUrl,
       }];
     }
@@ -642,8 +654,9 @@ function buildCurrentSourceIssues() {
     if (Array.isArray(facility?.warnings) && facility.warnings.length) {
       return [{
         facilityName,
-        description: String(facility.warnings[0]),
+        description: String(getFacilitySourceIssueText(facility) || facility.warnings[0]),
         kind: "warn",
+        title: getFacilityIssueTitle(facility),
         sourceUrl,
       }];
     }
@@ -884,13 +897,14 @@ function renderSettingsSourceIssues(issues) {
       ? `<a class="settings-inline-note ${escapeHtml(issue.kind === "error" ? "is-issue" : "is-warn")}" href="${escapeHtml(issue.sourceUrl)}" target="_blank" rel="noopener noreferrer">`
       : `<div class="settings-inline-note ${escapeHtml(issue.kind === "error" ? "is-issue" : "is-warn")}">`;
     const linkEnd = issue.sourceUrl ? "</a>" : "</div>";
+    const detailParts = [String(issue.description || "").trim(), String(issue.title || "").trim()].filter(Boolean);
 
     return `
       ${linkStart}
         <span class="material-symbols-outlined">${issue.kind === "error" ? "warning" : "info"}</span>
         <div>
           <strong>${escapeHtml(issue.facilityName)}</strong>
-          <p>${escapeHtml(issue.description)}</p>
+          <p>${escapeHtml(detailParts.join(" · "))}</p>
         </div>
       ${linkEnd}
     `;
@@ -2455,6 +2469,12 @@ function truncateText(value, maxLength = 140) {
   return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
 }
 
+function hasOnlyNoticeSourceIssues(sourceIssues) {
+  return Array.isArray(sourceIssues) && sourceIssues.length
+    ? sourceIssues.every((issue) => String(issue?.kind || "").toLowerCase() === "notice")
+    : false;
+}
+
 function buildEntryLeadSummary(entry, groups = buildEntryChangeGroups(entry)) {
   if (!entry) {
     return "Подробности недоступны.";
@@ -2590,24 +2610,24 @@ function buildChangesAttentionModel(history, lastCheckedAtIso) {
     summary,
     footer,
     highlights,
-    headline: buildChangesOverviewHeadline(status),
-    pill: buildChangesOverviewPill(status),
-    icon: buildChangesOverviewIcon(status),
+    headline: buildChangesOverviewHeadline(status, focusEntry),
+    pill: buildChangesOverviewPill(status, focusEntry),
+    icon: buildChangesOverviewIcon(status, focusEntry),
   };
 }
 
-function buildChangesOverviewHeadline(status) {
+function buildChangesOverviewHeadline(status, focusEntry) {
   switch (status) {
     case "important":
       return "Затронуты мои смены";
     case "changes":
       return "Есть изменения";
     case "issue":
-      return "Проверка неполная";
+      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "Есть сообщение сайта" : "Проверка неполная";
     case "reviewed_changes":
       return "Последнее изменение просмотрено";
     case "reviewed_issue":
-      return "Последняя проблема просмотрена";
+      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "Сообщение сайта просмотрено" : "Последняя проблема просмотрена";
     case "stable":
       return "Без новых изменений";
     case "baseline":
@@ -2618,14 +2638,14 @@ function buildChangesOverviewHeadline(status) {
   }
 }
 
-function buildChangesOverviewPill(status) {
+function buildChangesOverviewPill(status, focusEntry) {
   switch (status) {
     case "important":
       return "Влияет";
     case "changes":
       return "Новое";
     case "issue":
-      return "Неполно";
+      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "Сообщение" : "Неполно";
     case "reviewed_changes":
     case "reviewed_issue":
       return "Просмотрено";
@@ -2639,18 +2659,18 @@ function buildChangesOverviewPill(status) {
   }
 }
 
-function buildChangesOverviewIcon(status) {
+function buildChangesOverviewIcon(status, focusEntry) {
   switch (status) {
     case "important":
       return "priority_high";
     case "changes":
       return "notifications";
     case "issue":
-      return "warning";
+      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "campaign" : "warning";
     case "reviewed_changes":
       return "visibility";
     case "reviewed_issue":
-      return "fact_check";
+      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "mark_email_read" : "fact_check";
     case "stable":
       return "task_alt";
     case "baseline":
@@ -2678,7 +2698,9 @@ function buildChangesOverviewSummary(status, focusEntry, focusImpact, focusGroup
         ? `Последнее изменение уже просмотрено. Было затронуто ${focusImpact.total} ${pluralizeRu(focusImpact.total, "ваша смена", "ваши смены", "ваших смен")}.`
         : `Последнее изменение уже просмотрено. ${leadSummary}`;
     case "reviewed_issue":
-      return "Последняя проблема проверки уже просмотрена. Новых непросмотренных событий сейчас нет.";
+      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues)
+        ? "Последнее служебное сообщение уже просмотрено. Новых непросмотренных сообщений сейчас нет."
+        : "Последняя проблема проверки уже просмотрена. Новых непросмотренных событий сейчас нет.";
     case "stable":
       if (state.myShifts.length) {
         return "Последняя проверка не нашла новых изменений. Ваши смены выглядят актуальными.";
@@ -2727,6 +2749,7 @@ function buildChangesCheckMeta(checkedAtIso) {
 
 function buildChangesOverviewMetrics(status, focusEntry, focusImpact, checkedAtIso, history) {
   const metrics = [];
+  const issueMetricLabel = hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "Сообщений" : "Сбоев";
 
   if (focusEntry?.hasChanges) {
     const entryMetrics = getSiteChangeEntryMetrics(focusEntry);
@@ -2738,10 +2761,10 @@ function buildChangesOverviewMetrics(status, focusEntry, focusImpact, checkedAtI
       metrics.push({ label: "Дат", value: String(entryMetrics.affectedDateCount) });
     }
     if (focusEntry.hasSourceIssues) {
-      metrics.push({ label: "Сбоев", value: String(focusEntry.sourceIssues?.length || 0) });
+      metrics.push({ label: issueMetricLabel, value: String(focusEntry.sourceIssues?.length || 0) });
     }
   } else if (focusEntry?.hasSourceIssues) {
-    metrics.push({ label: "Сбоев", value: String(focusEntry.sourceIssues?.length || 0) });
+    metrics.push({ label: issueMetricLabel, value: String(focusEntry.sourceIssues?.length || 0) });
   } else if (checkedAtIso) {
     const checkedAt = parseIsoDate(checkedAtIso);
     metrics.push({
@@ -2856,7 +2879,11 @@ function renderMyShiftImpactSection(model) {
       <section class="changes-section">
         <div class="changes-list-head">
           <h2>Мои смены</h2>
-          <p>Сейчас нельзя надёжно оценить влияние на смены, потому что часть источников не ответила.</p>
+          <p>${
+            hasOnlyNoticeSourceIssues(model.focusEntry.sourceIssues)
+              ? "На сайте опубликовано служебное сообщение по объекту. Проверьте детали ниже, если у вас есть смены на этом объекте."
+              : "Сейчас нельзя надёжно оценить влияние на смены, потому что часть источников не ответила."
+          }</p>
         </div>
       </section>
     `;
@@ -3099,15 +3126,19 @@ function renderChangeGroupRow(row) {
 function renderSourceIssueSection(sourceIssues, options = {}) {
   const entry = options?.entry || null;
   const reviewed = Boolean(entry && isSiteChangeEntryAcknowledged(entry));
+  const hasOnlyNotices = Array.isArray(sourceIssues) && sourceIssues.length
+    ? sourceIssues.every((issue) => String(issue?.kind || "").toLowerCase() === "notice")
+    : false;
+  const sectionText = hasOnlyNotices
+    ? "На сайтах опубликованы служебные сообщения. Отдельные объекты могут быть временно недоступны."
+    : reviewed
+      ? "Последняя просмотренная проверка была неполной: часть источников ответила с ошибкой."
+      : "Часть сайтов ответила с ошибкой. Из-за этого сравнение может быть неполным.";
   return `
     <section class="changes-section">
       <div class="changes-list-head">
         <h2>Проблемы проверки</h2>
-        <p>${
-          reviewed
-            ? "Последняя просмотренная проверка была неполной: часть источников ответила с ошибкой."
-            : "Часть сайтов ответила с ошибкой. Из-за этого сравнение может быть неполным."
-        }</p>
+        <p>${escapeHtml(sectionText)}</p>
       </div>
       <div class="changes-events">
         ${sourceIssues.map((issue) => renderSourceIssueCard(issue)).join("")}
@@ -3117,11 +3148,21 @@ function renderSourceIssueSection(sourceIssues, options = {}) {
 }
 
 function renderSourceIssueCard(issue) {
+  const metaParts = [];
+  const title = String(issue?.title || "").trim();
+  const fetchState = String(issue?.fetchState || "").trim().toLowerCase();
+  if (title) {
+    metaParts.push(title);
+  }
+  if (fetchState && fetchState !== "notice" && fetchState !== title.toLowerCase()) {
+    metaParts.push(fetchState);
+  }
+
   return `
     <article class="changes-event changes-event-warning">
       <h3 class="changes-event-title">${escapeHtml(issue?.facilityName || "Источник")}</h3>
       <p class="changes-event-desc">${escapeHtml(issue?.description || "Источник временно недоступен.")}</p>
-      <p class="changes-event-meta">${escapeHtml(String(issue?.fetchState || "error"))}</p>
+      <p class="changes-event-meta">${escapeHtml(metaParts.join(" · ") || "Источник")}</p>
     </article>
   `;
 }
@@ -3801,10 +3842,12 @@ function renderMyShiftSiteTimeline(shift, verification) {
   if (verification.status === "partial" || verification.status === "matched") {
     for (let i = 0; i < sessions.length; i += 1) {
       const session = sessions[i];
+      const rowClasses = ["my-shift-site-row"];
       if (i > 0) {
         const breakMins = session.startMinutes - sessions[i - 1].endMinutes;
         if (breakMins > 0) {
           rows.push(renderMyShiftBreak(breakMins, shift.facilityId));
+          rowClasses.push("after-break");
         }
       }
 
@@ -3818,7 +3861,7 @@ function renderMyShiftSiteTimeline(shift, verification) {
       const sessionCoworkers = getSessionCoworkerNames(session, staffEntries);
 
       rows.push(`
-        <div class="my-shift-site-row">
+        <div class="${escapeHtml(rowClasses.join(" "))}">
           <div class="my-shift-site-session">
             <span class="my-shift-site-time">${escapeHtml(`${session.start} — ${session.end}`)}</span>
             <span class="my-shift-site-activity">${escapeHtml(session.activity || "Сеанс")}</span>
@@ -4964,11 +5007,13 @@ function collectSourceIssueEvents(previousPayload, nextPayload) {
     const previousFacility = previousFacilities.get(facilityId) || null;
     const facilityName = String(nextFacility?.name || previousFacility?.name || facilityId);
     const sourceUrl = sanitizeHttpUrl(nextFacility?.sourceUrl || previousFacility?.sourceUrl);
-    if (!isFacilitySourceUnavailable(nextFacility)) {
+    const blockingNotice = getFacilityBlockingNotice(nextFacility);
+    if (!isFacilitySourceUnavailable(nextFacility) && !blockingNotice) {
       continue;
     }
 
     const issueText = getFacilitySourceIssueText(nextFacility);
+    const previousText = previousFacility ? getFacilitySourceIssueText(previousFacility) : "";
     events.push({
       type: "source_issue",
       severity: "warning",
@@ -4976,10 +5021,12 @@ function collectSourceIssueEvents(previousPayload, nextPayload) {
       facilityName,
       sourceUrl,
       date: null,
-      title: "Ошибка источника",
+      title: getFacilityIssueTitle(nextFacility),
+      kind: getFacilityIssueKind(nextFacility),
       description: issueText || "Источник временно недоступен.",
-      beforeText: "Источник работал штатно.",
+      beforeText: previousText || (blockingNotice ? "На сайте не было служебного сообщения." : "Источник работал штатно."),
       afterText: issueText || "Источник временно недоступен.",
+      fetchState: blockingNotice ? "notice" : String(nextFacility?.fetchState || "error"),
     });
   }
 
@@ -5012,9 +5059,44 @@ function getFacilityDayCount(facility) {
   return Array.isArray(facility?.days) ? facility.days.length : 0;
 }
 
+function getFacilityBlockingNotice(facility) {
+  const notice = facility?.serviceNotice;
+  if (!notice || typeof notice !== "object") {
+    return null;
+  }
+
+  const message = String(notice.message || "").replace(/\s+/g, " ").trim();
+  if (!message || !Boolean(notice.blocksSchedule)) {
+    return null;
+  }
+
+  return {
+    kind: String(notice.kind || "notice").trim().toLowerCase() || "notice",
+    badge: String(notice.badge || "").replace(/\s+/g, " ").trim() || "Служебное сообщение",
+    summary: String(notice.summary || "").replace(/\s+/g, " ").trim(),
+    message,
+  };
+}
+
+function getFacilityIssueKind(facility) {
+  return getFacilityBlockingNotice(facility) ? "notice" : "error";
+}
+
+function getFacilityIssueTitle(facility) {
+  const blockingNotice = getFacilityBlockingNotice(facility);
+  if (blockingNotice) {
+    return blockingNotice.badge || "Служебное сообщение";
+  }
+  return "Ошибка источника";
+}
+
 function getFacilitySourceIssueText(facility) {
   if (!facility || typeof facility !== "object") {
     return "";
+  }
+  const blockingNotice = getFacilityBlockingNotice(facility);
+  if (blockingNotice) {
+    return String(blockingNotice.message || blockingNotice.summary || "").slice(0, 240);
   }
   const sourceIssue = String(facility.sourceIssue || facility.error || "").trim();
   if (sourceIssue) {

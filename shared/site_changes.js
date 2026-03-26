@@ -391,15 +391,18 @@
   }
 
   function buildSourceIssueDetailFromFacility(facility) {
-    if (!isFacilitySourceUnavailable(facility)) {
+    const blockingNotice = getFacilityBlockingNotice(facility);
+    if (!isFacilitySourceUnavailable(facility) && !blockingNotice) {
       return null;
     }
 
     return {
       facilityId: trimText(facility && facility.id),
       facilityName: trimText(facility && facility.name),
+      kind: getFacilityIssueKind(facility),
+      title: getFacilityIssueTitle(facility),
       description: getFacilitySourceIssueText(facility),
-      fetchState: trimText(facility && facility.fetchState).toLowerCase() || "error",
+      fetchState: blockingNotice ? "notice" : trimText(facility && facility.fetchState).toLowerCase() || "error",
       sourceUrl: sanitizeHttpUrl(facility && facility.sourceUrl),
       dataQuality: inferDataQuality(facility),
     };
@@ -494,7 +497,38 @@
     return Array.isArray(facility && facility.days) ? facility.days.length : 0;
   }
 
+  function getFacilityBlockingNotice(facility) {
+    const notice = facility && facility.serviceNotice && typeof facility.serviceNotice === "object" ? facility.serviceNotice : null;
+    const message = trimText(notice && notice.message);
+    if (!message || !(notice && notice.blocksSchedule)) {
+      return null;
+    }
+
+    return {
+      kind: trimText(notice.kind).toLowerCase() || "notice",
+      badge: trimText(notice.badge) || "Служебное сообщение",
+      summary: trimText(notice.summary),
+      message: message,
+    };
+  }
+
+  function getFacilityIssueKind(facility) {
+    return getFacilityBlockingNotice(facility) ? "notice" : "error";
+  }
+
+  function getFacilityIssueTitle(facility) {
+    const blockingNotice = getFacilityBlockingNotice(facility);
+    if (blockingNotice) {
+      return blockingNotice.badge || "Служебное сообщение";
+    }
+    return "Ошибка источника";
+  }
+
   function getFacilitySourceIssueText(facility) {
+    const blockingNotice = getFacilityBlockingNotice(facility);
+    if (blockingNotice) {
+      return blockingNotice.message.slice(0, 240);
+    }
     const sourceIssue = trimText((facility && facility.sourceIssue) || (facility && facility.error));
     if (sourceIssue) {
       return sourceIssue.slice(0, 240);
@@ -515,10 +549,14 @@
       const facilityId = entry[0];
       const nextFacility = entry[1];
       const previousFacility = previousFacilities.get(facilityId) || null;
+      const blockingNotice = getFacilityBlockingNotice(nextFacility);
 
-      if (!isFacilitySourceUnavailable(nextFacility)) {
+      if (!isFacilitySourceUnavailable(nextFacility) && !blockingNotice) {
         continue;
       }
+
+      const issueText = getFacilitySourceIssueText(nextFacility);
+      const previousText = previousFacility ? getFacilitySourceIssueText(previousFacility) : "";
 
       events.push({
         type: "source_issue",
@@ -528,10 +566,12 @@
         facilityName: trimText((nextFacility && nextFacility.name) || (previousFacility && previousFacility.name) || facilityId),
         sourceUrl: sanitizeHttpUrl((nextFacility && nextFacility.sourceUrl) || (previousFacility && previousFacility.sourceUrl)),
         date: null,
-        title: "Ошибка источника",
-        description: getFacilitySourceIssueText(nextFacility),
-        beforeText: "Источник работал штатно.",
-        afterText: getFacilitySourceIssueText(nextFacility),
+        title: getFacilityIssueTitle(nextFacility),
+        kind: getFacilityIssueKind(nextFacility),
+        description: issueText,
+        beforeText: previousText || (blockingNotice ? "На сайте не было служебного сообщения." : "Источник работал штатно."),
+        afterText: issueText,
+        fetchState: blockingNotice ? "notice" : trimText(nextFacility && nextFacility.fetchState).toLowerCase() || "error",
       });
     }
 

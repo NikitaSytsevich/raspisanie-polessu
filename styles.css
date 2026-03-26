@@ -2648,6 +2648,11 @@ body::before {
   border-top: 0;
 }
 
+.my-shift-site-row.after-break {
+  padding-top: 0;
+  border-top: 0;
+}
+
 .my-shift-site-session {
   display: flex;
   align-items: baseline;
