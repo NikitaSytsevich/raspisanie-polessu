@@ -86,6 +86,7 @@ const state = {
   myScheduleFocusDate: null,
   myScheduleRangeMode: MY_SCHEDULE_RANGE.DAY,
   myEditingShiftId: null,
+  myEditorMode: "single",
   autoRefreshTimer: null,
   updatedAtTicker: null,
   fetchInFlight: false,
@@ -136,17 +137,30 @@ const el = {
   myDayInlineActions: document.getElementById("myDayInlineActions"),
   myTimelineTitle: document.getElementById("myTimelineTitle"),
   myShiftForm: document.getElementById("myShiftForm"),
+  myEditorModeSwitch: document.getElementById("myEditorModeSwitch"),
+  myEditorModeSingleButton: document.getElementById("myEditorModeSingleButton"),
+  myEditorModeBatchButton: document.getElementById("myEditorModeBatchButton"),
+  myShiftSingleSection: document.getElementById("myShiftSingleSection"),
+  myShiftBatchSection: document.getElementById("myShiftBatchSection"),
   myShiftDateInput: document.getElementById("myShiftDateInput"),
+  myShiftBatchStartInput: document.getElementById("myShiftBatchStartInput"),
+  myShiftBatchEndInput: document.getElementById("myShiftBatchEndInput"),
+  myShiftBatchWeekdays: document.getElementById("myShiftBatchWeekdays"),
+  myShiftBatchPreview: document.getElementById("myShiftBatchPreview"),
   myShiftWorkFields: document.getElementById("myShiftWorkFields"),
   myShiftFacilitySelect: document.getElementById("myShiftFacilitySelect"),
   myShiftInstructorsList: document.getElementById("myShiftInstructorsList"),
   myShiftStartInput: document.getElementById("myShiftStartInput"),
   myShiftEndInput: document.getElementById("myShiftEndInput"),
   myShiftNoteInput: document.getElementById("myShiftNoteInput"),
+  myShiftFillLatestButton: document.getElementById("myShiftFillLatestButton"),
+  myShiftResetDraftButton: document.getElementById("myShiftResetDraftButton"),
+  myShiftDraftSummary: document.getElementById("myShiftDraftSummary"),
   myScheduleNotice: document.getElementById("myScheduleNotice"),
   myScheduleTimeline: document.getElementById("myScheduleTimeline"),
   myEditorLaunchWrap: document.getElementById("myEditorLaunchWrap"),
   myEditorShiftList: document.getElementById("myEditorShiftList"),
+  myEditorShiftStats: document.getElementById("myEditorShiftStats"),
   myEditorTitle: document.getElementById("myEditorTitle"),
   myEditorSummary: document.getElementById("myEditorSummary"),
   myWeeklyDayOffOptions: document.getElementById("myWeeklyDayOffOptions"),
@@ -241,10 +255,36 @@ function bindEvents() {
 
   if (el.myShiftForm) {
     el.myShiftForm.addEventListener("submit", handleMyShiftSubmit);
+    el.myShiftForm.addEventListener("input", renderMyShiftDraftPreview);
+    el.myShiftForm.addEventListener("change", renderMyShiftDraftPreview);
+    el.myShiftForm.addEventListener("click", handleMyShiftFormClick);
   }
 
   if (el.myShiftInstructorsList) {
-    el.myShiftInstructorsList.addEventListener("change", syncInstructorChipState);
+    el.myShiftInstructorsList.addEventListener("change", () => {
+      syncInstructorChipState();
+      renderMyShiftDraftPreview();
+    });
+  }
+
+  if (el.myEditorModeSingleButton) {
+    el.myEditorModeSingleButton.addEventListener("click", () => setMyEditorMode("single"));
+  }
+
+  if (el.myEditorModeBatchButton) {
+    el.myEditorModeBatchButton.addEventListener("click", () => setMyEditorMode("batch"));
+  }
+
+  if (el.myShiftFillLatestButton) {
+    el.myShiftFillLatestButton.addEventListener("click", handleUseLatestShiftTemplate);
+  }
+
+  if (el.myShiftResetDraftButton) {
+    el.myShiftResetDraftButton.addEventListener("click", () => {
+      state.myEditingShiftId = null;
+      resetMyShiftForm({ preserveDate: state.myScheduleFocusDate || todayIso() });
+      renderMyScheduleEditor();
+    });
   }
 
   if (el.myWeeklyDayOffOptions) {
@@ -1224,6 +1264,7 @@ function hydrateMyScheduleUI() {
     el.myShiftEndInput.value = "10:00";
   }
 
+  ensureMyShiftBatchDefaults({ force: true, anchorDate: state.myScheduleFocusDate });
   resetMyShiftForm();
   renderMySchedule();
   renderMyScheduleEditor();
@@ -1562,6 +1603,589 @@ function getSelectedMyShiftInstructors() {
   return normalizeCoworkers(values);
 }
 
+function getMyEditorMode() {
+  if (state.myEditingShiftId) {
+    return "single";
+  }
+  return String(state.myEditorMode || "") === "batch" ? "batch" : "single";
+}
+
+function setMyEditorMode(mode) {
+  const nextMode = mode === "batch" && !state.myEditingShiftId ? "batch" : "single";
+  state.myEditorMode = nextMode;
+  if (nextMode === "batch") {
+    ensureMyShiftBatchDefaults();
+  }
+  renderMyScheduleEditor();
+}
+
+function renderMyEditorModeUI() {
+  const mode = getMyEditorMode();
+  const isEditing = Boolean(state.myEditingShiftId);
+
+  if (el.myEditorModeSingleButton) {
+    const active = mode === "single";
+    el.myEditorModeSingleButton.classList.toggle("is-active", active);
+    el.myEditorModeSingleButton.setAttribute("aria-pressed", active ? "true" : "false");
+  }
+
+  if (el.myEditorModeBatchButton) {
+    const active = mode === "batch";
+    el.myEditorModeBatchButton.classList.toggle("is-active", active);
+    el.myEditorModeBatchButton.setAttribute("aria-pressed", active ? "true" : "false");
+    el.myEditorModeBatchButton.disabled = isEditing;
+    el.myEditorModeBatchButton.title = isEditing ? "Серия недоступна при редактировании одной записи" : "Добавить серию смен";
+  }
+
+  if (el.myEditorModeSwitch) {
+    el.myEditorModeSwitch.classList.toggle("is-editing", isEditing);
+  }
+
+  if (el.myShiftSingleSection) {
+    el.myShiftSingleSection.hidden = mode !== "single";
+  }
+
+  if (el.myShiftBatchSection) {
+    el.myShiftBatchSection.hidden = mode !== "batch";
+  }
+}
+
+function handleMyShiftFormClick(event) {
+  const shortcutButton = event.target.closest("button[data-shift-date-shortcut]");
+  if (shortcutButton) {
+    applyMyShiftDateShortcut(String(shortcutButton.dataset.shiftDateShortcut || ""));
+    return;
+  }
+
+  const presetButton = event.target.closest("button[data-batch-preset]");
+  if (presetButton) {
+    applyMyShiftBatchPreset(String(presetButton.dataset.batchPreset || ""));
+    return;
+  }
+
+  const weekdayButton = event.target.closest("button[data-batch-weekday]");
+  if (weekdayButton) {
+    toggleMyShiftBatchWeekday(weekdayButton.dataset.batchWeekday || "");
+  }
+}
+
+function applyMyShiftDateShortcut(shortcut) {
+  if (!el.myShiftDateInput) {
+    return;
+  }
+
+  const current = /^\d{4}-\d{2}-\d{2}$/.test(String(el.myShiftDateInput.value || ""))
+    ? String(el.myShiftDateInput.value)
+    : todayIso();
+
+  switch (shortcut) {
+    case "today":
+      el.myShiftDateInput.value = todayIso();
+      break;
+    case "tomorrow":
+      el.myShiftDateInput.value = addDays(todayIso(), 1);
+      break;
+    case "next_day":
+      el.myShiftDateInput.value = addDays(current, 1);
+      break;
+    default:
+      return;
+  }
+
+  ensureMyShiftBatchDefaults({ anchorDate: el.myShiftDateInput.value });
+  renderMyShiftDraftPreview();
+}
+
+function getSelectedMyShiftBatchWeekdays() {
+  if (!el.myShiftBatchWeekdays) {
+    return [];
+  }
+
+  const fromDataset = String(el.myShiftBatchWeekdays.dataset.selectedWeekdays || "")
+    .split(",")
+    .map((value) => normalizeWeekdayValue(value))
+    .filter((value) => value !== null);
+
+  return Array.from(new Set(fromDataset));
+}
+
+function setSelectedMyShiftBatchWeekdays(values) {
+  if (!el.myShiftBatchWeekdays) {
+    return;
+  }
+
+  const normalized = Array.from(
+    new Set(
+      (Array.isArray(values) ? values : [])
+        .map((value) => normalizeWeekdayValue(value))
+        .filter((value) => value !== null)
+    )
+  );
+
+  el.myShiftBatchWeekdays.dataset.selectedWeekdays = normalized.join(",");
+  renderMyShiftBatchWeekdayOptions();
+}
+
+function renderMyShiftBatchWeekdayOptions() {
+  if (!el.myShiftBatchWeekdays) {
+    return;
+  }
+
+  const selected = new Set(getSelectedMyShiftBatchWeekdays());
+  el.myShiftBatchWeekdays.innerHTML = WEEKDAY_OPTIONS
+    .map((item) => {
+      const isActive = selected.has(item.value);
+      return `
+        <button
+          type="button"
+          class="my-weekday-chip ${isActive ? "is-active" : ""}"
+          data-batch-weekday="${String(item.value)}"
+          aria-pressed="${isActive ? "true" : "false"}"
+          title="${escapeHtml(item.label)}"
+        >
+          <span>${escapeHtml(item.short)}</span>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function toggleMyShiftBatchWeekday(rawValue) {
+  const weekday = normalizeWeekdayValue(rawValue);
+  if (weekday === null) {
+    return;
+  }
+
+  const selected = new Set(getSelectedMyShiftBatchWeekdays());
+  if (selected.has(weekday)) {
+    selected.delete(weekday);
+  } else {
+    selected.add(weekday);
+  }
+
+  setSelectedMyShiftBatchWeekdays(Array.from(selected));
+  renderMyShiftDraftPreview();
+}
+
+function applyMyShiftBatchPreset(preset) {
+  switch (String(preset || "")) {
+    case "weekdays":
+      setSelectedMyShiftBatchWeekdays([1, 2, 3, 4, 5]);
+      break;
+    case "weekend":
+      setSelectedMyShiftBatchWeekdays([6, 0]);
+      break;
+    case "all":
+      setSelectedMyShiftBatchWeekdays([1, 2, 3, 4, 5, 6, 0]);
+      break;
+    case "clear":
+      setSelectedMyShiftBatchWeekdays([]);
+      break;
+    default:
+      return;
+  }
+
+  renderMyShiftDraftPreview();
+}
+
+function ensureMyShiftBatchDefaults(options = {}) {
+  const { force = false, anchorDate = "" } = options;
+  const resolvedAnchor = /^\d{4}-\d{2}-\d{2}$/.test(String(anchorDate || ""))
+    ? String(anchorDate)
+    : /^\d{4}-\d{2}-\d{2}$/.test(String(el.myShiftDateInput?.value || ""))
+      ? String(el.myShiftDateInput.value)
+      : state.myScheduleFocusDate || todayIso();
+
+  if (el.myShiftBatchStartInput && (force || !/^\d{4}-\d{2}-\d{2}$/.test(String(el.myShiftBatchStartInput.value || "")))) {
+    el.myShiftBatchStartInput.value = resolvedAnchor;
+  }
+
+  if (el.myShiftBatchEndInput && (force || !/^\d{4}-\d{2}-\d{2}$/.test(String(el.myShiftBatchEndInput.value || "")))) {
+    el.myShiftBatchEndInput.value = addDays(resolvedAnchor, 13);
+  }
+
+  if (!getSelectedMyShiftBatchWeekdays().length || force) {
+    const weekday = normalizeWeekdayValue(getIsoDateWeekday(resolvedAnchor));
+    setSelectedMyShiftBatchWeekdays(weekday === null ? [] : [weekday]);
+  } else {
+    renderMyShiftBatchWeekdayOptions();
+  }
+}
+
+function extractMyShiftTemplateFromForm() {
+  return {
+    facilityId: String(el.myShiftFacilitySelect?.value || ""),
+    start: normalizeTime(String(el.myShiftStartInput?.value || "")),
+    end: normalizeTime(String(el.myShiftEndInput?.value || "")),
+    note: String(el.myShiftNoteInput?.value || "").trim(),
+    coworkers: getSelectedMyShiftInstructors(),
+  };
+}
+
+function applyMyShiftTemplate(template = {}) {
+  renderMyScheduleFacilityOptions();
+
+  if (el.myShiftFacilitySelect && template.facilityId) {
+    el.myShiftFacilitySelect.value = String(template.facilityId);
+  }
+  if (el.myShiftStartInput && template.start) {
+    el.myShiftStartInput.value = String(template.start);
+  }
+  if (el.myShiftEndInput && template.end) {
+    el.myShiftEndInput.value = String(template.end);
+  }
+  if (el.myShiftNoteInput) {
+    el.myShiftNoteInput.value = String(template.note || "");
+  }
+
+  renderMyInstructorOptions(template.coworkers || []);
+  syncInstructorChipState();
+}
+
+function getMyShiftTemplateFromShift(shift) {
+  return {
+    facilityId: String(shift?.facilityId || ""),
+    start: String(shift?.start || ""),
+    end: String(shift?.end || ""),
+    note: String(shift?.note || ""),
+    coworkers: Array.isArray(shift?.coworkers) ? shift.coworkers : [],
+  };
+}
+
+function getLatestCreatedMyShift() {
+  if (!Array.isArray(state.myShifts) || !state.myShifts.length) {
+    return null;
+  }
+
+  return state.myShifts
+    .slice()
+    .sort((a, b) => {
+      const aCreatedAt = Date.parse(String(a?.createdAt || ""));
+      const bCreatedAt = Date.parse(String(b?.createdAt || ""));
+      if (!Number.isNaN(aCreatedAt) || !Number.isNaN(bCreatedAt)) {
+        return (Number.isNaN(bCreatedAt) ? 0 : bCreatedAt) - (Number.isNaN(aCreatedAt) ? 0 : aCreatedAt);
+      }
+      return compareMyShift(b, a);
+    })[0] || null;
+}
+
+function seedMyShiftFormFromShift(shift) {
+  if (!shift) {
+    return;
+  }
+
+  applyMyShiftTemplate(getMyShiftTemplateFromShift(shift));
+
+  if (el.myShiftDateInput) {
+    el.myShiftDateInput.value = String(shift.date || state.myScheduleFocusDate || todayIso());
+  }
+  ensureMyShiftBatchDefaults({ force: true, anchorDate: shift.date || state.myScheduleFocusDate || todayIso() });
+  renderMyShiftDraftPreview();
+}
+
+function handleUseLatestShiftTemplate() {
+  const latestShift = getLatestCreatedMyShift();
+  if (!latestShift) {
+    setMyScheduleNotice("Пока нет смен, из которых можно собрать шаблон.", "info");
+    return;
+  }
+
+  state.myEditingShiftId = null;
+  seedMyShiftFormFromShift(latestShift);
+  renderMyScheduleEditor();
+  setMyScheduleNotice("Шаблон заполнен по последней смене.", "info");
+}
+
+function collectMyShiftBatchDates() {
+  const start = String(el.myShiftBatchStartInput?.value || "");
+  const end = String(el.myShiftBatchEndInput?.value || "");
+  const weekdays = new Set(getSelectedMyShiftBatchWeekdays());
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+    return {
+      dates: [],
+      error: "Выберите начало и конец серии.",
+    };
+  }
+
+  if (end < start) {
+    return {
+      dates: [],
+      error: "Дата окончания серии должна быть не раньше даты начала.",
+    };
+  }
+
+  if (!weekdays.size) {
+    return {
+      dates: [],
+      error: "Отметьте хотя бы один день недели для серии.",
+    };
+  }
+
+  const dates = [];
+  let cursor = start;
+  let guard = 0;
+
+  while (cursor <= end && guard < 370) {
+    if (weekdays.has(getIsoDateWeekday(cursor))) {
+      dates.push(cursor);
+    }
+    cursor = addDays(cursor, 1);
+    guard += 1;
+  }
+
+  if (guard >= 370) {
+    return {
+      dates: [],
+      error: "Серия получилась слишком длинной. Сократите диапазон до одного года.",
+    };
+  }
+
+  if (!dates.length) {
+    return {
+      dates: [],
+      error: "В выбранном диапазоне нет отмеченных дней недели.",
+    };
+  }
+
+  return {
+    dates,
+    error: "",
+  };
+}
+
+function findMyShiftBySlot(candidate, ignoreShiftId = "") {
+  return (state.myShifts || []).find((item) => (
+    item
+    && item.id !== ignoreShiftId
+    && item.date === candidate.date
+    && item.facilityId === candidate.facilityId
+    && item.start === candidate.start
+    && item.end === candidate.end
+  )) || null;
+}
+
+function buildMyShiftDraftPlan() {
+  const editingShift = state.myEditingShiftId
+    ? state.myShifts.find((item) => item.id === state.myEditingShiftId) || null
+    : null;
+  const mode = editingShift ? "single" : getMyEditorMode();
+  const date = String(el.myShiftDateInput?.value || "");
+  const note = String(el.myShiftNoteInput?.value || "").trim();
+  const facilityId = String(el.myShiftFacilitySelect?.value || "");
+  const start = normalizeTime(String(el.myShiftStartInput?.value || ""));
+  const end = normalizeTime(String(el.myShiftEndInput?.value || ""));
+  const coworkers = getSelectedMyShiftInstructors();
+  const facility = getMyFacilityOptions().find((item) => item.id === facilityId) || null;
+
+  const errors = [];
+  if (!start || !end) {
+    errors.push("Укажите корректное время начала и окончания.");
+  } else if (toMinutes(end) <= toMinutes(start)) {
+    errors.push("Время окончания должно быть позже времени начала.");
+  }
+
+  if (!facilityId) {
+    errors.push("Выберите объект работы.");
+  }
+
+  let candidateDates = [];
+  if (mode === "batch") {
+    const batchDates = collectMyShiftBatchDates();
+    candidateDates = batchDates.dates;
+    if (batchDates.error) {
+      errors.push(batchDates.error);
+    }
+  } else if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    errors.push("Выберите корректную дату смены.");
+  } else {
+    candidateDates = [date];
+  }
+
+  const candidates = !errors.length
+    ? candidateDates.map((candidateDate) => ({
+      id: editingShift ? editingShift.id : "",
+      kind: MY_SHIFT_KIND.WORK,
+      date: candidateDate,
+      facilityId,
+      facilityName: facility ? facility.name : "Объект",
+      start,
+      end,
+      note,
+      coworkers,
+      createdAt: editingShift?.createdAt || "",
+    }))
+    : [];
+
+  const duplicates = [];
+  const newCandidates = [];
+
+  for (const candidate of candidates) {
+    const existing = findMyShiftBySlot(candidate, editingShift?.id || "");
+    if (existing) {
+      duplicates.push({
+        candidate,
+        existing,
+      });
+    } else {
+      newCandidates.push(candidate);
+    }
+  }
+
+  const weeklyDayOffConflicts = candidates.filter((candidate) => (
+    candidate.date >= todayIso() && isWeeklyDayOffDate(candidate.date)
+  ));
+
+  return {
+    editingShift,
+    mode,
+    facility,
+    facilityId,
+    start,
+    end,
+    note,
+    coworkers,
+    errors,
+    candidateDates,
+    candidates,
+    duplicates,
+    newCandidates,
+    weeklyDayOffConflicts,
+  };
+}
+
+function renderMyShiftBatchPreview(plan = buildMyShiftDraftPlan()) {
+  if (!el.myShiftBatchPreview) {
+    return;
+  }
+
+  if (getMyEditorMode() !== "batch") {
+    el.myShiftBatchPreview.innerHTML = "";
+    return;
+  }
+
+  if (plan.errors.length) {
+    el.myShiftBatchPreview.innerHTML = `
+      <div class="my-editor-preview-empty">
+        <p>${escapeHtml(plan.errors[0])}</p>
+      </div>
+    `;
+    return;
+  }
+
+  const previewDates = plan.candidateDates.slice(0, 8);
+  const extraDatesCount = Math.max(0, plan.candidateDates.length - previewDates.length);
+
+  el.myShiftBatchPreview.innerHTML = `
+    <div class="my-editor-preview-meta">
+      <span class="my-editor-stat-pill">${escapeHtml(String(plan.candidateDates.length))} ${escapeHtml(pluralizeRu(plan.candidateDates.length, "дата", "даты", "дат"))}</span>
+      ${plan.duplicates.length ? `<span class="my-editor-stat-pill warning">уже есть: ${escapeHtml(String(plan.duplicates.length))}</span>` : ""}
+    </div>
+    <div class="my-editor-preview-dates">
+      ${previewDates.map((candidateDate) => `<span class="my-editor-date-pill">${escapeHtml(formatMonthDayShort(candidateDate))}</span>`).join("")}
+      ${extraDatesCount ? `<span class="my-editor-date-pill muted">+${escapeHtml(String(extraDatesCount))}</span>` : ""}
+    </div>
+  `;
+}
+
+function updateMyShiftSubmitButton(plan = buildMyShiftDraftPlan()) {
+  if (!el.myShiftSubmitButton) {
+    return;
+  }
+
+  if (plan.editingShift) {
+    el.myShiftSubmitButton.textContent = "Сохранить изменения";
+    return;
+  }
+
+  if (plan.mode === "batch") {
+    if (plan.newCandidates.length) {
+      el.myShiftSubmitButton.textContent = `Добавить ${plan.newCandidates.length} ${pluralizeRu(plan.newCandidates.length, "смену", "смены", "смен")}`;
+      return;
+    }
+    el.myShiftSubmitButton.textContent = "Добавить серию";
+    return;
+  }
+
+  el.myShiftSubmitButton.textContent = "Сохранить смену";
+}
+
+function renderMyShiftDraftPreview() {
+  const plan = buildMyShiftDraftPlan();
+  renderMyShiftDraftSummary(plan);
+}
+
+function renderMyShiftDraftSummary(plan = buildMyShiftDraftPlan()) {
+  renderMyEditorModeUI();
+  renderMyShiftBatchPreview(plan);
+  updateMyShiftSubmitButton(plan);
+
+  if (!el.myShiftDraftSummary) {
+    return;
+  }
+
+  if (!plan.facilityId && !plan.start && !plan.end && !plan.candidateDates.length) {
+    el.myShiftDraftSummary.innerHTML = `
+      <div class="my-editor-summary-empty">
+        <p>Выберите объект, время и дату. После этого здесь появится понятный итог по записи или серии.</p>
+      </div>
+    `;
+    return;
+  }
+
+  if (plan.errors.length) {
+    el.myShiftDraftSummary.innerHTML = `
+      <div class="my-editor-summary-empty">
+        <p>${escapeHtml(plan.errors[0])}</p>
+      </div>
+    `;
+    return;
+  }
+
+  const previewDates = plan.candidateDates.slice(0, plan.mode === "batch" ? 6 : 1);
+  const datesOverflow = Math.max(0, plan.candidateDates.length - previewDates.length);
+  const coworkersLabel = plan.coworkers.length
+    ? `С коллегами: ${plan.coworkers.join(", ")}`
+    : "Без коллег";
+  const modeLabel = plan.editingShift ? "Редактирование" : plan.mode === "batch" ? "Серия" : "Одна смена";
+  const resultingCount = plan.editingShift ? (plan.duplicates.length ? 0 : 1) : plan.newCandidates.length;
+
+  el.myShiftDraftSummary.innerHTML = `
+    <div class="my-editor-summary-top">
+      <span class="my-editor-stat-pill">${escapeHtml(modeLabel)}</span>
+      <span class="my-editor-stat-pill success">Добавится: ${escapeHtml(String(resultingCount))}</span>
+      ${plan.duplicates.length ? `<span class="my-editor-stat-pill warning">Повторы: ${escapeHtml(String(plan.duplicates.length))}</span>` : ""}
+    </div>
+
+    <div class="my-editor-summary-main">
+      <h4>${escapeHtml(plan.facility?.name || "Объект не выбран")}</h4>
+      <p>${escapeHtml(`${plan.start} - ${plan.end}`)}</p>
+      <p>${escapeHtml(coworkersLabel)}</p>
+      ${plan.note ? `<p>${escapeHtml(plan.note)}</p>` : ""}
+    </div>
+
+    <div class="my-editor-summary-block">
+      <span>Даты</span>
+      <div class="my-editor-preview-dates">
+        ${previewDates.map((candidateDate) => `<span class="my-editor-date-pill">${escapeHtml(formatMonthDayShort(candidateDate))}</span>`).join("")}
+        ${datesOverflow ? `<span class="my-editor-date-pill muted">+${escapeHtml(String(datesOverflow))}</span>` : ""}
+      </div>
+    </div>
+
+    ${plan.weeklyDayOffConflicts.length ? `
+      <div class="my-editor-summary-callout">
+        На ${escapeHtml(String(plan.weeklyDayOffConflicts.length))} ${escapeHtml(pluralizeRu(plan.weeklyDayOffConflicts.length, "дату", "даты", "дат"))} уже попадает выбранный еженедельный выходной.
+      </div>
+    ` : ""}
+
+    ${plan.duplicates.length ? `
+      <div class="my-editor-summary-callout muted">
+        Повторяющиеся слоты будут пропущены при сохранении, чтобы не плодить дубликаты.
+      </div>
+    ` : ""}
+  `;
+}
+
 function normalizeMyShiftKind(value) {
   return String(value || "").trim() === MY_SHIFT_KIND.DAY_OFF ? MY_SHIFT_KIND.DAY_OFF : MY_SHIFT_KIND.WORK;
 }
@@ -1678,87 +2302,144 @@ function getRecurringDayOffMeta(renderDate) {
 function handleMyShiftSubmit(event) {
   event.preventDefault();
 
-  const date = String(el.myShiftDateInput.value || "");
-  const note = String(el.myShiftNoteInput.value || "").trim();
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    setMyScheduleNotice("Выберите корректную дату смены.", "error");
-    return;
-  }
-
-  const editingShift = state.myEditingShiftId
-    ? state.myShifts.find((item) => item.id === state.myEditingShiftId) || null
-    : null;
-
-  const facilityId = String(el.myShiftFacilitySelect.value || "");
-  const start = normalizeTime(String(el.myShiftStartInput.value || ""));
-  const end = normalizeTime(String(el.myShiftEndInput.value || ""));
-  const coworkers = getSelectedMyShiftInstructors();
-
-  if (!start || !end) {
-    setMyScheduleNotice("Укажите корректное время начала и окончания.", "error");
-    return;
-  }
-
-  if (toMinutes(end) <= toMinutes(start)) {
-    setMyScheduleNotice("Время окончания должно быть позже времени начала.", "error");
-    return;
-  }
-
-  if (!facilityId) {
-    setMyScheduleNotice("Выберите объект работы.", "error");
-    return;
-  }
-
-  const isWeeklyDayOff = date >= todayIso() && isWeeklyDayOffDate(date);
-
-  const facility = getMyFacilityOptions().find((item) => item.id === facilityId);
-  const shift = {
-    id: editingShift ? editingShift.id : createShiftId(),
-    kind: MY_SHIFT_KIND.WORK,
-    date,
-    facilityId,
-    facilityName: facility ? facility.name : "Объект",
-    start,
-    end,
-    note,
-    coworkers,
-    createdAt: editingShift?.createdAt || new Date().toISOString(),
+  const plan = buildMyShiftDraftPlan();
+  const template = extractMyShiftTemplateFromForm();
+  const batchState = {
+    start: String(el.myShiftBatchStartInput?.value || ""),
+    end: String(el.myShiftBatchEndInput?.value || ""),
+    weekdays: getSelectedMyShiftBatchWeekdays(),
   };
 
-  if (editingShift) {
-    state.myShifts = state.myShifts
-      .map((item) => (item.id === editingShift.id ? shift : item))
-      .sort(compareMyShift);
-  } else {
-    state.myShifts = [...state.myShifts, shift].sort(compareMyShift);
+  if (plan.errors.length) {
+    setMyScheduleNotice(plan.errors[0], "error");
+    return;
   }
+
+  if (plan.editingShift) {
+    if (plan.duplicates.length) {
+      setMyScheduleNotice("Такая смена уже есть в графике. Откройте её из журнала и измените существующую запись.", "error");
+      return;
+    }
+
+    const updatedShift = {
+      ...plan.candidates[0],
+      id: plan.editingShift.id,
+      createdAt: plan.editingShift.createdAt || new Date().toISOString(),
+    };
+
+    state.myShifts = state.myShifts
+      .map((item) => (item.id === plan.editingShift.id ? updatedShift : item))
+      .sort(compareMyShift);
+
+    saveMyShifts();
+    state.myScheduleFocusDate = updatedShift.date;
+    state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
+    state.myEditingShiftId = null;
+    resetMyShiftForm({ preserveDate: updatedShift.date, preserveTemplate: getMyShiftTemplateFromShift(updatedShift) });
+
+    const noticeMessage = plan.weeklyDayOffConflicts.length
+      ? `Смена обновлена. ${buildMyShiftConflictMessage(updatedShift.date)}`
+      : "Смена обновлена.";
+    setMyScheduleNotice(noticeMessage, "success");
+    renderMySchedule();
+    renderMyScheduleEditor();
+    return;
+  }
+
+  if (plan.mode === "batch") {
+    if (!plan.newCandidates.length) {
+      const duplicateMessage = plan.duplicates.length
+        ? "Все смены из этой серии уже есть в графике."
+        : "Серия пока не сформирована. Проверьте диапазон и дни недели.";
+      setMyScheduleNotice(duplicateMessage, plan.duplicates.length ? "info" : "error");
+      return;
+    }
+
+    const createdAt = new Date().toISOString();
+    const shiftsToAdd = plan.newCandidates.map((candidate) => ({
+      ...candidate,
+      id: createShiftId(),
+      createdAt,
+    }));
+
+    state.myShifts = [...state.myShifts, ...shiftsToAdd].sort(compareMyShift);
+    saveMyShifts();
+
+    state.myScheduleFocusDate = shiftsToAdd[0].date;
+    state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
+    resetMyShiftForm({ preserveDate: shiftsToAdd[0].date, preserveTemplate: template, preserveBatch: batchState });
+
+    const messageParts = [`Добавлено ${shiftsToAdd.length} ${pluralizeRu(shiftsToAdd.length, "смена", "смены", "смен")}.`];
+    if (plan.duplicates.length) {
+      messageParts.push(`Пропущено повторов: ${plan.duplicates.length}.`);
+    }
+    if (plan.weeklyDayOffConflicts.length) {
+      messageParts.push(`Совпадений с еженедельным выходным: ${plan.weeklyDayOffConflicts.length}.`);
+    }
+
+    setMyScheduleNotice(messageParts.join(" "), "success");
+    renderMySchedule();
+    renderMyScheduleEditor();
+    return;
+  }
+
+  if (plan.duplicates.length) {
+    setMyScheduleNotice("Такая смена уже есть в графике. Чтобы поправить её, используйте редактирование из журнала ниже.", "error");
+    return;
+  }
+
+  const shift = {
+    ...plan.newCandidates[0],
+    id: createShiftId(),
+    createdAt: new Date().toISOString(),
+  };
+
+  state.myShifts = [...state.myShifts, shift].sort(compareMyShift);
   saveMyShifts();
 
-  state.myScheduleFocusDate = date;
+  state.myScheduleFocusDate = shift.date;
   state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
-  state.myEditingShiftId = null;
-  resetMyShiftForm({ preserveDate: date });
-  const baseMessage = editingShift ? "Смена обновлена." : "Смена добавлена в график.";
-  const noticeMessage = isWeeklyDayOff ? `${baseMessage} ${buildMyShiftConflictMessage(date)}` : baseMessage;
+  resetMyShiftForm({ preserveDate: shift.date, preserveTemplate: getMyShiftTemplateFromShift(shift) });
+
+  const noticeMessage = plan.weeklyDayOffConflicts.length
+    ? `Смена добавлена в график. ${buildMyShiftConflictMessage(shift.date)}`
+    : "Смена добавлена в график.";
   setMyScheduleNotice(noticeMessage, "success");
   renderMySchedule();
   renderMyScheduleEditor();
 }
 
 function resetMyShiftForm(options = {}) {
-  const { preserveDate = "" } = options;
+  const { preserveDate = "", preserveTemplate = null, preserveBatch = null } = options;
   if (!el.myShiftForm) {
     return;
   }
 
   el.myShiftForm.reset();
   delete el.myShiftForm.dataset.boundShiftId;
-  el.myShiftDateInput.value = preserveDate || state.myScheduleFocusDate || todayIso();
-  el.myShiftStartInput.value = "08:00";
-  el.myShiftEndInput.value = "10:00";
-  renderMyScheduleFacilityOptions();
-  renderMyInstructorOptions();
+
+  const targetDate = preserveDate || state.myScheduleFocusDate || todayIso();
+  if (el.myShiftDateInput) {
+    el.myShiftDateInput.value = targetDate;
+  }
+
+  applyMyShiftTemplate({
+    start: "08:00",
+    end: "10:00",
+    ...(preserveTemplate || {}),
+  });
+
+  if (preserveBatch) {
+    if (el.myShiftBatchStartInput) {
+      el.myShiftBatchStartInput.value = String(preserveBatch.start || "");
+    }
+    if (el.myShiftBatchEndInput) {
+      el.myShiftBatchEndInput.value = String(preserveBatch.end || "");
+    }
+    setSelectedMyShiftBatchWeekdays(preserveBatch.weekdays || []);
+  }
+
+  ensureMyShiftBatchDefaults({ anchorDate: targetDate });
   syncMyShiftEditorFormState();
 }
 
@@ -1776,6 +2457,7 @@ function syncMyShiftEditorFormState() {
       el.myShiftStartInput.value = editingShift.start;
       el.myShiftEndInput.value = editingShift.end;
       renderMyInstructorOptions(editingShift.coworkers || []);
+      syncInstructorChipState();
       el.myShiftForm.dataset.boundShiftId = editingShift.id;
     }
 
@@ -1783,14 +2465,12 @@ function syncMyShiftEditorFormState() {
       el.myEditorTitle.textContent = "Редактирование смены";
     }
     if (el.myEditorSummary) {
-      el.myEditorSummary.textContent = "Измените поля и сохраните обновлённую запись.";
-    }
-    if (el.myShiftSubmitButton) {
-      el.myShiftSubmitButton.textContent = "Сохранить изменения";
+      el.myEditorSummary.textContent = "Меняйте только нужные поля. Для серии сначала сохраните правки, затем вернитесь в режим пакетного добавления.";
     }
     if (el.myShiftCancelEditButton) {
       el.myShiftCancelEditButton.hidden = false;
     }
+    renderMyShiftDraftPreview();
     return;
   }
 
@@ -1798,18 +2478,19 @@ function syncMyShiftEditorFormState() {
   const selectedCoworkers = getSelectedMyShiftInstructors();
 
   if (el.myEditorTitle) {
-    el.myEditorTitle.textContent = "Добавить смену";
+    el.myEditorTitle.textContent = "Конструктор смен";
   }
   if (el.myEditorSummary) {
-    el.myEditorSummary.textContent = "Заполните смену и сохраните её в график.";
-  }
-  if (el.myShiftSubmitButton) {
-    el.myShiftSubmitButton.textContent = "Сохранить смену";
+    el.myEditorSummary.textContent = getMyEditorMode() === "batch"
+      ? "Соберите шаблон и диапазон. Повторяющиеся записи приложение пропустит автоматически."
+      : "Добавляйте одиночные смены быстро, а для похожих записей можно подтянуть данные из последней смены.";
   }
   if (el.myShiftCancelEditButton) {
     el.myShiftCancelEditButton.hidden = true;
   }
   renderMyInstructorOptions(selectedCoworkers);
+  syncInstructorChipState();
+  renderMyShiftDraftPreview();
 }
 
 function renderMyScheduleEditor() {
@@ -1818,16 +2499,20 @@ function renderMyScheduleEditor() {
   }
 
   renderMyScheduleFacilityOptions();
+  ensureMyShiftBatchDefaults({ anchorDate: state.myScheduleFocusDate || todayIso() });
+  renderMyShiftBatchWeekdayOptions();
   syncMyShiftEditorFormState();
   renderWeeklyDayOffEditor();
   if (el.myDeleteHistoryButton) {
     el.myDeleteHistoryButton.hidden = !state.myShifts.length && !hasWeeklyDayOffConfigured();
   }
 
+  renderMyEditorShiftStats();
+
   if (!state.myShifts.length) {
     el.myEditorShiftList.innerHTML = `
       <div class="my-timeline-empty">
-        <p>${escapeHtml(hasWeeklyDayOffConfigured() ? "Смен пока нет. Еженедельный выходной уже можно настраивать в блоке выше." : "Смен пока нет. Добавьте первую запись через форму выше.")}</p>
+        <p>${escapeHtml(hasWeeklyDayOffConfigured() ? "Смен пока нет. Еженедельный выходной уже можно настраивать в блоке выше." : "Смен пока нет. Соберите первую запись через конструктор выше.")}</p>
       </div>
     `;
     return;
@@ -1835,11 +2520,19 @@ function renderMyScheduleEditor() {
 
   const today = todayIso();
   const sorted = state.myShifts.slice().sort(compareMyShift);
-  const list = [...sorted.filter((item) => item.date >= today), ...sorted.filter((item) => item.date < today).reverse()];
+  const upcoming = sorted.filter((item) => item.date >= today);
+  const history = sorted.filter((item) => item.date < today).reverse();
 
-  el.myEditorShiftList.innerHTML = list
-    .map((shift) => renderMyEditorShiftCard(shift))
-    .join("");
+  const sections = [];
+  sections.push(renderMyEditorShiftSection("Ближайшие смены", upcoming, {
+    emptyText: "Будущих смен пока нет. Можно добавить одну запись или целую серию.",
+  }));
+
+  if (history.length) {
+    sections.push(renderMyEditorShiftHistorySection(history));
+  }
+
+  el.myEditorShiftList.innerHTML = sections.join("");
 }
 
 function renderWeeklyDayOffEditor() {
@@ -1909,6 +2602,55 @@ function handleWeeklyDayOffPickerClick(event) {
   );
 }
 
+function renderMyEditorShiftStats() {
+  if (!el.myEditorShiftStats) {
+    return;
+  }
+
+  const today = todayIso();
+  const upcomingCount = (state.myShifts || []).filter((shift) => shift.date >= today).length;
+  const historyCount = Math.max(0, (state.myShifts || []).length - upcomingCount);
+
+  el.myEditorShiftStats.innerHTML = `
+    <span class="my-editor-stat-pill">${escapeHtml(String(state.myShifts.length))} всего</span>
+    <span class="my-editor-stat-pill success">${escapeHtml(String(upcomingCount))} впереди</span>
+    ${historyCount ? `<span class="my-editor-stat-pill muted">${escapeHtml(String(historyCount))} в истории</span>` : ""}
+  `;
+}
+
+function renderMyEditorShiftSection(title, shifts, options = {}) {
+  const { emptyText = "Записей пока нет." } = options;
+
+  return `
+    <section class="my-editor-shift-section">
+      <div class="my-editor-shift-section-head">
+        <h4>${escapeHtml(title)}</h4>
+        <span>${escapeHtml(String(shifts.length))}</span>
+      </div>
+      <div class="my-editor-shift-section-list">
+        ${shifts.length
+          ? shifts.map((shift) => renderMyEditorShiftCard(shift)).join("")
+          : `<div class="my-timeline-empty"><p>${escapeHtml(emptyText)}</p></div>`
+        }
+      </div>
+    </section>
+  `;
+}
+
+function renderMyEditorShiftHistorySection(shifts) {
+  return `
+    <details class="my-editor-history-group">
+      <summary>
+        <span>Прошлые смены</span>
+        <span>${escapeHtml(String(shifts.length))}</span>
+      </summary>
+      <div class="my-editor-history-content">
+        ${shifts.map((shift) => renderMyEditorShiftCard(shift)).join("")}
+      </div>
+    </details>
+  `;
+}
+
 function renderMyEditorShiftCard(shift) {
   const verification = getShiftVerification(shift);
   const labelDate = formatMyDayHeading(shift.date);
@@ -1931,6 +2673,7 @@ function renderMyEditorShiftCard(shift) {
         </div>
       </div>
       <div class="my-editor-shift-actions">
+        <button type="button" class="my-editor-action-btn primary" data-clone-shift="${escapeHtml(shift.id)}">В шаблон</button>
         <button type="button" class="my-editor-action-btn" data-edit-shift="${escapeHtml(shift.id)}">Изменить</button>
         <button type="button" class="my-editor-action-btn danger" data-delete-shift="${escapeHtml(shift.id)}">Удалить</button>
       </div>
@@ -3438,6 +4181,24 @@ function normalizeChangeSideText(value, fallback = "—") {
 }
 
 function handleMyEditorShiftListClick(event) {
+  const cloneButton = event.target.closest("button[data-clone-shift]");
+  if (cloneButton) {
+    const shiftId = String(cloneButton.dataset.cloneShift || "");
+    if (!shiftId) {
+      return;
+    }
+    const shift = state.myShifts.find((item) => item.id === shiftId) || null;
+    if (!shift) {
+      return;
+    }
+    state.myEditingShiftId = null;
+    seedMyShiftFormFromShift(shift);
+    renderMyScheduleEditor();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setMyScheduleNotice("Данные смены перенесены в конструктор.", "info");
+    return;
+  }
+
   const editButton = event.target.closest("button[data-edit-shift]");
   if (editButton) {
     const shiftId = String(editButton.dataset.editShift || "");

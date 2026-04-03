@@ -2050,13 +2050,20 @@ body::before {
   color: #cbd5e1;
 }
 
+.my-editor-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .my-editor-form-card,
 .my-editor-list-card,
 .my-editor-dayoff-card {
-  border-radius: 20px;
+  border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, rgba(28, 28, 30, 0.88), rgba(15, 23, 42, 0.58));
-  padding: 14px;
+  background: linear-gradient(180deg, rgba(28, 28, 30, 0.9), rgba(15, 23, 42, 0.62));
+  padding: 16px;
+  box-shadow: 0 20px 48px rgba(2, 6, 23, 0.16);
 }
 
 .my-editor-head h2,
@@ -2071,9 +2078,129 @@ body::before {
 .my-editor-head p {
   margin: 8px 0 0;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.45;
   font-weight: 600;
   color: #cbd5e1;
+}
+
+.my-editor-head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.my-editor-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.my-editor-mode-switch.is-editing {
+  opacity: 0.75;
+}
+
+.my-editor-mode-btn {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 180ms ease, color 180ms ease, transform 150ms ease;
+}
+
+.my-editor-mode-btn.is-active {
+  background: rgba(37, 99, 235, 0.22);
+  color: #dbeafe;
+}
+
+.my-editor-mode-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.my-editor-mode-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.my-editor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.my-editor-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.my-editor-panel,
+.my-editor-summary-card {
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background:
+    radial-gradient(140% 150% at 0% 0%, rgba(30, 41, 59, 0.46), rgba(15, 23, 42, 0.52) 58%, rgba(15, 23, 42, 0.34) 100%);
+  padding: 14px;
+}
+
+.my-editor-panel-head h3 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.my-editor-panel-head p {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.my-editor-quick-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.my-editor-chip-btn {
+  border: 1px solid rgba(96, 165, 250, 0.32);
+  background: rgba(37, 99, 235, 0.14);
+  color: #dbeafe;
+  border-radius: 9999px;
+  padding: 9px 12px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 180ms ease, background-color 180ms ease, transform 150ms ease;
+}
+
+.my-editor-chip-btn.muted {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(51, 65, 85, 0.3);
+  color: #cbd5e1;
+}
+
+.my-editor-chip-btn:active {
+  transform: scale(0.98);
 }
 
 .my-weekday-picker {
@@ -2081,6 +2208,10 @@ body::before {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+}
+
+.my-weekday-picker-multi {
+  margin-top: 10px;
 }
 
 .my-weekday-chip {
@@ -2116,8 +2247,137 @@ body::before {
   color: #cbd5e1;
 }
 
-.my-editor-history-delete-btn {
+.my-editor-batch-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.my-editor-batch-preview,
+.my-editor-draft-summary {
+  margin-top: 12px;
+}
+
+.my-editor-preview-empty,
+.my-editor-summary-empty {
+  border-radius: 16px;
+  border: 1px dashed rgba(148, 163, 184, 0.26);
+  background: rgba(15, 23, 42, 0.24);
+  padding: 12px;
+}
+
+.my-editor-preview-empty p,
+.my-editor-summary-empty p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.my-editor-preview-meta,
+.my-editor-summary-top,
+.my-editor-list-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.my-editor-preview-dates {
   margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.my-editor-date-pill,
+.my-editor-stat-pill {
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(30, 41, 59, 0.5);
+  color: #e2e8f0;
+  padding: 7px 10px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+}
+
+.my-editor-stat-pill.success {
+  border-color: rgba(22, 163, 74, 0.28);
+  background: rgba(22, 163, 74, 0.16);
+  color: #bbf7d0;
+}
+
+.my-editor-stat-pill.warning {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.16);
+  color: #fde68a;
+}
+
+.my-editor-date-pill.muted,
+.my-editor-stat-pill.muted {
+  color: #94a3b8;
+}
+
+.my-editor-summary-main {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.my-editor-summary-main h4 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.15;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.my-editor-summary-main p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.my-editor-summary-block {
+  margin-top: 14px;
+}
+
+.my-editor-summary-block > span {
+  display: block;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.my-editor-summary-callout {
+  margin-top: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  background: rgba(14, 165, 233, 0.12);
+  padding: 11px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #bae6fd;
+}
+
+.my-editor-summary-callout.muted {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(71, 85, 105, 0.2);
+  color: #cbd5e1;
+}
+
+.my-editor-history-delete-btn {
   border: 1px solid rgba(248, 113, 113, 0.44);
   background: rgba(248, 113, 113, 0.15);
   color: #fecaca;
@@ -2136,6 +2396,7 @@ body::before {
 }
 
 .my-editor-form-actions {
+  margin-top: 14px;
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
@@ -2159,21 +2420,108 @@ body::before {
   transform: scale(0.99);
 }
 
+.my-editor-list-head,
+.my-editor-list-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.my-editor-list-toolbar {
+  margin-top: 14px;
+  align-items: center;
+}
+
+.my-editor-list-hint {
+  margin: 0;
+  max-width: 560px;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
 .my-editor-shift-list {
-  margin-top: 10px;
+  margin-top: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+}
+
+.my-editor-shift-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.my-editor-shift-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.my-editor-shift-section-head h4 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.my-editor-shift-section-head span {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.my-editor-shift-section-list,
+.my-editor-history-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.my-editor-history-group {
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.22);
+  padding: 14px;
+}
+
+.my-editor-history-group summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 900;
+  color: #e2e8f0;
+}
+
+.my-editor-history-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.my-editor-history-content {
+  margin-top: 12px;
 }
 
 .my-editor-shift-card {
-  border-radius: 14px;
+  border-radius: 16px;
   border: 1px solid rgba(148, 163, 184, 0.3);
   background: rgba(30, 41, 59, 0.5);
-  padding: 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .my-editor-shift-main {
@@ -2234,7 +2582,7 @@ body::before {
 
 .my-editor-shift-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -2242,7 +2590,7 @@ body::before {
   border: 1px solid rgba(148, 163, 184, 0.4);
   background: rgba(71, 85, 105, 0.22);
   color: #e2e8f0;
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: 11px;
   font-weight: 900;
   line-height: 1;
@@ -2250,6 +2598,12 @@ body::before {
   text-transform: uppercase;
   padding: 10px;
   cursor: pointer;
+}
+
+.my-editor-action-btn.primary {
+  border-color: rgba(37, 99, 235, 0.32);
+  background: rgba(37, 99, 235, 0.18);
+  color: #dbeafe;
 }
 
 .my-editor-action-btn.danger {
@@ -3635,6 +3989,20 @@ html.light .my-shift-cancel-btn {
   color: #334155;
 }
 
+html.light .my-editor-mode-switch {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(241, 245, 249, 0.9);
+}
+
+html.light .my-editor-mode-btn {
+  color: #64748b;
+}
+
+html.light .my-editor-mode-btn.is-active {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
 html.light .my-editor-form-card,
 html.light .my-editor-list-card,
 html.light .my-editor-dayoff-card {
@@ -3649,6 +4017,36 @@ html.light .my-editor-head h3 {
 }
 
 html.light .my-editor-head p {
+  color: #334155;
+}
+
+html.light .my-editor-panel,
+html.light .my-editor-summary-card {
+  border-color: rgba(148, 163, 184, 0.24);
+  background:
+    radial-gradient(140% 150% at 0% 0%, rgba(239, 246, 255, 0.94), rgba(248, 250, 252, 0.96) 58%, rgba(255, 255, 255, 0.98) 100%);
+}
+
+html.light .my-editor-panel-head h3,
+html.light .my-editor-shift-section-head h4,
+html.light .my-editor-history-group summary {
+  color: #0f172a;
+}
+
+html.light .my-editor-panel-head p,
+html.light .my-editor-list-hint {
+  color: #64748b;
+}
+
+html.light .my-editor-chip-btn {
+  border-color: rgba(37, 99, 235, 0.24);
+  background: rgba(219, 234, 254, 0.8);
+  color: #1d4ed8;
+}
+
+html.light .my-editor-chip-btn.muted {
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(241, 245, 249, 0.96);
   color: #334155;
 }
 
@@ -3672,6 +4070,61 @@ html.light .my-editor-history-delete-btn {
   border-color: rgba(220, 38, 38, 0.35);
   background: rgba(254, 226, 226, 0.92);
   color: #991b1b;
+}
+
+html.light .my-editor-preview-empty,
+html.light .my-editor-summary-empty {
+  border-color: rgba(148, 163, 184, 0.34);
+  background: rgba(248, 250, 252, 0.92);
+}
+
+html.light .my-editor-preview-empty p,
+html.light .my-editor-summary-empty p {
+  color: #64748b;
+}
+
+html.light .my-editor-date-pill,
+html.light .my-editor-stat-pill {
+  border-color: rgba(148, 163, 184, 0.34);
+  background: rgba(255, 255, 255, 0.94);
+  color: #334155;
+}
+
+html.light .my-editor-stat-pill.success {
+  border-color: rgba(22, 163, 74, 0.3);
+  background: rgba(220, 252, 231, 0.9);
+  color: #166534;
+}
+
+html.light .my-editor-stat-pill.warning {
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(254, 243, 199, 0.92);
+  color: #92400e;
+}
+
+html.light .my-editor-summary-main h4 {
+  color: #0f172a;
+}
+
+html.light .my-editor-summary-main p,
+html.light .my-editor-shift-section-head span {
+  color: #475569;
+}
+
+html.light .my-editor-summary-block > span {
+  color: #2563eb;
+}
+
+html.light .my-editor-summary-callout {
+  border-color: rgba(8, 145, 178, 0.18);
+  background: rgba(207, 250, 254, 0.9);
+  color: #155e75;
+}
+
+html.light .my-editor-summary-callout.muted {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(241, 245, 249, 0.96);
+  color: #334155;
 }
 
 html.light .my-editor-shift-card {
@@ -3705,10 +4158,21 @@ html.light .my-editor-action-btn {
   color: #334155;
 }
 
+html.light .my-editor-action-btn.primary {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(219, 234, 254, 0.9);
+  color: #1d4ed8;
+}
+
 html.light .my-editor-action-btn.danger {
   border-color: rgba(220, 38, 38, 0.38);
   background: rgba(254, 226, 226, 0.9);
   color: #991b1b;
+}
+
+html.light .my-editor-history-group {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(248, 250, 252, 0.94);
 }
 
 html.light .my-schedule-notice.success {
@@ -4981,6 +5445,10 @@ html.dark .history-data-notice.info {
     gap: 16px;
   }
 
+  #myScheduleEditorMain {
+    padding: 26px;
+  }
+
   .my-graph-placeholder h3,
   .my-day-footer h2 {
     font-size: 20px;
@@ -5010,6 +5478,10 @@ html.dark .history-data-notice.info {
     font-size: 23px;
   }
 
+  .my-editor-layout {
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.95fr);
+  }
+
   html.light #settingsView {
     box-shadow: 0 20px 46px rgba(15, 23, 42, 0.15);
   }
@@ -5035,13 +5507,12 @@ html.dark .history-data-notice.info {
   }
 
   #myScheduleEditorMain {
-    display: grid;
-    grid-template-columns: minmax(320px, 420px) 1fr;
-    gap: 14px;
-    align-items: start;
+    max-width: 1180px;
+    margin: 0 auto;
+    width: 100%;
   }
 
-  .my-editor-form-card {
+  .my-editor-summary-card {
     position: sticky;
     top: 114px;
   }
@@ -5206,6 +5677,21 @@ html.dark .history-data-notice.info {
 
   .my-day-inline-actions .my-day-control-btn {
     width: auto;
+  }
+
+  .my-editor-head-row,
+  .my-editor-list-head,
+  .my-editor-list-toolbar {
+    flex-direction: column;
+  }
+
+  .my-editor-mode-switch {
+    width: 100%;
+  }
+
+  .my-editor-mode-btn {
+    flex: 1 1 0;
+    text-align: center;
   }
 
   .my-editor-shift-actions {

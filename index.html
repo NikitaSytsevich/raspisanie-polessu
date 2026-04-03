@@ -226,82 +226,185 @@
       </header>
 
       <main id="myScheduleEditorMain" class="px-5 pt-5 pb-24">
-        <section class="my-editor-form-card">
-          <div class="my-editor-head">
-            <h2 id="myEditorTitle">Добавить смену</h2>
-            <p id="myEditorSummary">Заполните смену и сохраните её в график.</p>
-          </div>
-
-          <form id="myShiftForm" class="my-shift-form" autocomplete="off">
-            <label class="my-field">
-              <span>Дата</span>
-              <input id="myShiftDateInput" type="date" required />
-            </label>
-
-            <div id="myShiftWorkFields" class="my-shift-work-fields">
-              <label class="my-field">
-                <span>Объект</span>
-                <select id="myShiftFacilitySelect" required></select>
-              </label>
-
-              <label class="my-field">
-                <span>С кем работаю</span>
-                <div id="myShiftInstructorsList" class="my-instructors-list" role="group" aria-label="Выбор инструкторов"></div>
-                <small class="my-field-hint">Можно выбрать одного или нескольких инструкторов.</small>
-              </label>
-
-              <div class="my-time-row">
-                <label class="my-field">
-                  <span>Начало</span>
-                  <input id="myShiftStartInput" type="time" required />
-                </label>
-                <label class="my-field">
-                  <span>Конец</span>
-                  <input id="myShiftEndInput" type="time" required />
-                </label>
+        <div class="my-editor-shell">
+          <section class="my-editor-form-card my-editor-composer-card">
+            <div class="my-editor-head my-editor-head-row">
+              <div>
+                <h2 id="myEditorTitle">Конструктор смен</h2>
+                <p id="myEditorSummary">Соберите шаблон один раз, затем добавьте одну смену или целую серию без лишних повторов.</p>
+              </div>
+              <div id="myEditorModeSwitch" class="my-editor-mode-switch" role="tablist" aria-label="Режим добавления смен">
+                <button
+                  id="myEditorModeSingleButton"
+                  type="button"
+                  class="my-editor-mode-btn is-active"
+                  data-editor-mode="single"
+                  aria-pressed="true"
+                >
+                  Одна смена
+                </button>
+                <button
+                  id="myEditorModeBatchButton"
+                  type="button"
+                  class="my-editor-mode-btn"
+                  data-editor-mode="batch"
+                  aria-pressed="false"
+                >
+                  Серия
+                </button>
               </div>
             </div>
 
-            <label class="my-field">
-              <span>Комментарий (опционально)</span>
-              <input
-                id="myShiftNoteInput"
-                type="text"
-                maxlength="80"
-                placeholder="Например: подмена, тренажёрный зал"
-              />
-            </label>
+            <form id="myShiftForm" class="my-shift-form" autocomplete="off">
+              <div class="my-editor-layout">
+                <div class="my-editor-stack">
+                  <section class="my-editor-panel">
+                    <div class="my-editor-panel-head">
+                      <h3>Шаблон смены</h3>
+                      <p>Заполните объект, коллег и время один раз. Эти поля используются и для одиночной записи, и для серии.</p>
+                    </div>
 
-            <div class="my-editor-form-actions">
-              <button id="myShiftSubmitButton" type="submit" class="my-shift-submit-btn">Сохранить смену</button>
-              <button id="myShiftCancelEditButton" type="button" class="my-shift-cancel-btn" hidden>
-                Отмена редактирования
+                    <div class="my-editor-quick-row">
+                      <button id="myShiftFillLatestButton" type="button" class="my-editor-chip-btn">
+                        Из последней смены
+                      </button>
+                      <button id="myShiftResetDraftButton" type="button" class="my-editor-chip-btn muted">
+                        Очистить
+                      </button>
+                    </div>
+
+                    <div id="myShiftWorkFields" class="my-shift-work-fields">
+                      <label class="my-field">
+                        <span>Объект</span>
+                        <select id="myShiftFacilitySelect" required></select>
+                      </label>
+
+                      <label class="my-field">
+                        <span>С кем работаю</span>
+                        <div id="myShiftInstructorsList" class="my-instructors-list" role="group" aria-label="Выбор инструкторов"></div>
+                        <small class="my-field-hint">Можно выбрать одного или нескольких инструкторов.</small>
+                      </label>
+
+                      <div class="my-time-row">
+                        <label class="my-field">
+                          <span>Начало</span>
+                          <input id="myShiftStartInput" type="time" required />
+                        </label>
+                        <label class="my-field">
+                          <span>Конец</span>
+                          <input id="myShiftEndInput" type="time" required />
+                        </label>
+                      </div>
+                    </div>
+
+                    <label class="my-field">
+                      <span>Комментарий (опционально)</span>
+                      <input
+                        id="myShiftNoteInput"
+                        type="text"
+                        maxlength="80"
+                        placeholder="Например: подмена, тренажёрный зал"
+                      />
+                    </label>
+                  </section>
+
+                  <section id="myShiftSingleSection" class="my-editor-panel">
+                    <div class="my-editor-panel-head">
+                      <h3>Дата смены</h3>
+                      <p>Подходит, когда нужно быстро добавить одну запись или поправить уже существующую.</p>
+                    </div>
+
+                    <label class="my-field">
+                      <span>Дата</span>
+                      <input id="myShiftDateInput" type="date" required />
+                    </label>
+
+                    <div class="my-editor-quick-row">
+                      <button type="button" class="my-editor-chip-btn" data-shift-date-shortcut="today">Сегодня</button>
+                      <button type="button" class="my-editor-chip-btn" data-shift-date-shortcut="tomorrow">Завтра</button>
+                      <button type="button" class="my-editor-chip-btn" data-shift-date-shortcut="next_day">+1 день</button>
+                    </div>
+                  </section>
+
+                  <section id="myShiftBatchSection" hidden class="my-editor-panel">
+                    <div class="my-editor-panel-head">
+                      <h3>Серия смен</h3>
+                      <p>Выберите диапазон и нужные дни недели. Приложение сразу покажет, какие даты будут добавлены.</p>
+                    </div>
+
+                    <div class="my-time-row">
+                      <label class="my-field">
+                        <span>С</span>
+                        <input id="myShiftBatchStartInput" type="date" />
+                      </label>
+                      <label class="my-field">
+                        <span>По</span>
+                        <input id="myShiftBatchEndInput" type="date" />
+                      </label>
+                    </div>
+
+                    <div class="my-editor-batch-tools">
+                      <div class="my-editor-quick-row">
+                        <button type="button" class="my-editor-chip-btn" data-batch-preset="weekdays">Будни</button>
+                        <button type="button" class="my-editor-chip-btn" data-batch-preset="weekend">Выходные</button>
+                        <button type="button" class="my-editor-chip-btn" data-batch-preset="all">Все дни</button>
+                        <button type="button" class="my-editor-chip-btn muted" data-batch-preset="clear">Сбросить</button>
+                      </div>
+                      <div id="myShiftBatchWeekdays" class="my-weekday-picker my-weekday-picker-multi" role="group" aria-label="Дни недели для серии"></div>
+                    </div>
+
+                    <div id="myShiftBatchPreview" class="my-editor-batch-preview"></div>
+                  </section>
+                </div>
+
+                <aside class="my-editor-summary-card">
+                  <div class="my-editor-panel-head">
+                    <h3>Предпросмотр</h3>
+                    <p>Перед сохранением сразу видно, сколько смен создастся и какие даты уже заняты.</p>
+                  </div>
+                  <div id="myShiftDraftSummary" class="my-editor-draft-summary"></div>
+                </aside>
+              </div>
+
+              <div class="my-editor-form-actions">
+                <button id="myShiftSubmitButton" type="submit" class="my-shift-submit-btn">Сохранить смену</button>
+                <button id="myShiftCancelEditButton" type="button" class="my-shift-cancel-btn" hidden>
+                  Отмена редактирования
+                </button>
+              </div>
+            </form>
+
+            <p id="myScheduleNotice" hidden class="my-schedule-notice"></p>
+          </section>
+
+          <section class="my-editor-dayoff-card">
+            <div class="my-editor-head">
+              <h3>Еженедельный выходной</h3>
+              <p>Выберите один день недели. Он будет автоматически отмечаться в графике как выходной.</p>
+            </div>
+            <div id="myWeeklyDayOffOptions" class="my-weekday-picker" role="group" aria-label="Выбор еженедельного выходного"></div>
+            <p id="myWeeklyDayOffSummary" class="my-weekday-summary"></p>
+          </section>
+
+          <section class="my-editor-list-card">
+            <div class="my-editor-list-head">
+              <div class="my-editor-head">
+                <h3>Журнал смен</h3>
+                <p>Ближайшие смены держим на виду, а прошлые убираем в историю. Любую запись можно взять как шаблон, отредактировать или удалить.</p>
+              </div>
+              <div id="myEditorShiftStats" class="my-editor-list-stats"></div>
+            </div>
+
+            <div class="my-editor-list-toolbar">
+              <p class="my-editor-list-hint">Кнопка «В шаблон» переносит параметры записи обратно в конструктор, чтобы быстро собрать похожую смену или серию.</p>
+              <button id="myDeleteHistoryButton" type="button" class="my-editor-history-delete-btn">
+                Удалить историю
               </button>
             </div>
-          </form>
 
-          <p id="myScheduleNotice" hidden class="my-schedule-notice"></p>
-        </section>
-
-        <section class="my-editor-dayoff-card">
-          <div class="my-editor-head">
-            <h3>Еженедельный выходной</h3>
-            <p>Выберите один день недели. Он будет автоматически отмечаться в графике как выходной.</p>
-          </div>
-          <div id="myWeeklyDayOffOptions" class="my-weekday-picker" role="group" aria-label="Выбор еженедельного выходного"></div>
-          <p id="myWeeklyDayOffSummary" class="my-weekday-summary"></p>
-        </section>
-
-        <section class="my-editor-list-card">
-          <div class="my-editor-head">
-            <h3>Все смены</h3>
-            <p>Нажмите «Изменить», чтобы поправить запись, или «Удалить», чтобы убрать её.</p>
-          </div>
-          <button id="myDeleteHistoryButton" type="button" class="my-editor-history-delete-btn">
-            Удалить историю
-          </button>
-          <div id="myEditorShiftList" class="my-editor-shift-list"></div>
-        </section>
+            <div id="myEditorShiftList" class="my-editor-shift-list"></div>
+          </section>
+        </div>
       </main>
     </div>
 
