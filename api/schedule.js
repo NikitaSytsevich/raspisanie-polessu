@@ -1,3 +1,6 @@
+const { execFile } = require("child_process");
+const { promisify } = require("util");
+
 const TIMEZONE = "Europe/Minsk";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_DAYS_WINDOW = 8;
@@ -5,6 +8,14 @@ const SOURCE_DISCOVERY_TTL_MS = 20 * 60 * 1000;
 const SITEMAP_URL = "https://www.polessu.by/sitemap.xml";
 const FETCH_TIMEOUT_MS = 10 * 1000;
 const SCHEMA_VERSION = 3;
+const CURL_MAX_BUFFER_BYTES = 8 * 1024 * 1024;
+const CURL_FALLBACK_TLS_CODES = new Set([
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+]);
+const execFileAsync = promisify(execFile);
 
 const siteChangesUtils = require("../shared/site_changes.js");
 
@@ -479,9 +490,51 @@ async function fetchHtml(url, options = {}) {
     }
 
     return await response.text();
+  } catch (error) {
+    if (shouldRetryWithCurl(error)) {
+      return fetchHtmlWithCurl(url, accept);
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function shouldRetryWithCurl(error) {
+  let current = error;
+  while (current && typeof current === "object") {
+    const code = typeof current.code === "string" ? current.code : "";
+    if (CURL_FALLBACK_TLS_CODES.has(code)) {
+      return true;
+    }
+    current = current.cause;
+  }
+
+  const message = String(error?.message || "").toLowerCase();
+  return /issuer certificate|self-signed certificate|unable to verify/i.test(message);
+}
+
+async function fetchHtmlWithCurl(url, accept) {
+  const args = [
+    "--silent",
+    "--show-error",
+    "--fail",
+    "--location",
+    "--compressed",
+    "--max-time",
+    String(Math.ceil(FETCH_TIMEOUT_MS / 1000)),
+    "-H",
+    "User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    "-H",
+    `Accept: ${accept}`,
+    url,
+  ];
+
+  const { stdout } = await execFileAsync("curl", args, {
+    maxBuffer: CURL_MAX_BUFFER_BYTES,
+  });
+
+  return stdout;
 }
 
 function extractFieldContent(html) {

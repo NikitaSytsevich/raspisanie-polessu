@@ -405,16 +405,7 @@ body::before {
   color: #ffffff;
 }
 
-#myScheduleEditorView {
-  background: linear-gradient(180deg, #04070f 0%, #000000 100%);
-  color: #ffffff;
-}
-
 #myScheduleHeader {
-  padding-top: max(3.5rem, calc(env(safe-area-inset-top) + 12px)) !important;
-}
-
-#myScheduleEditorHeader {
   padding-top: max(3.5rem, calc(env(safe-area-inset-top) + 12px)) !important;
 }
 
@@ -554,6 +545,74 @@ body::before {
 
 .changes-section + .changes-section {
   margin-top: 14px;
+}
+
+.changes-section-feature {
+  border-color: var(--tone-border);
+  background:
+    radial-gradient(120% 150% at 0% 0%, var(--tone-glow), transparent 55%),
+    linear-gradient(180deg, var(--tone-bg-start), var(--tone-bg-end));
+  box-shadow: 0 18px 34px rgba(2, 6, 23, 0.24);
+}
+
+.changes-feature-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.changes-feature-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.changes-feature-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.changes-feature-kicker {
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tone-muted);
+}
+
+.changes-feature-time {
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 800;
+  color: var(--tone-copy);
+}
+
+.changes-feature-title-row {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.changes-feature-title-row h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.08;
+  font-weight: 900;
+  color: var(--tone-title);
+}
+
+.changes-feature-summary {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.42;
+  font-weight: 700;
+  color: var(--tone-copy);
 }
 
 .tone-important,
@@ -814,7 +873,7 @@ body::before {
 }
 
 .changes-ack-row {
-  margin-top: 10px;
+  margin-top: 12px;
   display: flex;
   justify-content: flex-end;
 }
@@ -844,6 +903,16 @@ body::before {
 
 .changes-ack-btn:active {
   transform: scale(0.98);
+}
+
+.changes-section-feature .changes-ack-row {
+  justify-content: stretch;
+}
+
+.changes-section-feature .changes-ack-btn {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 14px;
 }
 
 .changes-last-change-row {
@@ -986,36 +1055,63 @@ body::before {
 }
 
 .changes-group-rows {
-  margin-top: 12px;
+  margin-top: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
 .changes-group-row {
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(15, 23, 42, 0.34);
+  background: rgba(8, 15, 29, 0.28);
   padding: 10px 11px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 
-.changes-group-row span {
-  display: block;
-  font-size: 10px;
+.changes-group-row-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 9px;
   line-height: 1;
   font-weight: 900;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #93c5fd;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
 }
 
 .changes-group-row strong {
   display: block;
-  margin-top: 7px;
+  margin: 0;
   font-size: 13px;
   line-height: 1.45;
   font-weight: 800;
   color: #e2e8f0;
+}
+
+.changes-group-row.is-added .changes-group-row-badge {
+  border-color: rgba(52, 211, 153, 0.34);
+  background: rgba(5, 150, 105, 0.2);
+  color: #a7f3d0;
+}
+
+.changes-group-row.is-removed .changes-group-row-badge {
+  border-color: rgba(248, 113, 113, 0.34);
+  background: rgba(220, 38, 38, 0.2);
+  color: #fecaca;
+}
+
+.changes-group-row.is-updated .changes-group-row-badge {
+  border-color: rgba(96, 165, 250, 0.34);
+  background: rgba(37, 99, 235, 0.18);
+  color: #dbeafe;
 }
 
 .changes-empty-state h2 {
@@ -1094,6 +1190,11 @@ body::before {
   gap: 9px;
 }
 
+.changes-list-compact {
+  margin-top: 12px;
+  gap: 10px;
+}
+
 .changes-impact-list {
   margin-top: 12px;
   display: flex;
@@ -1132,17 +1233,23 @@ body::before {
 }
 
 .changes-feed-card {
-  border-radius: 16px;
+  border-radius: 18px;
   border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(15, 23, 42, 0.44);
-  padding: 12px;
+  background: rgba(15, 23, 42, 0.38);
+  padding: 14px;
 }
 
 .changes-feed-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+}
+
+.changes-feed-heading {
+  min-width: 0;
+  flex: 1;
 }
 
 .changes-feed-title {
@@ -1154,11 +1261,11 @@ body::before {
 }
 
 .changes-feed-time {
-  margin: 6px 0 0;
-  font-size: 11px;
-  line-height: 1.25;
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
   font-weight: 700;
-  color: #94a3b8;
+  color: #cbd5e1;
 }
 
 .changes-feed-line {
@@ -1176,10 +1283,16 @@ body::before {
   gap: 6px;
 }
 
+.changes-feed-chips-compact {
+  margin-top: 0;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
 .changes-feed-chip {
   border-radius: 9999px;
-  padding: 4px 8px;
-  font-size: 10px;
+  padding: 4px 7px;
+  font-size: 9px;
   line-height: 1;
   font-weight: 900;
   letter-spacing: 0.04em;
@@ -1340,12 +1453,14 @@ body::before {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .my-schedule-brand-logo {
-  width: 27px;
-  height: 27px;
+  width: 100%;
+  height: 100%;
   display: block;
+  object-fit: contain;
 }
 
 .my-schedule-back-btn {
@@ -1456,12 +1571,6 @@ body::before {
   min-height: calc(100vh - 170px);
 }
 
-#myScheduleEditorMain {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
 .my-graph-placeholder,
 .my-day-footer {
   border-radius: 20px;
@@ -1568,13 +1677,13 @@ body::before {
 }
 
 .my-changes-widget {
-  border-radius: 24px;
+  border-radius: 22px;
   border: 1px solid var(--tone-border);
   background:
-    radial-gradient(120% 160% at 0% 0%, var(--tone-glow), transparent 58%),
+    radial-gradient(120% 140% at 0% 0%, var(--tone-glow), transparent 52%),
     linear-gradient(180deg, var(--tone-bg-start), var(--tone-bg-end));
-  padding: 16px;
-  box-shadow: 0 18px 36px rgba(2, 6, 23, 0.28);
+  padding: 12px;
+  box-shadow: 0 14px 28px rgba(2, 6, 23, 0.22);
   transition: transform 150ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
@@ -1589,8 +1698,8 @@ body::before {
 
 .my-changes-widget-top {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-start;
   gap: 12px;
 }
 
@@ -1599,17 +1708,9 @@ body::before {
   font-size: 11px;
   line-height: 1;
   font-weight: 900;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--tone-muted);
-}
-
-.my-changes-widget-top h3 {
-  margin: 8px 0 0;
-  font-size: 24px;
-  line-height: 1;
-  font-weight: 900;
-  color: var(--tone-title);
 }
 
 .my-changes-state-pill {
@@ -1626,70 +1727,124 @@ body::before {
   white-space: nowrap;
 }
 
-.my-changes-widget-summary {
-  margin: 14px 0 0;
-  font-size: 14px;
-  line-height: 1.48;
-  font-weight: 700;
-  color: var(--tone-copy);
-}
-
-.my-changes-widget-time {
-  margin: 10px 0 0;
-  font-size: 12px;
-  line-height: 1.35;
-  font-weight: 800;
-  color: var(--tone-copy);
-}
-
-.my-changes-widget-highlights {
-  margin-top: 14px;
+.my-changes-widget-main {
+  margin-top: 10px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 8px;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: flex-start;
 }
 
-.my-changes-widget-highlight {
-  border-radius: 16px;
-  border: 1px solid var(--tone-metric-border);
-  background: var(--tone-metric-bg);
-  padding: 10px 11px;
+.my-changes-widget-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid var(--tone-icon-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
+    var(--tone-icon-bg);
+  color: var(--tone-icon-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.my-changes-widget-highlight span {
-  display: block;
-  font-size: 10px;
-  line-height: 1.25;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--tone-muted);
+.my-changes-widget-mark .material-symbols-outlined {
+  font-size: 22px;
 }
 
-.my-changes-widget-highlight strong {
-  display: block;
-  margin-top: 8px;
-  font-size: 13px;
-  line-height: 1.35;
+.my-changes-widget-copy {
+  min-width: 0;
+}
+
+.my-changes-widget-copy-compact {
+  margin-top: 10px;
+}
+
+.my-changes-widget-copy h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.08;
   font-weight: 900;
   color: var(--tone-title);
 }
 
-.my-changes-widget-footer {
-  margin-top: 14px;
-  padding-top: 12px;
+.my-changes-widget-summary {
+  margin: 5px 0 0;
+  font-size: 13px;
+  line-height: 1.42;
+  font-weight: 700;
+  color: var(--tone-copy);
+}
+
+.my-changes-widget-list {
+  margin-top: 12px;
   border-top: 1px solid var(--tone-divider);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+}
+
+.my-changes-widget-item {
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.my-changes-widget-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.my-changes-widget-item-name {
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 800;
+  color: var(--tone-muted);
+}
+
+.my-changes-widget-item-value {
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 800;
+  color: var(--tone-title);
+}
+
+.my-changes-widget-time {
+  margin: 0;
   font-size: 12px;
   line-height: 1.35;
   font-weight: 800;
   color: var(--tone-copy);
 }
 
-.my-changes-widget-footer .material-symbols-outlined {
+.my-changes-widget-footer {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--tone-divider);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.my-changes-widget-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 800;
+  color: var(--tone-copy);
+  text-align: right;
+}
+
+.my-changes-widget-action .material-symbols-outlined {
   font-size: 20px;
 }
 
@@ -1997,6 +2152,23 @@ body::before {
   width: 210px;
   max-width: 100%;
   height: 170px;
+}
+
+.my-empty-symbol {
+  width: 66px;
+  height: 66px;
+  border-radius: 22px;
+  border: 1px solid rgba(96, 165, 250, 0.32);
+  background: linear-gradient(180deg, rgba(30, 64, 175, 0.24), rgba(15, 23, 42, 0.48));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14px 30px rgba(2, 6, 23, 0.24);
+}
+
+.my-empty-symbol .material-symbols-outlined {
+  font-size: 30px;
+  color: #93c5fd;
 }
 
 .my-empty-title {
@@ -3456,11 +3628,6 @@ html.light #myScheduleView {
   color: #0f172a;
 }
 
-html.light #myScheduleEditorView {
-  background: linear-gradient(180deg, #f8fbff 0%, #edf2f8 100%);
-  color: #0f172a;
-}
-
 html.light #changesView {
   background: linear-gradient(180deg, #f8fbff 0%, #edf2f8 100%);
   color: #0f172a;
@@ -3476,16 +3643,7 @@ html.light #changesHeader {
   border-bottom-color: rgba(15, 23, 42, 0.12);
 }
 
-html.light #myScheduleEditorHeader {
-  background: rgba(248, 250, 252, 0.88);
-  border-bottom-color: rgba(15, 23, 42, 0.12);
-}
-
 html.light #myScheduleHeader .text-white {
-  color: #0f172a !important;
-}
-
-html.light #myScheduleEditorHeader .text-white {
   color: #0f172a !important;
 }
 
@@ -3563,12 +3721,14 @@ html.light .changes-section {
 }
 
 html.light .changes-overview-card,
-html.light .my-changes-widget {
+html.light .my-changes-widget,
+html.light .changes-section-feature {
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
 }
 
 html.light .changes-overview-card.tone-important,
-html.light .my-changes-widget.tone-important {
+html.light .my-changes-widget.tone-important,
+html.light .changes-section-feature.tone-important {
   --tone-border: rgba(249, 115, 22, 0.26);
   --tone-bg-start: rgba(255, 247, 237, 0.98);
   --tone-bg-end: rgba(255, 237, 213, 0.94);
@@ -3588,7 +3748,8 @@ html.light .my-changes-widget.tone-important {
 }
 
 html.light .changes-overview-card.tone-info,
-html.light .my-changes-widget.tone-info {
+html.light .my-changes-widget.tone-info,
+html.light .changes-section-feature.tone-info {
   --tone-border: rgba(37, 99, 235, 0.24);
   --tone-bg-start: rgba(239, 246, 255, 0.98);
   --tone-bg-end: rgba(219, 234, 254, 0.94);
@@ -3608,7 +3769,8 @@ html.light .my-changes-widget.tone-info {
 }
 
 html.light .changes-overview-card.tone-issue,
-html.light .my-changes-widget.tone-issue {
+html.light .my-changes-widget.tone-issue,
+html.light .changes-section-feature.tone-issue {
   --tone-border: rgba(245, 158, 11, 0.26);
   --tone-bg-start: rgba(255, 251, 235, 0.98);
   --tone-bg-end: rgba(254, 243, 199, 0.94);
@@ -3628,7 +3790,8 @@ html.light .my-changes-widget.tone-issue {
 }
 
 html.light .changes-overview-card.tone-stable,
-html.light .my-changes-widget.tone-stable {
+html.light .my-changes-widget.tone-stable,
+html.light .changes-section-feature.tone-stable {
   --tone-border: rgba(34, 197, 94, 0.22);
   --tone-bg-start: rgba(240, 253, 244, 0.98);
   --tone-bg-end: rgba(220, 252, 231, 0.94);
@@ -3648,7 +3811,8 @@ html.light .my-changes-widget.tone-stable {
 }
 
 html.light .changes-overview-card.tone-baseline,
-html.light .my-changes-widget.tone-baseline {
+html.light .my-changes-widget.tone-baseline,
+html.light .changes-section-feature.tone-baseline {
   --tone-border: rgba(148, 163, 184, 0.24);
   --tone-bg-start: rgba(248, 250, 252, 0.98);
   --tone-bg-end: rgba(241, 245, 249, 0.94);
@@ -3818,15 +3982,35 @@ html.light .changes-compare-col p {
 
 html.light .changes-group-row {
   border-color: rgba(148, 163, 184, 0.38);
-  background: rgba(248, 250, 252, 0.92);
+  background: rgba(255, 255, 255, 0.88);
 }
 
-html.light .changes-group-row span {
-  color: #2563eb;
+html.light .changes-group-row-badge {
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(226, 232, 240, 0.88);
+  color: #475569;
 }
 
 html.light .changes-group-row strong {
   color: #334155;
+}
+
+html.light .changes-group-row.is-added .changes-group-row-badge {
+  border-color: rgba(22, 163, 74, 0.34);
+  background: rgba(220, 252, 231, 0.92);
+  color: #166534;
+}
+
+html.light .changes-group-row.is-removed .changes-group-row-badge {
+  border-color: rgba(220, 38, 38, 0.34);
+  background: rgba(254, 226, 226, 0.92);
+  color: #991b1b;
+}
+
+html.light .changes-group-row.is-updated .changes-group-row-badge {
+  border-color: rgba(37, 99, 235, 0.34);
+  background: rgba(219, 234, 254, 0.92);
+  color: #1d4ed8;
 }
 
 html.light .changes-compare-col.before span {
@@ -3835,17 +4019,6 @@ html.light .changes-compare-col.before span {
 
 html.light .changes-compare-col.after span {
   color: #166534;
-}
-
-html.light #myScheduleEditorHeader #backFromMyEditorButton {
-  background: #ffffff;
-  border-color: rgba(15, 23, 42, 0.12);
-  color: #0f172a;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
-}
-
-html.light #myScheduleEditorHeader #backFromMyEditorButton:active {
-  background: #e2e8f0;
 }
 
 html.light .my-graph-placeholder,
@@ -3924,6 +4097,15 @@ html.light .my-day-control-btn[aria-pressed="true"] {
 html.light .my-empty-state {
   border-color: rgba(148, 163, 184, 0.42);
   background: rgba(248, 250, 252, 0.78);
+}
+
+html.light .my-empty-symbol {
+  border-color: rgba(37, 99, 235, 0.22);
+  background: linear-gradient(180deg, rgba(219, 234, 254, 0.96), rgba(241, 245, 249, 0.98));
+}
+
+html.light .my-empty-symbol .material-symbols-outlined {
+  color: #1d4ed8;
 }
 
 html.light .my-empty-title {
@@ -4609,6 +4791,38 @@ html.light .my-shift-delete-btn {
   -webkit-backdrop-filter: blur(14px);
 }
 
+.settings-panel-compact {
+  padding: 14px;
+}
+
+.settings-panel-head-compact {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-panel-head-inline {
+  align-items: center;
+}
+
+.settings-panel-note {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--settings-muted);
+}
+
 .settings-panel-head p {
   margin: 0;
   font-size: 10px;
@@ -4628,7 +4842,12 @@ html.light .my-shift-delete-btn {
   color: var(--settings-title);
 }
 
-.settings-panel-head span {
+.settings-panel-compact .settings-panel-head h2 {
+  margin-top: 8px;
+  font-size: 20px;
+}
+
+.settings-panel-head span:not(.settings-panel-note) {
   display: block;
   margin-top: 8px;
   font-size: 13px;
@@ -4844,7 +5063,7 @@ html.light .my-shift-delete-btn {
 }
 
 .settings-theme-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .settings-refresh-grid,
@@ -4881,15 +5100,19 @@ html.light .my-shift-delete-btn {
 .settings-theme-card {
   padding: 12px;
   text-align: left;
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
 }
 
 .settings-theme-preview {
-  height: 88px;
-  border-radius: 16px;
-  padding: 10px;
+  height: 52px;
+  border-radius: 14px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   position: relative;
   overflow: hidden;
 }
@@ -4901,18 +5124,18 @@ html.light .my-shift-delete-btn {
 
 .settings-theme-preview span:nth-child(1) {
   width: 46%;
-  height: 10px;
+  height: 7px;
 }
 
 .settings-theme-preview span:nth-child(2) {
   width: 100%;
-  height: 36px;
-  border-radius: 12px;
+  height: 20px;
+  border-radius: 10px;
 }
 
 .settings-theme-preview span:nth-child(3) {
   width: 72%;
-  height: 10px;
+  height: 7px;
   margin-top: auto;
 }
 
@@ -4965,7 +5188,7 @@ html.light .my-shift-delete-btn {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: 12px;
+  margin-top: 0;
 }
 
 .settings-theme-copy strong,
@@ -4989,12 +5212,11 @@ html.light .my-shift-delete-btn {
 }
 
 .settings-theme-check {
-  margin-top: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
   background: rgba(59, 130, 246, 0.14);
   color: #2563eb;
@@ -5067,12 +5289,29 @@ html.light .my-shift-delete-btn {
   padding: 14px;
 }
 
+.settings-action-tile-compact {
+  min-height: 74px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 18px;
+}
+
+.settings-action-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
 .settings-action-tile .material-symbols-outlined {
   color: var(--settings-accent);
+  flex-shrink: 0;
 }
 
 .settings-action-tile strong {
-  margin-top: 14px;
+  margin-top: 0;
 }
 
 .settings-action-export {
@@ -5090,6 +5329,55 @@ html.light .my-shift-delete-btn {
 .settings-action-danger .material-symbols-outlined,
 .settings-action-danger strong {
   color: #b91c1c;
+}
+
+.settings-delete-button {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  background: rgba(254, 242, 242, 0.78);
+  text-align: left;
+  transition: transform 160ms ease, opacity 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.settings-delete-button .material-symbols-outlined {
+  flex-shrink: 0;
+  font-size: 20px;
+  color: #dc2626;
+}
+
+.settings-delete-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-delete-copy strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 900;
+  color: #991b1b;
+}
+
+.settings-delete-copy small {
+  display: block;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: rgba(127, 29, 29, 0.84);
+}
+
+.settings-delete-button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .settings-prompts-card {
@@ -5373,6 +5661,24 @@ html.dark .settings-action-danger {
   background: rgba(127, 29, 29, 0.34);
 }
 
+html.dark .settings-panel-note {
+  background: rgba(15, 23, 42, 0.54);
+  border-color: rgba(148, 163, 184, 0.16);
+}
+
+html.dark .settings-delete-button {
+  background: rgba(127, 29, 29, 0.3);
+  border-color: rgba(248, 113, 113, 0.18);
+}
+
+html.dark .settings-delete-copy strong {
+  color: #fecaca;
+}
+
+html.dark .settings-delete-copy small {
+  color: rgba(254, 202, 202, 0.82);
+}
+
 html.dark .settings-inline-note.is-issue {
   background: rgba(127, 29, 29, 0.38);
   border-color: rgba(248, 113, 113, 0.22);
@@ -5430,8 +5736,7 @@ html.dark .history-data-notice.info {
 
   #settingsHeader,
   #myScheduleHeader,
-  #changesHeader,
-  #myScheduleEditorHeader {
+  #changesHeader {
     border-radius: 30px 30px 0 0;
   }
 
@@ -5443,10 +5748,6 @@ html.dark .history-data-notice.info {
   #changesMain {
     padding: 26px;
     gap: 16px;
-  }
-
-  #myScheduleEditorMain {
-    padding: 26px;
   }
 
   .my-graph-placeholder h3,
@@ -5494,9 +5795,6 @@ html.dark .history-data-notice.info {
     box-shadow: 0 20px 46px rgba(15, 23, 42, 0.15);
   }
 
-  html.light #myScheduleEditorView {
-    box-shadow: 0 20px 46px rgba(15, 23, 42, 0.15);
-  }
 }
 
 @media (min-width: 1440px) {
@@ -5504,17 +5802,6 @@ html.dark .history-data-notice.info {
     max-width: 980px;
     margin: 0 auto;
     width: 100%;
-  }
-
-  #myScheduleEditorMain {
-    max-width: 1180px;
-    margin: 0 auto;
-    width: 100%;
-  }
-
-  .my-editor-summary-card {
-    position: sticky;
-    top: 114px;
   }
 }
 
@@ -5570,8 +5857,8 @@ html.dark .history-data-notice.info {
   }
 
   .my-schedule-brand-logo {
-    width: 24px;
-    height: 24px;
+    width: 100%;
+    height: 100%;
   }
 
   .my-schedule-status-chip {
@@ -5665,9 +5952,39 @@ html.dark .history-data-notice.info {
     font-size: 14px;
   }
 
+  .my-changes-widget {
+    padding: 11px;
+  }
+
   .my-changes-widget-top {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .my-changes-widget-copy-compact {
+    margin-top: 8px;
+  }
+
+  .my-changes-widget-copy h3 {
+    font-size: 17px;
+  }
+
+  .my-changes-widget-summary,
+  .my-changes-widget-time,
+  .my-changes-widget-action {
+    font-size: 12px;
+  }
+
+  .my-changes-widget-footer {
     flex-direction: column;
     align-items: flex-start;
+    gap: 8px;
+  }
+
+  .my-changes-widget-action {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
   }
 
   .my-day-inline-actions {

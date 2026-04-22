@@ -52,16 +52,18 @@
         <div class="settings-header-copy">
           <p class="settings-page-kicker">Моё пространство</p>
           <h1>Настройки</h1>
-          <p class="settings-page-subtitle">Тема приложения, резервная копия графика и готовые GPT-промпты для разбора скриншотов.</p>
+          <p class="settings-page-subtitle">Тема приложения и работа с JSON-файлом графика.</p>
         </div>
       </header>
 
       <main id="settingsMain" class="settings-main">
-        <section class="settings-panel">
-          <div class="settings-panel-head">
-            <p>Внешний вид</p>
-            <h2>Тема приложения</h2>
-            <span>Переключается сразу, без перезагрузки.</span>
+        <section class="settings-panel settings-panel-compact">
+          <div class="settings-panel-head settings-panel-head-compact">
+            <div>
+              <p>Внешний вид</p>
+              <h2>Тема приложения</h2>
+            </div>
+            <span class="settings-panel-note">Сразу, без перезагрузки</span>
           </div>
           <div id="themeSelector" class="settings-theme-grid">
             <button type="button" data-theme="light" class="settings-theme-card">
@@ -105,36 +107,36 @@
           </div>
         </section>
 
-        <section class="settings-panel">
-          <div class="settings-panel-head">
-            <p>Мои данные</p>
-            <h2>Скачать и загрузить график</h2>
-            <span>Здесь можно сохранить резервную копию или загрузить готовый JSON после обработки скриншотов.</span>
+        <section class="settings-panel settings-panel-compact settings-panel-json">
+          <div class="settings-panel-head settings-panel-head-compact settings-panel-head-inline">
+            <p>JSON-график</p>
+            <span class="settings-panel-note">Импорт и экспорт</span>
           </div>
-          <div id="settingsDataCard" class="settings-data-card"></div>
-          <div class="settings-actions-grid settings-actions-grid-compact">
-            <button id="exportMyShiftsButton" type="button" class="settings-action-tile settings-action-export">
+          <div class="settings-actions-grid settings-actions-grid-compact settings-json-actions">
+            <button id="exportMyShiftsButton" type="button" class="settings-action-tile settings-action-tile-compact settings-action-export">
               <span class="material-symbols-outlined">download</span>
-              <strong>Скачать мой график</strong>
-              <small>Сохранить JSON-файл с вашими сменами</small>
+              <span class="settings-action-copy">
+                <strong>Скачать JSON</strong>
+                <small>Резервная копия текущего графика</small>
+              </span>
             </button>
-            <button id="importMyShiftsButton" type="button" class="settings-action-tile settings-action-import">
+            <button id="importMyShiftsButton" type="button" class="settings-action-tile settings-action-tile-compact settings-action-import">
               <span class="material-symbols-outlined">upload</span>
-              <strong>Загрузить JSON</strong>
-              <small>Импортировать файл или готовый ответ GPT</small>
+              <span class="settings-action-copy">
+                <strong>Загрузить JSON</strong>
+                <small>Обновить график из готового файла</small>
+              </span>
             </button>
           </div>
+          <button id="myDeleteHistoryButton" type="button" class="settings-delete-button">
+            <span class="material-symbols-outlined">delete</span>
+            <span class="settings-delete-copy">
+              <strong>Удалить историю</strong>
+              <small>Очистить сохранённый график на этом устройстве</small>
+            </span>
+          </button>
           <input id="importMyShiftsInput" type="file" accept=".json,application/json" hidden />
           <p id="myShiftsDataNotice" hidden class="history-data-notice"></p>
-        </section>
-
-        <section class="settings-panel">
-          <div class="settings-panel-head">
-            <p>GPT-промпты</p>
-            <h2>Скриншоты в готовый JSON</h2>
-            <span>Копируйте промпт, добавляйте скриншоты по объектам и получайте файл, который можно сразу загрузить в приложение.</span>
-          </div>
-          <div id="settingsPromptsCard" class="settings-prompts-card"></div>
         </section>
       </main>
     </div>
@@ -177,234 +179,16 @@
           <div id="myChangesSummaryContent"></div>
         </button>
 
-        <section id="myEditorLaunchWrap" class="my-editor-launch-wrap">
-          <button
-            id="openMyEditorButton"
-            type="button"
-            class="my-editor-launch-btn"
-            aria-label="Управление сменами"
-            title="Управление сменами"
-          >
-            <span class="material-symbols-outlined">add_circle</span>
-            <span class="my-editor-launch-copy">
-              <strong>Добавить или изменить смену</strong>
-              <small>Открыть меню управления сменами</small>
-            </span>
-            <span class="material-symbols-outlined">arrow_forward</span>
-          </button>
-        </section>
-
         <section class="my-settings-launch-wrap">
           <button id="openSettingsButton" type="button" class="my-settings-launch-btn" aria-label="Открыть настройки" title="Настройки">
             <span class="material-symbols-outlined">settings</span>
             <span class="my-settings-launch-copy">
               <strong>Настройки приложения</strong>
-              <small>Тема, автообновление, импорт и экспорт</small>
+              <small>Тема приложения и JSON-график</small>
             </span>
             <span class="material-symbols-outlined">arrow_forward</span>
           </button>
         </section>
-      </main>
-    </div>
-
-    <div id="myScheduleEditorView" hidden class="bg-dark-base min-h-screen">
-      <header id="myScheduleEditorHeader" class="sticky top-0 z-50 ios-blur px-5 pt-14 pb-5 border-b border-white/10">
-        <div class="flex items-center gap-3">
-          <button
-            id="backFromMyEditorButton"
-            class="size-11 flex items-center justify-center rounded-2xl bg-dark-card border border-white/5 active:bg-dark-card-lighter transition-colors text-white"
-            type="button"
-            title="Назад к графику"
-          >
-            <span class="material-symbols-outlined text-[24px]">arrow_back</span>
-          </button>
-          <div>
-            <span class="text-[11px] font-black uppercase tracking-[0.25em] text-blue-500 mb-1 block">Личный раздел</span>
-            <h1 class="text-3xl font-extrabold tracking-tight text-white leading-none">Управление сменами</h1>
-          </div>
-        </div>
-      </header>
-
-      <main id="myScheduleEditorMain" class="px-5 pt-5 pb-24">
-        <div class="my-editor-shell">
-          <section class="my-editor-form-card my-editor-composer-card">
-            <div class="my-editor-head my-editor-head-row">
-              <div>
-                <h2 id="myEditorTitle">Конструктор смен</h2>
-                <p id="myEditorSummary">Соберите шаблон один раз, затем добавьте одну смену или целую серию без лишних повторов.</p>
-              </div>
-              <div id="myEditorModeSwitch" class="my-editor-mode-switch" role="tablist" aria-label="Режим добавления смен">
-                <button
-                  id="myEditorModeSingleButton"
-                  type="button"
-                  class="my-editor-mode-btn is-active"
-                  data-editor-mode="single"
-                  aria-pressed="true"
-                >
-                  Одна смена
-                </button>
-                <button
-                  id="myEditorModeBatchButton"
-                  type="button"
-                  class="my-editor-mode-btn"
-                  data-editor-mode="batch"
-                  aria-pressed="false"
-                >
-                  Серия
-                </button>
-              </div>
-            </div>
-
-            <form id="myShiftForm" class="my-shift-form" autocomplete="off">
-              <div class="my-editor-layout">
-                <div class="my-editor-stack">
-                  <section class="my-editor-panel">
-                    <div class="my-editor-panel-head">
-                      <h3>Шаблон смены</h3>
-                      <p>Заполните объект, коллег и время один раз. Эти поля используются и для одиночной записи, и для серии.</p>
-                    </div>
-
-                    <div class="my-editor-quick-row">
-                      <button id="myShiftFillLatestButton" type="button" class="my-editor-chip-btn">
-                        Из последней смены
-                      </button>
-                      <button id="myShiftResetDraftButton" type="button" class="my-editor-chip-btn muted">
-                        Очистить
-                      </button>
-                    </div>
-
-                    <div id="myShiftWorkFields" class="my-shift-work-fields">
-                      <label class="my-field">
-                        <span>Объект</span>
-                        <select id="myShiftFacilitySelect" required></select>
-                      </label>
-
-                      <label class="my-field">
-                        <span>С кем работаю</span>
-                        <div id="myShiftInstructorsList" class="my-instructors-list" role="group" aria-label="Выбор инструкторов"></div>
-                        <small class="my-field-hint">Можно выбрать одного или нескольких инструкторов.</small>
-                      </label>
-
-                      <div class="my-time-row">
-                        <label class="my-field">
-                          <span>Начало</span>
-                          <input id="myShiftStartInput" type="time" required />
-                        </label>
-                        <label class="my-field">
-                          <span>Конец</span>
-                          <input id="myShiftEndInput" type="time" required />
-                        </label>
-                      </div>
-                    </div>
-
-                    <label class="my-field">
-                      <span>Комментарий (опционально)</span>
-                      <input
-                        id="myShiftNoteInput"
-                        type="text"
-                        maxlength="80"
-                        placeholder="Например: подмена, тренажёрный зал"
-                      />
-                    </label>
-                  </section>
-
-                  <section id="myShiftSingleSection" class="my-editor-panel">
-                    <div class="my-editor-panel-head">
-                      <h3>Дата смены</h3>
-                      <p>Подходит, когда нужно быстро добавить одну запись или поправить уже существующую.</p>
-                    </div>
-
-                    <label class="my-field">
-                      <span>Дата</span>
-                      <input id="myShiftDateInput" type="date" required />
-                    </label>
-
-                    <div class="my-editor-quick-row">
-                      <button type="button" class="my-editor-chip-btn" data-shift-date-shortcut="today">Сегодня</button>
-                      <button type="button" class="my-editor-chip-btn" data-shift-date-shortcut="tomorrow">Завтра</button>
-                      <button type="button" class="my-editor-chip-btn" data-shift-date-shortcut="next_day">+1 день</button>
-                    </div>
-                  </section>
-
-                  <section id="myShiftBatchSection" hidden class="my-editor-panel">
-                    <div class="my-editor-panel-head">
-                      <h3>Серия смен</h3>
-                      <p>Выберите диапазон и нужные дни недели. Приложение сразу покажет, какие даты будут добавлены.</p>
-                    </div>
-
-                    <div class="my-time-row">
-                      <label class="my-field">
-                        <span>С</span>
-                        <input id="myShiftBatchStartInput" type="date" />
-                      </label>
-                      <label class="my-field">
-                        <span>По</span>
-                        <input id="myShiftBatchEndInput" type="date" />
-                      </label>
-                    </div>
-
-                    <div class="my-editor-batch-tools">
-                      <div class="my-editor-quick-row">
-                        <button type="button" class="my-editor-chip-btn" data-batch-preset="weekdays">Будни</button>
-                        <button type="button" class="my-editor-chip-btn" data-batch-preset="weekend">Выходные</button>
-                        <button type="button" class="my-editor-chip-btn" data-batch-preset="all">Все дни</button>
-                        <button type="button" class="my-editor-chip-btn muted" data-batch-preset="clear">Сбросить</button>
-                      </div>
-                      <div id="myShiftBatchWeekdays" class="my-weekday-picker my-weekday-picker-multi" role="group" aria-label="Дни недели для серии"></div>
-                    </div>
-
-                    <div id="myShiftBatchPreview" class="my-editor-batch-preview"></div>
-                  </section>
-                </div>
-
-                <aside class="my-editor-summary-card">
-                  <div class="my-editor-panel-head">
-                    <h3>Предпросмотр</h3>
-                    <p>Перед сохранением сразу видно, сколько смен создастся и какие даты уже заняты.</p>
-                  </div>
-                  <div id="myShiftDraftSummary" class="my-editor-draft-summary"></div>
-                </aside>
-              </div>
-
-              <div class="my-editor-form-actions">
-                <button id="myShiftSubmitButton" type="submit" class="my-shift-submit-btn">Сохранить смену</button>
-                <button id="myShiftCancelEditButton" type="button" class="my-shift-cancel-btn" hidden>
-                  Отмена редактирования
-                </button>
-              </div>
-            </form>
-
-            <p id="myScheduleNotice" hidden class="my-schedule-notice"></p>
-          </section>
-
-          <section class="my-editor-dayoff-card">
-            <div class="my-editor-head">
-              <h3>Еженедельный выходной</h3>
-              <p>Выберите один день недели. Он будет автоматически отмечаться в графике как выходной.</p>
-            </div>
-            <div id="myWeeklyDayOffOptions" class="my-weekday-picker" role="group" aria-label="Выбор еженедельного выходного"></div>
-            <p id="myWeeklyDayOffSummary" class="my-weekday-summary"></p>
-          </section>
-
-          <section class="my-editor-list-card">
-            <div class="my-editor-list-head">
-              <div class="my-editor-head">
-                <h3>Журнал смен</h3>
-                <p>Ближайшие смены держим на виду, а прошлые убираем в историю. Любую запись можно взять как шаблон, отредактировать или удалить.</p>
-              </div>
-              <div id="myEditorShiftStats" class="my-editor-list-stats"></div>
-            </div>
-
-            <div class="my-editor-list-toolbar">
-              <p class="my-editor-list-hint">Кнопка «В шаблон» переносит параметры записи обратно в конструктор, чтобы быстро собрать похожую смену или серию.</p>
-              <button id="myDeleteHistoryButton" type="button" class="my-editor-history-delete-btn">
-                Удалить историю
-              </button>
-            </div>
-
-            <div id="myEditorShiftList" class="my-editor-shift-list"></div>
-          </section>
-        </div>
       </main>
     </div>
 
@@ -434,7 +218,6 @@
       </main>
     </div>
 
-    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
     <script src="shared/site_changes.js" defer></script>
     <script src="app.js" defer></script>
   </body>

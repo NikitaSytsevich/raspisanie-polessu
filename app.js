@@ -72,6 +72,7 @@ const SHIFT_EDGE_OVERLAP_MINUTES = 20;
 const SHIFT_EDGE_OVERLAP_MAX_MINUTES = 30;
 const SHIFT_EDGE_OVERLAP_MAX_RATIO = 0.5;
 const siteChangesUtils = window.SiteChangesUtils || null;
+const LOCAL_SITE_CHANGE_DEMO_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
 const state = {
   data: null,
@@ -101,7 +102,6 @@ const el = {
   settingsView: document.getElementById("settingsView"),
   settingsMain: document.getElementById("settingsMain"),
   myScheduleView: document.getElementById("myScheduleView"),
-  myScheduleEditorView: document.getElementById("myScheduleEditorView"),
   changesView: document.getElementById("changesView"),
   changesMain: document.getElementById("changesMain"),
   myScheduleUpdatedAt: document.getElementById("myScheduleUpdatedAt"),
@@ -111,10 +111,8 @@ const el = {
   changesRefreshButton: document.getElementById("changesRefreshButton"),
   changesRefreshIcon: document.getElementById("changesRefreshIcon"),
   openSettingsButton: document.getElementById("openSettingsButton"),
-  openMyEditorButton: document.getElementById("openMyEditorButton"),
   backFromSettingsButton: document.getElementById("backFromSettingsButton"),
   backFromChangesButton: document.getElementById("backFromChangesButton"),
-  backFromMyEditorButton: document.getElementById("backFromMyEditorButton"),
   themeSelector: document.getElementById("themeSelector"),
   autoRefreshOptions: document.getElementById("autoRefreshOptions"),
   settingsRefreshButton: document.getElementById("settingsRefreshButton"),
@@ -128,8 +126,6 @@ const el = {
   settingsOverviewCard: document.getElementById("settingsOverviewCard"),
   settingsMonitorCard: document.getElementById("settingsMonitorCard"),
   settingsSourceIssues: document.getElementById("settingsSourceIssues"),
-  settingsDataCard: document.getElementById("settingsDataCard"),
-  settingsPromptsCard: document.getElementById("settingsPromptsCard"),
   myDaySpotlightHead: document.getElementById("myDaySpotlightHead"),
   myScheduleRangeButton: document.getElementById("myScheduleRangeButton"),
   myScheduleRangeIcon: document.getElementById("myScheduleRangeIcon"),
@@ -226,13 +222,6 @@ function bindEvents() {
 
   if (el.openSettingsButton) {
     el.openSettingsButton.addEventListener("click", () => setView("settings"));
-  }
-  if (el.openMyEditorButton) {
-    el.openMyEditorButton.addEventListener("click", () => {
-      state.myEditingShiftId = null;
-      resetMyShiftForm();
-      setView("my_schedule_editor");
-    });
   }
   if (el.backFromSettingsButton) {
     el.backFromSettingsButton.addEventListener("click", () => setView("my_schedule"));
@@ -379,7 +368,6 @@ function setView(view) {
 
   const showSettings = view === "settings";
   const showMySchedule = view === "my_schedule";
-  const showMyScheduleEditor = view === "my_schedule_editor";
   const showChanges = view === "changes";
 
   if (el.settingsView) {
@@ -391,9 +379,6 @@ function setView(view) {
   if (el.changesView) {
     el.changesView.hidden = !showChanges;
   }
-  if (el.myScheduleEditorView) {
-    el.myScheduleEditorView.hidden = !showMyScheduleEditor;
-  }
 
   if (showMySchedule) {
     state.myScheduleFocusDate = todayIso();
@@ -402,10 +387,6 @@ function setView(view) {
       el.myShiftDateInput.value = state.myScheduleFocusDate;
     }
     renderMySchedule();
-  }
-
-  if (showMyScheduleEditor) {
-    renderMyScheduleEditor();
   }
   if (showChanges) {
     renderChangesView();
@@ -477,7 +458,7 @@ async function fetchSchedule(force, options = {}) {
       throw new Error(`HTTP ${response.status}`);
     }
 
-    const payload = await response.json();
+    const payload = applyLocalDemoSiteChanges(await response.json());
     const previousPayload = state.data ? clonePayload(state.data) : null;
     if (shouldTrackSiteCheck) {
       state.siteChangesLastCheckedAt = new Date().toISOString();
@@ -849,15 +830,18 @@ function buildAutoRefreshHint(model) {
   return "Редкий режим: меньше фоновых проверок, но изменения могут появляться в журнале с заметной задержкой.";
 }
 
-function renderSettingsView() {
-  if (!el.settingsDataCard || !el.settingsPromptsCard) {
-    return;
-  }
+function hasSavedScheduleHistory() {
+  return Boolean(state.myShifts.length || state.staffShifts.length || hasWeeklyDayOffConfigured());
+}
 
-  el.settingsDataCard.innerHTML = renderSettingsDataCard();
-  el.settingsPromptsCard.innerHTML = renderSettingsPromptsCard();
+function renderSettingsView() {
+  const hasHistory = hasSavedScheduleHistory();
   if (el.exportMyShiftsButton) {
-    el.exportMyShiftsButton.disabled = !state.myShifts.length && !hasWeeklyDayOffConfigured();
+    el.exportMyShiftsButton.disabled = !hasHistory;
+  }
+  if (el.myDeleteHistoryButton) {
+    el.myDeleteHistoryButton.disabled = !hasHistory;
+    el.myDeleteHistoryButton.setAttribute("aria-disabled", hasHistory ? "false" : "true");
   }
 }
 
@@ -1413,22 +1397,16 @@ function scrollMyScheduleControlsIntoView() {
 function renderMyScheduleEmptyState() {
   return `
     <section class="my-empty-state">
-      <lottie-player
-        class="my-empty-lottie"
-        src="https://assets4.lottiefiles.com/packages/lf20_5tl1xxnz.json"
-        background="transparent"
-        speed="1"
-        loop
-        autoplay
-      ></lottie-player>
+      <div class="my-empty-symbol" aria-hidden="true">
+        <span class="material-symbols-outlined">calendar_clock</span>
+      </div>
       <h4 class="my-empty-title">График пока пуст</h4>
       <p class="my-empty-text">
-        Импортируйте готовую историю смен или добавьте первую запись вручную.
-        После этого здесь появится график на выбранные сутки.
+        Загрузите готовый JSON-файл со сменами.
+        После импорта здесь появится график на выбранные сутки.
       </p>
       <div class="my-empty-actions">
-        <button type="button" class="my-empty-cta" data-import-history>Импорт истории</button>
-        <button type="button" class="my-empty-cta secondary" data-open-editor>Добавить вручную</button>
+        <button type="button" class="my-empty-cta" data-import-history>Загрузить JSON</button>
       </div>
     </section>
   `;
@@ -2191,7 +2169,16 @@ function normalizeMyShiftKind(value) {
 }
 
 function normalizeWeekdayValue(value) {
-  const number = Number(value);
+  if (value === null || value === undefined || typeof value === "boolean") {
+    return null;
+  }
+
+  const raw = typeof value === "string" ? value.trim() : value;
+  if (raw === "") {
+    return null;
+  }
+
+  const number = Number(raw);
   if (!Number.isInteger(number) || number < 0 || number > 6) {
     return null;
   }
@@ -2718,7 +2705,9 @@ function renderChangesView() {
     }
   }
 
-  el.changesLatestCard.innerHTML = renderChangesOverviewCard(overviewModel);
+  const overviewHtml = renderChangesOverviewCard(overviewModel);
+  el.changesLatestCard.hidden = !overviewHtml;
+  el.changesLatestCard.innerHTML = overviewHtml;
   el.changesUpdatesCard.innerHTML = latest ? renderChangesDetailSections(overviewModel, history) : renderChangesEmptySections();
 }
 
@@ -2817,16 +2806,17 @@ function acknowledgeSiteChangeEntry(entryId) {
 
 function renderChangesEmptySections() {
   return `
-    <section class="changes-section">
-      <div class="changes-list-head">
-        <h2>Мои смены</h2>
-        <p>Когда появится первый локальный снимок, здесь будет видно, затронуты ли ваши смены.</p>
-      </div>
-    </section>
-    <section class="changes-section">
-      <div class="changes-list-head">
-        <h2>Журнал проверок</h2>
-        <p>Первые записи появятся после успешной синхронизации расписания.</p>
+    <section class="changes-section changes-section-feature tone-baseline">
+      <div class="changes-feature-head">
+        <div class="changes-feature-copy">
+          <div class="changes-feature-meta">
+            <span class="changes-feature-kicker">Проверка</span>
+          </div>
+          <div class="changes-feature-title-row">
+            <h2>Пока пусто</h2>
+          </div>
+          <p class="changes-feature-summary">Первая успешная синхронизация создаст локальный снимок. После этого здесь появится история изменений.</p>
+        </div>
       </div>
     </section>
   `;
@@ -3405,9 +3395,9 @@ function buildChangesOverviewPill(status, focusEntry) {
 function buildChangesOverviewIcon(status, focusEntry) {
   switch (status) {
     case "important":
-      return "priority_high";
+      return "event_busy";
     case "changes":
-      return "notifications";
+      return "event";
     case "issue":
       return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "campaign" : "warning";
     case "reviewed_changes":
@@ -3477,6 +3467,97 @@ function buildChangesOverviewFooter(status, lastEventEntry) {
   return `Текущее событие журнала: ${formatChangesDateTime(lastEventEntry.checkedAt)}.`;
 }
 
+function buildChangesFeatureSummary(model, focusEntry, focusGroups) {
+  if (!focusEntry) {
+    return model?.summary || "Подробности недоступны.";
+  }
+
+  if (focusEntry.baseline) {
+    return "Это стартовая точка. Следующие проверки будут показывать только реальные изменения относительно неё.";
+  }
+
+  if (focusEntry.hasSourceIssues && !focusEntry.hasChanges) {
+    return model?.summary || "Часть источников ответила с проблемой.";
+  }
+
+  const groupCount = Array.isArray(focusGroups) ? focusGroups.length : 0;
+  if (!groupCount) {
+    return model?.summary || "Подробности недоступны.";
+  }
+
+  const cardsLabel = `${groupCount} ${pluralizeRu(groupCount, "карточка", "карточки", "карточек")}`;
+  if (model?.status === "important") {
+    const affected = Number(model?.focusImpact?.total || 0);
+    return `Затронуто ${affected} ${pluralizeRu(affected, "ваша смена", "ваши смены", "ваших смен")}. Ниже ${cardsLabel} с короткой выжимкой.`;
+  }
+
+  if (model?.status === "reviewed_changes") {
+    return `Последнее событие уже просмотрено. Ниже ${cardsLabel} с короткой выжимкой.`;
+  }
+
+  return `Ниже ${cardsLabel} с сутью последней проверки без лишних деталей.`;
+}
+
+function buildMyChangesWidgetSummary(model) {
+  const status = String(model?.status || "");
+  let text = model?.summary || "Подробности недоступны.";
+
+  switch (status) {
+    case "important":
+      text = "Есть изменения, которые затрагивают ваш график.";
+      break;
+    case "changes":
+      text = "На сайте появились новые изменения.";
+      break;
+    case "reviewed_changes":
+      text = "Последнее изменение уже просмотрено.";
+      break;
+    case "issue":
+      text = "Часть источников ответила с ошибкой, поэтому проверка могла быть неполной.";
+      break;
+    case "reviewed_issue":
+      text = "Последняя проблема проверки уже просмотрена.";
+      break;
+    case "stable":
+      text = "Сейчас всё совпадает с последней проверкой.";
+      break;
+    case "baseline":
+      text = "Сохранена точка отсчёта для следующих сравнений.";
+      break;
+    case "no_data":
+      text = "Первая проверка появится после синхронизации.";
+      break;
+    default:
+      break;
+  }
+
+  if (model?.focusEntry?.hasSourceIssues && status !== "issue" && status !== "reviewed_issue") {
+    return `${text} Проверка могла быть неполной.`;
+  }
+
+  return text;
+}
+
+function buildMyChangesWidgetHeadline(model) {
+  switch (String(model?.status || "")) {
+    case "important":
+    case "changes":
+    case "reviewed_changes":
+      return "Есть изменения";
+    case "issue":
+      return hasOnlyNoticeSourceIssues(model?.focusEntry?.sourceIssues) ? "Есть сообщение" : "Проверка неполная";
+    case "reviewed_issue":
+      return "Проблема просмотрена";
+    case "stable":
+      return "Без изменений";
+    case "baseline":
+      return "Первый снимок";
+    case "no_data":
+    default:
+      return "Проверка не запускалась";
+  }
+}
+
 function buildChangesCheckMeta(checkedAtIso) {
   const checkedAt = parseIsoDate(checkedAtIso);
   if (!checkedAt) {
@@ -3538,45 +3619,11 @@ function renderOverviewMetric(metric, className) {
 }
 
 function renderChangesOverviewCard(model) {
-  const metricsHtml = model.highlights.length
-    ? `
-      <div class="changes-overview-metrics">
-        ${model.highlights.map((metric) => renderOverviewMetric(metric, "changes-overview-metric")).join("")}
-      </div>
-    `
-    : "";
-  const acknowledgeButton = model.focusEntry && !model.focusEntry.baseline && !isSiteChangeEntryAcknowledged(model.focusEntry)
-    ? renderChangesAcknowledgeButton(model.focusEntry, "Просмотрено")
-    : "";
-
-  return `
-    <article class="changes-overview-card ${escapeHtml(model.toneClass)}">
-      <div class="changes-overview-top">
-        <div>
-          <p class="changes-overview-kicker">Проверка расписания</p>
-          <p class="changes-overview-meta">${escapeHtml(model.checkedAtMeta)}</p>
-        </div>
-        <span class="changes-state-pill">${escapeHtml(model.pill)}</span>
-      </div>
-      <div class="changes-overview-main">
-        <div class="changes-overview-icon">
-          <span class="material-symbols-outlined">${escapeHtml(model.icon)}</span>
-        </div>
-        <div class="changes-overview-copy">
-          <h2>${escapeHtml(model.headline)}</h2>
-          <p>${escapeHtml(model.summary)}</p>
-        </div>
-      </div>
-      ${metricsHtml}
-      <p class="changes-overview-footer">${escapeHtml(model.footer)}</p>
-      ${acknowledgeButton}
-    </article>
-  `;
+  return "";
 }
 
 function renderChangesDetailSections(model, history) {
   return [
-    renderMyShiftImpactSection(model),
     renderFocusEntryDetailsSection(model),
     model.focusEntry?.hasSourceIssues ? renderSourceIssueSection(model.focusEntry.sourceIssues, { entry: model.focusEntry }) : "",
     renderChangesHistorySection(history),
@@ -3756,13 +3803,36 @@ function pickImpactTone(events) {
 function renderFocusEntryDetailsSection(model) {
   const focusEntry = model?.focusEntry || null;
   const focusGroups = Array.isArray(model?.focusGroups) ? model.focusGroups : [];
+  const acknowledgeButton = focusEntry && !focusEntry.baseline && !isSiteChangeEntryAcknowledged(focusEntry)
+    ? renderChangesAcknowledgeButton(focusEntry, "Просмотрено")
+    : "";
+  const metaLabel = focusEntry?.baseline
+    ? "Стартовый снимок"
+    : focusEntry
+      ? isSiteChangeEntryAcknowledged(focusEntry)
+        ? "Последняя запись"
+        : "Текущее событие"
+      : "Проверка";
+  const badgeHtml = model?.pill
+    ? `<span class="changes-state-pill">${escapeHtml(model.pill)}</span>`
+    : "";
+  const summaryText = buildChangesFeatureSummary(model, focusEntry, focusGroups);
 
   if (!focusEntry) {
     return `
-      <section class="changes-section">
-        <div class="changes-list-head">
-          <h2>Кратко по изменениям</h2>
-          <p>Последняя проверка не нашла новых событий. Предыдущие записи остались в истории ниже.</p>
+      <section class="changes-section changes-section-feature ${escapeHtml(model?.toneClass || "tone-baseline")}">
+        <div class="changes-feature-head">
+          <div class="changes-feature-copy">
+            <div class="changes-feature-meta">
+              <span class="changes-feature-kicker">${escapeHtml(metaLabel)}</span>
+              <span class="changes-feature-time">${escapeHtml(model?.checkedAtMeta || "Проверка ещё не запускалась")}</span>
+            </div>
+            <div class="changes-feature-title-row">
+              <h2>${escapeHtml(model?.headline || "Пока пусто")}</h2>
+              ${badgeHtml}
+            </div>
+            <p class="changes-feature-summary">${escapeHtml(summaryText)}</p>
+          </div>
         </div>
       </section>
     `;
@@ -3770,10 +3840,19 @@ function renderFocusEntryDetailsSection(model) {
 
   if (focusEntry.baseline) {
     return `
-      <section class="changes-section">
-        <div class="changes-list-head">
-          <h2>Кратко по изменениям</h2>
-          <p>Это стартовый локальный снимок. Следующие проверки будут сравниваться с ним или с более новыми снимками.</p>
+      <section class="changes-section changes-section-feature ${escapeHtml(model?.toneClass || "tone-baseline")}">
+        <div class="changes-feature-head">
+          <div class="changes-feature-copy">
+            <div class="changes-feature-meta">
+              <span class="changes-feature-kicker">${escapeHtml(metaLabel)}</span>
+              <span class="changes-feature-time">${escapeHtml(model?.checkedAtMeta || "")}</span>
+            </div>
+            <div class="changes-feature-title-row">
+              <h2>${escapeHtml(model?.headline || "Первый снимок готов")}</h2>
+              ${badgeHtml}
+            </div>
+            <p class="changes-feature-summary">${escapeHtml(summaryText)}</p>
+          </div>
         </div>
       </section>
     `;
@@ -3781,28 +3860,44 @@ function renderFocusEntryDetailsSection(model) {
 
   if (!focusGroups.length) {
     return `
-      <section class="changes-section">
-        <div class="changes-list-head">
-          <h2>Кратко по изменениям</h2>
-          <p>В этой записи нет отдельных карточек расписания. Обычно это означает, что изменился только статус проверки.</p>
+      <section class="changes-section changes-section-feature ${escapeHtml(model?.toneClass || "tone-baseline")}">
+        <div class="changes-feature-head">
+          <div class="changes-feature-copy">
+            <div class="changes-feature-meta">
+              <span class="changes-feature-kicker">${escapeHtml(metaLabel)}</span>
+              <span class="changes-feature-time">${escapeHtml(model?.checkedAtMeta || "")}</span>
+            </div>
+            <div class="changes-feature-title-row">
+              <h2>${escapeHtml(model?.headline || "Проверка обновлена")}</h2>
+              ${badgeHtml}
+            </div>
+            <p class="changes-feature-summary">${escapeHtml(summaryText)}</p>
+          </div>
         </div>
+        ${acknowledgeButton}
       </section>
     `;
   }
 
   return `
-    <section class="changes-section">
-      <div class="changes-list-head">
-        <h2>Кратко по изменениям</h2>
-        <p>${
-          isSiteChangeEntryAcknowledged(focusEntry)
-            ? "Это последнее уже просмотренное событие. Карточки ниже показывают только суть изменений."
-            : "Карточки ниже показывают суть изменений по объектам и датам. Нажмите на карточку, чтобы открыть официальный источник."
-        }</p>
+    <section class="changes-section changes-section-feature ${escapeHtml(model?.toneClass || "tone-baseline")}">
+      <div class="changes-feature-head">
+        <div class="changes-feature-copy">
+          <div class="changes-feature-meta">
+            <span class="changes-feature-kicker">${escapeHtml(metaLabel)}</span>
+            <span class="changes-feature-time">${escapeHtml(model?.checkedAtMeta || "")}</span>
+          </div>
+          <div class="changes-feature-title-row">
+            <h2>${escapeHtml(model?.headline || "Изменения")}</h2>
+            ${badgeHtml}
+          </div>
+          <p class="changes-feature-summary">${escapeHtml(summaryText)}</p>
+        </div>
       </div>
-      <div class="changes-list">
+      <div class="changes-list changes-list-compact">
         ${focusGroups.map((group) => renderChangeGroupCard(group)).join("")}
       </div>
+      ${acknowledgeButton}
     </section>
   `;
 }
@@ -3814,9 +3909,6 @@ function renderChangeGroupCard(group) {
   }
   if (group.programTitle) {
     chips.push('<span class="changes-feed-chip info">Программа</span>');
-  }
-  if (group.impactedShiftCount > 0) {
-    chips.push(`<span class="changes-feed-chip warn">Смены: ${escapeHtml(String(group.impactedShiftCount))}</span>`);
   }
 
   const rowsHtml = group.details.length
@@ -3830,12 +3922,12 @@ function renderChangeGroupCard(group) {
   const cardHtml = `
     <article class="changes-feed-card changes-group-card">
       <div class="changes-feed-top">
-        <div>
+        <div class="changes-feed-heading">
           <h3 class="changes-feed-title">${escapeHtml(group.shortLabel)}</h3>
           <p class="changes-feed-time">${escapeHtml(group.summary)}</p>
         </div>
+        ${chips.length ? `<div class="changes-feed-chips changes-feed-chips-compact">${chips.join("")}</div>` : ""}
       </div>
-      ${chips.length ? `<div class="changes-feed-chips">${chips.join("")}</div>` : ""}
       ${rowsHtml}
     </article>
   `;
@@ -3858,12 +3950,27 @@ function renderChangeGroupCard(group) {
 }
 
 function renderChangeGroupRow(row) {
+  const toneClass = resolveChangeGroupRowToneClass(row);
   return `
-    <div class="changes-group-row">
-      <span>${escapeHtml(String(row?.label || ""))}</span>
+    <div class="changes-group-row ${escapeHtml(toneClass)}">
+      <span class="changes-group-row-badge">${escapeHtml(String(row?.label || ""))}</span>
       <strong>${escapeHtml(String(row?.value || ""))}</strong>
     </div>
   `;
+}
+
+function resolveChangeGroupRowToneClass(row) {
+  const label = String(row?.label || "").trim().toLowerCase();
+  if (label === "добавлено") {
+    return "is-added";
+  }
+  if (label === "убрано") {
+    return "is-removed";
+  }
+  if (label === "обновлено") {
+    return "is-updated";
+  }
+  return "is-neutral";
 }
 
 function renderSourceIssueSection(sourceIssues, options = {}) {
@@ -4248,8 +4355,9 @@ function handleMyEditorShiftListClick(event) {
 }
 
 function handleDeleteMyShiftsHistory() {
-  if (!state.myShifts.length && !state.staffShifts.length && !hasWeeklyDayOffConfigured()) {
-    setMyScheduleNotice("История уже пустая.", "info");
+  if (!hasSavedScheduleHistory()) {
+    setMyShiftsDataNotice("История уже пуста.", "info");
+    renderSettingsView();
     return;
   }
 
@@ -4269,9 +4377,11 @@ function handleDeleteMyShiftsHistory() {
   state.myScheduleFocusDate = todayIso();
   state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
   resetMyShiftForm({ preserveDate: state.myScheduleFocusDate });
-  setMyScheduleNotice("История смен удалена.", "info");
   renderMySchedule();
   renderMyScheduleEditor();
+  renderChangesView();
+  renderSettingsView();
+  setMyShiftsDataNotice("История удалена. На главном экране можно загрузить новый JSON.", "success");
 }
 
 function handleResetSiteChanges() {
@@ -4303,17 +4413,7 @@ function handleMyScheduleTimelineClick(event) {
   const importHistoryButton = event.target.closest("button[data-import-history]");
   if (importHistoryButton && el.importMyShiftsInput) {
     el.importMyShiftsInput.click();
-    return;
   }
-
-  const openEditorButton = event.target.closest("button[data-open-editor]");
-  if (!openEditorButton) {
-    return;
-  }
-
-  state.myEditingShiftId = null;
-  resetMyShiftForm({ preserveDate: state.myScheduleFocusDate || todayIso() });
-  setView("my_schedule_editor");
 }
 
 function renderMyScheduleDay(date, timelineItems, options = {}) {
@@ -4390,30 +4490,24 @@ function renderMyChangesSummary() {
   const latest = history[0] || null;
   const lastCheckedAtIso = state.siteChangesLastCheckedAt || latest?.checkedAt || "";
   const model = buildChangesAttentionModel(history, lastCheckedAtIso);
-  const highlights = model.highlights.slice(0, 2);
-  const highlightsHtml = highlights.length
-    ? `
-      <div class="my-changes-widget-highlights">
-        ${highlights.map((metric) => renderOverviewMetric(metric, "my-changes-widget-highlight")).join("")}
-      </div>
-    `
-    : "";
+  const headlineText = buildMyChangesWidgetHeadline(model);
+  const summaryText = buildMyChangesWidgetSummary(model);
 
   el.myChangesSummaryContent.innerHTML = `
     <div class="my-changes-widget ${escapeHtml(model.toneClass)}">
       <div class="my-changes-widget-top">
-        <div>
-          <p class="my-changes-kicker">Проверка расписания</p>
-          <h3>${escapeHtml(model.headline)}</h3>
-        </div>
-        <span class="my-changes-state-pill">${escapeHtml(model.pill)}</span>
+        <p class="my-changes-kicker">Проверка расписания</p>
       </div>
-      <p class="my-changes-widget-summary">${escapeHtml(model.summary)}</p>
-      <p class="my-changes-widget-time">${escapeHtml(model.checkedAtMeta)}</p>
-      ${highlightsHtml}
+      <div class="my-changes-widget-copy my-changes-widget-copy-compact">
+        <h3>${escapeHtml(headlineText)}</h3>
+        <p class="my-changes-widget-summary">${escapeHtml(summaryText)}</p>
+      </div>
       <div class="my-changes-widget-footer">
-        <span>${escapeHtml(buildMyChangesWidgetFooter(model))}</span>
-        <span class="material-symbols-outlined">arrow_forward</span>
+        <p class="my-changes-widget-time">${escapeHtml(model.checkedAtMeta)}</p>
+        <div class="my-changes-widget-action">
+          <span>${escapeHtml(buildMyChangesWidgetFooter(model))}</span>
+          <span class="material-symbols-outlined">arrow_forward</span>
+        </div>
       </div>
     </div>
   `;
@@ -5216,7 +5310,7 @@ async function handleMyShiftsImport(event) {
       throw new Error("Не удалось найти корректные записи смен.");
     }
 
-    if (state.myShifts.length || hasWeeklyDayOffConfigured()) {
+    if (hasSavedScheduleHistory()) {
       const confirmed = window.confirm("Заменить текущий график загруженным JSON?");
       if (!confirmed) {
         setMyShiftsDataNotice("Загрузка отменена.", "info");
@@ -6017,6 +6111,93 @@ function clonePayload(payload) {
   } catch {
     return null;
   }
+}
+
+function shouldApplyLocalDemoSiteChanges() {
+  const host = String(window.location.hostname || "").trim().toLowerCase();
+  return LOCAL_SITE_CHANGE_DEMO_HOSTS.has(host);
+}
+
+// Local-only demo changes for testing the schedule-diff widgets against real comparisons.
+function applyLocalDemoSiteChanges(payload) {
+  if (!shouldApplyLocalDemoSiteChanges() || !payload || !Array.isArray(payload.facilities)) {
+    return payload;
+  }
+
+  const nextPayload = clonePayload(payload);
+  if (!nextPayload || !Array.isArray(nextPayload.facilities)) {
+    return payload;
+  }
+
+  let appliedCount = 0;
+  const iceArena = nextPayload.facilities.find((facility) => facility?.id === "ice_arena") || null;
+  const iceArenaDay = Array.isArray(iceArena?.days)
+    ? iceArena.days.find((day) => Array.isArray(day?.sessions) && day.sessions.length > 0) || null
+    : null;
+  const iceArenaSession = iceArenaDay?.sessions?.[0] || null;
+
+  if (iceArenaSession) {
+    iceArenaSession.activity = "Массовое катание (тест)";
+    iceArenaSession.note = "Локальное тестовое изменение для проверки сравнения";
+    iceArenaSession.sourceLine = "Тест: обновлено описание сеанса";
+    appliedCount += 1;
+  }
+
+  const rowingBase = nextPayload.facilities.find((facility) => facility?.id === "rowing_base") || null;
+  const removedTemplateSession =
+    Array.isArray(rowingBase?.template?.sessions) && rowingBase.template.sessions.length > 1
+      ? rowingBase.template.sessions.pop() || null
+      : null;
+
+  if (rowingBase && removedTemplateSession && Array.isArray(rowingBase.days)) {
+    rowingBase.days = rowingBase.days.map((day) => ({
+      ...day,
+      sessions: (Array.isArray(day?.sessions) ? day.sessions : []).filter((session) => !(
+        String(session?.start || "") === String(removedTemplateSession.start || "")
+        && String(session?.end || "") === String(removedTemplateSession.end || "")
+      )),
+    }));
+    appliedCount += 1;
+  }
+
+  if (!appliedCount) {
+    return payload;
+  }
+
+  nextPayload.facilities = nextPayload.facilities.map((facility) => enrichFacilityTrackingMetaForClient(facility));
+  if (siteChangesUtils?.buildScheduleSnapshotHash) {
+    nextPayload.snapshotHash = siteChangesUtils.buildScheduleSnapshotHash({
+      schemaVersion: nextPayload.schemaVersion,
+      timezone: nextPayload.timezone,
+      facilities: nextPayload.facilities,
+    });
+  }
+  nextPayload.meta = {
+    ...(nextPayload.meta || {}),
+    localDemoSiteChanges: true,
+    localDemoSiteChangesCount: appliedCount,
+  };
+
+  return nextPayload;
+}
+
+function enrichFacilityTrackingMetaForClient(facility) {
+  if (!siteChangesUtils?.buildFacilityTrackingMeta || !facility || typeof facility !== "object") {
+    return facility;
+  }
+
+  const tracking = siteChangesUtils.buildFacilityTrackingMeta(facility);
+  return {
+    ...facility,
+    comparisonMode: tracking.comparisonMode,
+    dataQuality: tracking.dataQuality,
+    facilityHash: tracking.facilityHash,
+    templateHash: tracking.templateHash,
+    changeTrackingHash: tracking.changeTrackingHash,
+    windowStart: tracking.windowStart || null,
+    windowEnd: tracking.windowEnd || null,
+    template: tracking.template,
+  };
 }
 
 function formatChangesDateTime(value) {
