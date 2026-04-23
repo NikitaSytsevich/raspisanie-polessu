@@ -1315,6 +1315,8 @@ function renderMySchedule() {
   if (el.myTimelineTitle) {
     if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
       el.myTimelineTitle.textContent = "Весь график";
+    } else if (focusDate === todayIso()) {
+      el.myTimelineTitle.textContent = "Сегодня";
     } else {
       el.myTimelineTitle.textContent = "Выбранный день";
     }
@@ -4455,6 +4457,82 @@ function renderMyScheduleDay(date, timelineItems, options = {}) {
   `;
 }
 
+function buildMyScheduleDayChronologyItems(workingItems) {
+  const chronologyItems = [];
+
+  for (const item of workingItems || []) {
+    chronologyItems.push(...buildMyShiftCoverageSegments(item?.shift, item?.verification));
+  }
+
+  return chronologyItems.sort((a, b) => (
+    a.startMinutes - b.startMinutes
+    || a.endMinutes - b.endMinutes
+    || String(a.facilityName || "").localeCompare(String(b.facilityName || ""), "ru")
+    || String(a.shiftId || "").localeCompare(String(b.shiftId || ""))
+  ));
+}
+
+function getMyShiftStableKey(shift) {
+  return String(
+    shift?.id
+      || [
+        String(shift?.date || ""),
+        String(shift?.facilityId || ""),
+        String(shift?.start || ""),
+        String(shift?.end || ""),
+      ].join("|")
+  );
+}
+
+function buildMyShiftCoverageSegments(shift, verification = getShiftVerification(shift)) {
+  if (!isWorkingShiftRecord(shift)) {
+    return [];
+  }
+
+  const shiftId = getMyShiftStableKey(shift);
+  const facilityId = String(shift?.facilityId || "");
+  const facilityName = resolveShiftFacilityName(shift);
+  const sessions = Array.isArray(verification?.siteSessions) ? verification.siteSessions : [];
+  if ((verification?.status === "matched" || verification?.status === "partial") && sessions.length) {
+    return sessions
+      .filter((session) => Number.isFinite(session?.startMinutes) && Number.isFinite(session?.endMinutes))
+      .filter((session) => session.endMinutes > session.startMinutes)
+      .map((session) => ({
+        shiftId,
+        facilityId,
+        facilityName,
+        start: String(session.start || ""),
+        end: String(session.end || ""),
+        startMinutes: session.startMinutes,
+        endMinutes: session.endMinutes,
+        source: "site",
+        activity: String(session.activity || session.note || "Сеанс"),
+        note: String(session.note || ""),
+      }));
+  }
+
+  const start = toMinutes(String(shift?.start || ""));
+  const end = toMinutes(String(shift?.end || ""));
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return [];
+  }
+
+  return [
+    {
+      shiftId,
+      facilityId,
+      facilityName,
+      start: String(shift.start || ""),
+      end: String(shift.end || ""),
+      startMinutes: start,
+      endMinutes: end,
+      source: "shift",
+      activity: "",
+      note: "",
+    },
+  ];
+}
+
 function renderMyScheduleDayItems(date, workingItems) {
   if (!workingItems.length) {
     return isWeeklyDayOffDate(date)
@@ -4462,23 +4540,169 @@ function renderMyScheduleDayItems(date, workingItems) {
       : `<div class="my-day-empty">На эти сутки смены не добавлены.</div>`;
   }
 
-  const parts = [];
-  let previousWorkItem = null;
+  return renderMyScheduleDayPlanCard(date, workingItems);
+}
 
-  for (const item of workingItems) {
-    if (previousWorkItem) {
-      const gapModel = buildMyShiftGapModel(previousWorkItem, item);
-      const gapHtml = renderMyShiftGapDivider(gapModel);
+function renderMyScheduleDayPlanCard(date, workingItems) {
+  const chronologyItems = buildMyScheduleDayChronologyItems(workingItems);
+  if (!chronologyItems.length) {
+    return workingItems.map((item) => renderMyShiftCard(item.shift, item.verification)).join("");
+  }
+
+  const status = getMyScheduleDayStatus(date, workingItems);
+  const facilityCount = new Set(chronologyItems.map((item) => String(item.facilityId || "")).filter(Boolean)).size;
+  const summaryParts = [
+    status.label,
+    `${workingItems.length} ${pluralizeRu(workingItems.length, "смена", "смены", "смен")}`,
+    `${facilityCount} ${pluralizeRu(facilityCount, "объект", "объекта", "объектов")}`,
+  ];
+
+  const rows = [];
+  let previousItem = null;
+  for (const item of chronologyItems) {
+    if (previousItem) {
+      const gapHtml = renderMyShiftGapDivider(buildMyScheduleDayChronologyGapModel(previousItem, item));
       if (gapHtml) {
-        parts.push(gapHtml);
+        rows.push(gapHtml);
       }
     }
 
-    parts.push(renderMyShiftCard(item.shift, item.verification));
-    previousWorkItem = item;
+    rows.push(renderMyScheduleDayPlanRow(item));
+    previousItem = item;
   }
 
-  return parts.join("");
+  return `
+    <article class="my-shift-card ${escapeHtml(status.className)} my-day-plan-card">
+      <div class="my-day-plan-top">
+        <div class="my-day-plan-time-wrap">
+          <p class="my-day-plan-kicker">По объектам</p>
+          <p class="my-day-plan-runtime">${escapeHtml(summaryParts.join(" · "))}</p>
+        </div>
+      </div>
+      <div class="my-day-plan-list">
+        ${rows.join("")}
+      </div>
+      ${renderMyScheduleDayPlanLinks(chronologyItems)}
+    </article>
+  `;
+}
+
+function getMyScheduleDayStatus(date, workingItems) {
+  if (date < todayIso()) {
+    return { label: "Завершено", className: "past" };
+  }
+
+  if (date > todayIso()) {
+    return { label: "Запланировано", className: "upcoming" };
+  }
+
+  const itemStatuses = (workingItems || []).map((item) => getMyShiftStatus(item.shift));
+  if (itemStatuses.some((status) => status.className === "live")) {
+    return { label: "Идёт сейчас", className: "live" };
+  }
+
+  if (itemStatuses.some((status) => status.className === "upcoming")) {
+    return { label: "Позже сегодня", className: "upcoming" };
+  }
+
+  return { label: "Завершено", className: "past" };
+}
+
+function renderMyScheduleDayPlanRow(item) {
+  const classes = ["my-day-plan-row", item.source === "site" ? "is-site" : "is-shift"];
+  const note = buildMyScheduleDayPlanRowNote(item);
+
+  return `
+    <div class="${escapeHtml(classes.join(" "))}">
+      <div class="my-day-plan-row-main">
+        <span class="my-day-plan-row-time">${escapeHtml(`${item.start} — ${item.end}`)}</span>
+        <span class="my-day-plan-row-facility">${escapeHtml(item.facilityName || "Объект")}</span>
+      </div>
+      ${note ? `<p class="my-day-plan-row-note">${escapeHtml(note)}</p>` : ""}
+    </div>
+  `;
+}
+
+function buildMyScheduleDayPlanRowNote(item) {
+  if (item.source === "site") {
+    const activity = String(item.activity || "").trim();
+    if (activity && normalizeDiffText(activity) !== "сеанс") {
+      return `${activity} · по сайту`;
+    }
+
+    return "По сайту";
+  }
+
+  return "По графику";
+}
+
+function buildMyScheduleDayChronologyGapModel(previousItem, nextItem) {
+  const previousEnd = Number(previousItem?.endMinutes);
+  const nextStart = Number(nextItem?.startMinutes);
+  if (!Number.isFinite(previousEnd) || !Number.isFinite(nextStart)) {
+    return null;
+  }
+
+  const minutes = nextStart - previousEnd;
+  if (minutes <= 0) {
+    return null;
+  }
+
+  const previousFacilityId = String(previousItem?.facilityId || "");
+  const nextFacilityId = String(nextItem?.facilityId || "");
+  if (previousFacilityId && nextFacilityId && previousFacilityId !== nextFacilityId) {
+    return {
+      minutes,
+      label: minutes >= 120 ? "Окно между объектами" : "Переход между объектами",
+      modifierClass: "is-cross-facility",
+    };
+  }
+
+  const breakLabel = classifyBreak(minutes, previousFacilityId);
+  return {
+    minutes,
+    label: `${breakLabel.charAt(0).toUpperCase()}${breakLabel.slice(1)}`,
+    modifierClass: breakLabel === "заливка льда" ? "is-ice-fill" : "",
+  };
+}
+
+function renderMyScheduleDayPlanLinks(chronologyItems) {
+  const uniqueLinks = [];
+  const seen = new Set();
+
+  for (const item of chronologyItems || []) {
+    const facilityId = String(item?.facilityId || "");
+    const sourceUrl = resolveFacilitySourceUrl(facilityId);
+    if (!facilityId || !sourceUrl || seen.has(facilityId)) {
+      continue;
+    }
+
+    seen.add(facilityId);
+    uniqueLinks.push({
+      facilityName: String(item?.facilityName || "Объект"),
+      sourceUrl,
+    });
+  }
+
+  if (!uniqueLinks.length) {
+    return "";
+  }
+
+  return `
+    <div class="my-day-plan-links">
+      ${uniqueLinks.map((item) => `
+        <a
+          class="my-day-plan-link"
+          href="${escapeHtml(item.sourceUrl)}"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <span>${escapeHtml(item.facilityName)}</span>
+          <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+        </a>
+      `).join("")}
+    </div>
+  `;
 }
 
 function renderMyChangesSummary() {
@@ -4524,56 +4748,6 @@ function buildMyChangesWidgetFooter(model) {
     return "Открыть журнал проверок";
   }
   return "Открыть разбор";
-}
-
-function buildMyShiftGapModel(previousCheck, nextCheck) {
-  const previousSiteEnd = getShiftVerificationBoundaryMinutes(previousCheck?.verification, "end");
-  const nextSiteStart = getShiftVerificationBoundaryMinutes(nextCheck?.verification, "start");
-  if (!Number.isFinite(previousSiteEnd) || !Number.isFinite(nextSiteStart)) {
-    return null;
-  }
-
-  const minutes = nextSiteStart - previousSiteEnd;
-  if (minutes <= 0) {
-    return null;
-  }
-
-  const previousFacilityId = String(previousCheck?.shift?.facilityId || "");
-  const nextFacilityId = String(nextCheck?.shift?.facilityId || "");
-  const isCrossFacility = previousFacilityId && nextFacilityId && previousFacilityId !== nextFacilityId;
-
-  if (isCrossFacility) {
-    return {
-      minutes,
-      label: minutes >= 120 ? "Перерыв между объектами" : "Переход между объектами",
-      modifierClass: "is-cross-facility",
-    };
-  }
-
-  const breakLabel = classifyBreak(minutes, previousCheck?.shift?.facilityId);
-  return {
-    minutes,
-    label: `${breakLabel.charAt(0).toUpperCase()}${breakLabel.slice(1)}`,
-    modifierClass: breakLabel === "заливка льда" ? "is-ice-fill" : "",
-  };
-}
-
-function getShiftVerificationBoundaryMinutes(verification, edge) {
-  const sessions = Array.isArray(verification?.siteSessions) ? verification.siteSessions : [];
-  if (!sessions.length) {
-    return null;
-  }
-
-  const session = edge === "end" ? sessions[sessions.length - 1] : sessions[0];
-  if (!session) {
-    return null;
-  }
-
-  const minutes = edge === "end"
-    ? (Number.isFinite(session.siteEndMinutes) ? session.siteEndMinutes : session.endMinutes)
-    : (Number.isFinite(session.siteStartMinutes) ? session.siteStartMinutes : session.startMinutes);
-
-  return Number.isFinite(minutes) ? minutes : null;
 }
 
 function renderMyShiftGapDivider(gapModel) {
@@ -4699,9 +4873,9 @@ function renderMyShiftSiteTimeline(shift, verification) {
       const session = sessions[i];
       const rowClasses = ["my-shift-site-row"];
       if (i > 0) {
-        const breakMins = session.startMinutes - sessions[i - 1].endMinutes;
-        if (breakMins > 0) {
-          rows.push(renderMyShiftBreak(breakMins, shift.facilityId));
+        const gapRows = renderMyShiftGapSequence(shift, sessions[i - 1].endMinutes, session.startMinutes);
+        if (gapRows.length) {
+          rows.push(...gapRows);
           rowClasses.push("after-break");
         }
       }
@@ -4764,6 +4938,106 @@ function renderMyShiftSiteTimeline(shift, verification) {
       ${detailText ? `<p class="my-shift-site-message">${escapeHtml(detailText)}</p>` : ""}
       ${rows.length ? `<div class="my-shift-site-list">${rows.join("")}</div>` : ""}
       ${sourceLinkHtml}
+    </div>
+  `;
+}
+
+function renderMyShiftGapSequence(shift, gapStartMinutes, gapEndMinutes) {
+  if (!Number.isFinite(gapStartMinutes) || !Number.isFinite(gapEndMinutes) || gapEndMinutes <= gapStartMinutes) {
+    return [];
+  }
+
+  const interleavedSegments = getMyShiftInterleavedSegments(shift, gapStartMinutes, gapEndMinutes);
+  if (!interleavedSegments.length) {
+    return [renderMyShiftBreak(gapEndMinutes - gapStartMinutes, shift.facilityId)];
+  }
+
+  const parts = [];
+  let cursor = gapStartMinutes;
+
+  for (const segment of interleavedSegments) {
+    const segmentStart = Math.max(cursor, segment.startMinutes);
+    if (segmentStart > cursor) {
+      parts.push(renderMyShiftBreak(segmentStart - cursor, shift.facilityId));
+    }
+
+    if (segment.endMinutes <= cursor) {
+      continue;
+    }
+
+    parts.push(renderMyShiftInterleavedSegment({
+      ...segment,
+      start: minutesToTime(segmentStart),
+      startMinutes: segmentStart,
+    }));
+    cursor = Math.max(cursor, segment.endMinutes);
+  }
+
+  if (cursor < gapEndMinutes) {
+    parts.push(renderMyShiftBreak(gapEndMinutes - cursor, shift.facilityId));
+  }
+
+  return parts;
+}
+
+function getMyShiftInterleavedSegments(shift, gapStartMinutes, gapEndMinutes) {
+  if (!shift?.date) {
+    return [];
+  }
+
+  const currentShiftId = getMyShiftStableKey(shift);
+  const segments = [];
+
+  for (const candidate of state.myShifts || []) {
+    if (!isWorkingShiftRecord(candidate) || candidate.date !== shift.date) {
+      continue;
+    }
+
+    if (getMyShiftStableKey(candidate) === currentShiftId) {
+      continue;
+    }
+
+    const candidateVerification = getShiftVerification(candidate);
+    for (const segment of buildMyShiftCoverageSegments(candidate, candidateVerification)) {
+      const clipped = clipMyShiftCoverageSegment(segment, gapStartMinutes, gapEndMinutes);
+      if (clipped) {
+        segments.push(clipped);
+      }
+    }
+  }
+
+  return segments.sort((a, b) => (
+    a.startMinutes - b.startMinutes
+    || a.endMinutes - b.endMinutes
+    || String(a.facilityName || "").localeCompare(String(b.facilityName || ""), "ru")
+  ));
+}
+
+function clipMyShiftCoverageSegment(segment, rangeStartMinutes, rangeEndMinutes) {
+  const overlapStart = Math.max(Number(segment?.startMinutes), rangeStartMinutes);
+  const overlapEnd = Math.min(Number(segment?.endMinutes), rangeEndMinutes);
+  if (!Number.isFinite(overlapStart) || !Number.isFinite(overlapEnd) || overlapEnd <= overlapStart) {
+    return null;
+  }
+
+  return {
+    ...segment,
+    start: minutesToTime(overlapStart),
+    end: minutesToTime(overlapEnd),
+    startMinutes: overlapStart,
+    endMinutes: overlapEnd,
+  };
+}
+
+function renderMyShiftInterleavedSegment(segment) {
+  const sourceLabel = segment.source === "site" ? "Другой объект · по сайту" : "Другой объект · по графику";
+  return `
+    <div class="my-shift-site-row after-break is-interleaved">
+      <div class="my-shift-site-session">
+        <span class="my-shift-site-time">${escapeHtml(`${segment.start} — ${segment.end}`)}</span>
+        <span class="my-shift-site-activity">${escapeHtml(segment.facilityName || "Объект")}</span>
+      </div>
+      <p class="my-shift-site-note">${escapeHtml(sourceLabel)}</p>
     </div>
   `;
 }
