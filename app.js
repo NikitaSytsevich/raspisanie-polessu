@@ -2916,34 +2916,15 @@ function buildEntryChangeGroups(entry) {
   }
 
   const groups = new Map();
+  const scheduleContextGroups = Array.isArray(entry?.scheduleContext?.groups) ? entry.scheduleContext.groups : [];
+  const scheduleContextMap = new Map(scheduleContextGroups.map((group) => [String(group?.key || ""), group]));
 
   for (const event of events) {
-    const scope = String(event?.scope || "").trim();
-    const programTitle = String(event?.programTitle || "").trim();
-    const date = String(event?.date || "").trim();
-    const scopeKey =
-      scope === "program"
-        ? `program::${programTitle || String(event?.title || "program")}`
-        : date
-          ? `date::${date}`
-          : event?.template
-            ? "template"
-            : "general";
-    const facilityId = String(event?.facilityId || "").trim();
-    const key = `${facilityId}::${scopeKey}`;
+    const parts = getChangeGroupContextPartsFromEvent(event);
+    const { key } = parts;
 
     if (!groups.has(key)) {
-      groups.set(key, {
-        key,
-        facilityId,
-        facilityName: String(event?.facilityName || "Объект"),
-        date,
-        sourceUrl: sanitizeHttpUrl(event?.sourceUrl),
-        template: Boolean(event?.template),
-        programTitle,
-        scope,
-        events: [],
-      });
+      groups.set(key, { ...parts, events: [] });
     }
 
     groups.get(key).events.push(event);
@@ -2959,6 +2940,7 @@ function buildEntryChangeGroups(entry) {
         summary: buildChangeGroupSummary(group),
         details: buildChangeGroupDetails(group),
         shortLabel: buildChangeGroupShortLabel(group),
+        scheduleContext: scheduleContextMap.get(group.key) || null,
       };
     })
     .sort(compareChangeGroups);
@@ -3672,6 +3654,245 @@ function renderChangesStreamRow(row) {
   `;
 }
 
+function buildSiteChangeScheduleSessionKey(session) {
+  return `${String(session?.start || "").trim()}-${String(session?.end || "").trim()}`;
+}
+
+function formatSiteChangeScheduleSessionDetails(session) {
+  return [String(session?.activity || "").trim(), String(session?.note || "").trim()]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function areSiteChangeSessionsEqual(a, b) {
+  return buildSiteChangeScheduleSessionKey(a) === buildSiteChangeScheduleSessionKey(b)
+    && formatSiteChangeScheduleSessionDetails(a) === formatSiteChangeScheduleSessionDetails(b);
+}
+
+function buildChangesStreamScheduleRows(group) {
+  const beforeDay = group?.scheduleContext?.beforeDay || { closedReason: "", sessions: [] };
+  const afterDay = group?.scheduleContext?.afterDay || { closedReason: "", sessions: [] };
+  const beforeSessions = Array.isArray(beforeDay.sessions) ? beforeDay.sessions : [];
+  const afterSessions = Array.isArray(afterDay.sessions) ? afterDay.sessions : [];
+  const beforeMap = new Map(beforeSessions.map((session) => [buildSiteChangeScheduleSessionKey(session), session]));
+  const afterMap = new Map(afterSessions.map((session) => [buildSiteChangeScheduleSessionKey(session), session]));
+  const keys = Array.from(new Set([...beforeMap.keys(), ...afterMap.keys()]))
+    .filter(Boolean)
+    .sort();
+
+  return keys.map((key) => {
+    const before = beforeMap.get(key) || null;
+    const after = afterMap.get(key) || null;
+    const current = after || before || {};
+    const time = current.start && current.end ? `${current.start} — ${current.end}` : "Время не указано";
+    const details = formatSiteChangeScheduleSessionDetails(current);
+
+    if (before && after) {
+      return {
+        key,
+        state: areSiteChangeSessionsEqual(before, after) ? "stable" : "updated",
+        time,
+        details,
+      };
+    }
+
+    return {
+      key,
+      state: after ? "added" : "removed",
+      time,
+      details,
+    };
+  });
+}
+
+function resolveChangesStreamScheduleRowIcon(state) {
+  switch (String(state || "")) {
+    case "added":
+      return "add_circle";
+    case "removed":
+      return "remove_circle";
+    case "updated":
+      return "sync_alt";
+    default:
+      return "radio_button_unchecked";
+  }
+}
+
+function renderChangesStreamScheduleRow(row) {
+  return `
+    <article class="changes-schedule-row is-${escapeHtml(String(row?.state || "stable"))}">
+      <span class="changes-schedule-row-icon" aria-hidden="true">
+        <span class="material-symbols-outlined">${escapeHtml(resolveChangesStreamScheduleRowIcon(row?.state))}</span>
+      </span>
+      <div class="changes-schedule-row-copy">
+        <div class="changes-schedule-row-head">
+          <strong>${escapeHtml(String(row?.time || "Время не указано"))}</strong>
+          ${
+            row?.state && row.state !== "stable"
+              ? `<span class="changes-schedule-row-state is-${escapeHtml(String(row.state))}">${escapeHtml(
+                  row.state === "added" ? "Добавлено" : row.state === "removed" ? "Убрано" : "Обновлено"
+                )}</span>`
+              : ""
+          }
+        </div>
+        ${row?.details ? `<p class="changes-schedule-row-details">${escapeHtml(String(row.details))}</p>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function renderChangesStreamScheduleState(group) {
+  const beforeClosed = String(group?.scheduleContext?.beforeDay?.closedReason || "").trim();
+  const afterClosed = String(group?.scheduleContext?.afterDay?.closedReason || "").trim();
+  if (beforeClosed === afterClosed) {
+    return "";
+  }
+
+  const type = afterClosed
+    ? beforeClosed
+      ? "updated"
+      : "added"
+    : "removed";
+  const text = afterClosed || "Ограничение с даты снято";
+
+  return `
+    <div class="changes-schedule-status is-${escapeHtml(type)}">
+      <span class="changes-schedule-status-icon" aria-hidden="true">
+        <span class="material-symbols-outlined">${escapeHtml(type === "removed" ? "event_available" : "event_busy")}</span>
+      </span>
+      <div class="changes-schedule-status-copy">
+        <strong>${escapeHtml(afterClosed ? "Статус дня на сайте" : "День снова открыт")}</strong>
+        <p>${escapeHtml(text)}</p>
+      </div>
+    </div>
+  `;
+}
+
+function shouldRenderChangesScheduleList(group) {
+  return Boolean(group?.date && group?.scheduleContext?.kind === "dated_schedule");
+}
+
+function renderChangesStreamScheduleList(group) {
+  const rows = buildChangesStreamScheduleRows(group);
+  const stateHtml = renderChangesStreamScheduleState(group);
+  if (!rows.length && !stateHtml) {
+    return "";
+  }
+
+  return `
+    <div class="changes-schedule-list">
+      ${stateHtml}
+      ${rows.length ? rows.map((row) => renderChangesStreamScheduleRow(row)).join("") : ""}
+    </div>
+  `;
+}
+
+function buildChangesStreamCompareMeta(event) {
+  const type = String(event?.type || "");
+  if (/_added$/.test(type)) {
+    return "Добавлено";
+  }
+  if (/_removed$/.test(type)) {
+    return "Убрано";
+  }
+  if (/_updated$/.test(type)) {
+    return "Обновлено";
+  }
+  if (type === "closure_changed" || type === "template_closure_changed") {
+    return "Статус дня";
+  }
+  if (type === "day_added" || type === "day_removed") {
+    return "Дата";
+  }
+  return "Изменение";
+}
+
+function buildChangesStreamCompareTitle(event) {
+  if (event?.start && event?.end) {
+    return `${event.start} — ${event.end}`;
+  }
+  if (event?.programTitle) {
+    return String(event.programTitle);
+  }
+  const type = String(event?.type || "");
+  if (type === "closure_changed" || type === "template_closure_changed") {
+    return "Режим работы";
+  }
+  if (type === "day_added" || type === "day_removed") {
+    return event?.date ? formatMonthDayShort(event.date) : "Дата";
+  }
+  return String(event?.title || "Изменение");
+}
+
+function buildChangesStreamCompareSideText(event, side) {
+  const isBefore = side === "before";
+  const type = String(event?.type || "");
+  const timeLabel = event?.start && event?.end ? `${event.start} — ${event.end}` : "";
+  const rawText = isBefore
+    ? event?.beforeText
+    : event?.afterText || event?.description;
+  const fallback = isBefore ? "Без данных до изменения." : "Без данных после изменения.";
+  let cleaned = cleanChangeSummaryText(rawText, "");
+
+  if (timeLabel) {
+    const withoutTime = stripLeadingTimeRange(cleaned);
+    if (withoutTime) {
+      cleaned = withoutTime;
+    } else if (cleaned === timeLabel) {
+      cleaned = "";
+    }
+  }
+
+  if (cleaned) {
+    return truncateText(cleaned, 120);
+  }
+
+  if (/_added$/.test(type)) {
+    return isBefore ? "Не было в расписании." : "Появилось в расписании.";
+  }
+  if (/_removed$/.test(type)) {
+    return isBefore ? "Было в расписании." : "Убрано из расписания.";
+  }
+  return fallback;
+}
+
+function buildChangesStreamCompareItems(group) {
+  if (!group || !Array.isArray(group.events)) {
+    return [];
+  }
+
+  return group.events
+    .filter(Boolean)
+    .filter((event) => !String(event?.type || "").startsWith("source_"))
+    .map((event) => ({
+      title: buildChangesStreamCompareTitle(event),
+      meta: buildChangesStreamCompareMeta(event),
+      beforeText: buildChangesStreamCompareSideText(event, "before"),
+      afterText: buildChangesStreamCompareSideText(event, "after"),
+    }));
+}
+
+function renderChangesStreamCompareItem(item) {
+  return `
+    <section class="changes-stream-compare">
+      <div class="changes-stream-compare-head">
+        <h4>${escapeHtml(String(item?.title || "Изменение"))}</h4>
+        <span>${escapeHtml(String(item?.meta || "Изменение"))}</span>
+      </div>
+      <div class="changes-stream-compare-columns">
+        <div class="changes-stream-compare-side before">
+          <span>Было</span>
+          <p>${escapeHtml(String(item?.beforeText || "—"))}</p>
+        </div>
+        <div class="changes-stream-compare-side after">
+          <span>Стало</span>
+          <p>${escapeHtml(String(item?.afterText || "—"))}</p>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderChangesStreamCard(group) {
   const toneClass = resolveChangeGroupCardToneClass(group);
   const allRows = Array.isArray(group?.details) && group.details.length
@@ -3693,6 +3914,10 @@ function renderChangesStreamCard(group) {
     group?.programTitle ? "Программа" : "",
     group?.template ? "Шаблон" : "",
   ].filter(Boolean).join(" · ");
+  const scheduleListHtml = shouldRenderChangesScheduleList(group) ? renderChangesStreamScheduleList(group) : "";
+  const compareItems = buildChangesStreamCompareItems(group);
+  const visibleCompareItems = compareItems.slice(0, 2);
+  const hiddenCompareItemsCount = Math.max(0, compareItems.length - visibleCompareItems.length);
 
   const contentHtml = `
     <article class="changes-stream-card ${escapeHtml(toneClass)}">
@@ -3710,8 +3935,23 @@ function renderChangesStreamCard(group) {
       </div>
       <p class="changes-stream-card-summary">${escapeHtml(summaryText)}</p>
       ${
-        rows.length
-          ? `<div class="changes-stream-card-body">${rows.map((row) => renderChangesStreamRow(row)).join("")}</div>`
+        scheduleListHtml
+          ? `<div class="changes-stream-card-body">${scheduleListHtml}</div>`
+          : visibleCompareItems.length
+          ? `
+            <div class="changes-stream-card-body">
+              ${visibleCompareItems.map((item) => renderChangesStreamCompareItem(item)).join("")}
+              ${
+                hiddenCompareItemsCount
+                  ? `<p class="changes-stream-card-more">И ещё ${escapeHtml(String(hiddenCompareItemsCount))} ${escapeHtml(
+                      pluralizeRu(hiddenCompareItemsCount, "изменение", "изменения", "изменений")
+                    )} в этой записи.</p>`
+                  : ""
+              }
+            </div>
+          `
+          : rows.length
+            ? `<div class="changes-stream-card-body">${rows.map((row) => renderChangesStreamRow(row)).join("")}</div>`
           : ""
       }
     </article>
@@ -4293,6 +4533,350 @@ function getEntryDisplayEvents(entry) {
     return [];
   }
   return entry.events.filter((event) => !String(event?.type || "").startsWith("source_"));
+}
+
+function getChangeGroupContextPartsFromEvent(event) {
+  const scope = String(event?.scope || "").trim();
+  const programTitle = String(event?.programTitle || "").trim();
+  const date = String(event?.date || "").trim();
+  const scopeKey =
+    scope === "program"
+      ? `program::${programTitle || String(event?.title || "program")}`
+      : date
+        ? `date::${date}`
+        : event?.template
+          ? "template"
+          : "general";
+  const facilityId = String(event?.facilityId || "").trim();
+
+  return {
+    key: `${facilityId}::${scopeKey}`,
+    facilityId,
+    facilityName: String(event?.facilityName || "Объект"),
+    date,
+    sourceUrl: sanitizeHttpUrl(event?.sourceUrl),
+    template: Boolean(event?.template),
+    programTitle,
+    scope,
+  };
+}
+
+function normalizeSiteChangeScheduleSession(session) {
+  const start = normalizeTime(String(session?.start || ""));
+  const end = normalizeTime(String(session?.end || ""));
+  const activity = String(session?.activity || "").replace(/\s+/g, " ").trim();
+  const note = String(session?.note || "").replace(/\s+/g, " ").trim();
+  return { start, end, activity, note };
+}
+
+function isSiteChangeScheduleSession(session) {
+  return Boolean(session?.start && session?.end);
+}
+
+function compareSiteChangeScheduleSession(a, b) {
+  const startA = String(a?.start || "");
+  const startB = String(b?.start || "");
+  if (startA !== startB) {
+    return startA.localeCompare(startB);
+  }
+  return String(a?.end || "").localeCompare(String(b?.end || ""));
+}
+
+function buildSiteChangeScheduleDaySnapshot(day) {
+  if (!day || typeof day !== "object") {
+    return { closedReason: "", sessions: [] };
+  }
+
+  return {
+    closedReason: String(day.closedReason || "").replace(/\s+/g, " ").trim(),
+    sessions: (Array.isArray(day.sessions) ? day.sessions : [])
+      .map(normalizeSiteChangeScheduleSession)
+      .filter(isSiteChangeScheduleSession)
+      .sort(compareSiteChangeScheduleSession),
+  };
+}
+
+function normalizeSiteChangeScheduleDaySnapshot(day) {
+  return buildSiteChangeScheduleDaySnapshot(day);
+}
+
+function findFacilityDayForSiteChanges(facility, isoDate) {
+  if (!facility || !isoDate || !Array.isArray(facility.days)) {
+    return null;
+  }
+  return facility.days.find((day) => String(day?.date || "").trim() === isoDate) || null;
+}
+
+function buildSiteChangesFacilityMap(facilities) {
+  const map = new Map();
+  for (const facility of Array.isArray(facilities) ? facilities : []) {
+    const id = String(facility?.id || "").trim();
+    if (id) {
+      map.set(id, facility);
+    }
+  }
+  return map;
+}
+
+function buildSiteChangeEntryScheduleContext(previousPayload, nextPayload, events) {
+  const previousFacilities = buildSiteChangesFacilityMap(previousPayload?.facilities);
+  const nextFacilities = buildSiteChangesFacilityMap(nextPayload?.facilities);
+  const groups = [];
+  const seenKeys = new Set();
+
+  for (const event of Array.isArray(events) ? events : []) {
+    const parts = getChangeGroupContextPartsFromEvent(event);
+    if (!parts.key || seenKeys.has(parts.key) || !parts.date || parts.scope === "program" || parts.template) {
+      continue;
+    }
+    seenKeys.add(parts.key);
+
+    const previousFacility = previousFacilities.get(parts.facilityId) || null;
+    const nextFacility = nextFacilities.get(parts.facilityId) || null;
+    groups.push({
+      ...parts,
+      kind: "dated_schedule",
+      beforeDay: buildSiteChangeScheduleDaySnapshot(findFacilityDayForSiteChanges(previousFacility, parts.date)),
+      afterDay: buildSiteChangeScheduleDaySnapshot(findFacilityDayForSiteChanges(nextFacility, parts.date)),
+    });
+  }
+
+  return { groups };
+}
+
+function parseSiteChangeScheduleSessionText(text, event) {
+  const normalizedText = String(text || "").replace(/\s+/g, " ").trim();
+  const explicitRange = normalizedText.match(/(\d{2}:\d{2})\s+—\s+(\d{2}:\d{2})/u);
+  const start = normalizeTime(String(event?.start || explicitRange?.[1] || ""));
+  const end = normalizeTime(String(event?.end || explicitRange?.[2] || ""));
+  if (!start || !end) {
+    return null;
+  }
+
+  const detail = stripLeadingTimeRange(normalizedText);
+  return {
+    start,
+    end,
+    activity: detail,
+    note: "",
+  };
+}
+
+function buildFallbackSiteChangeEntryScheduleContext(entry) {
+  const events = getEntryDisplayEvents(entry);
+  if (!events.length) {
+    return { groups: [] };
+  }
+
+  const groups = new Map();
+
+  for (const event of events) {
+    const parts = getChangeGroupContextPartsFromEvent(event);
+    if (!parts.key || !parts.date || parts.scope === "program" || parts.template) {
+      continue;
+    }
+
+    if (!groups.has(parts.key)) {
+      groups.set(parts.key, {
+        ...parts,
+        kind: "dated_schedule",
+        beforeDay: { closedReason: "", sessions: [] },
+        afterDay: { closedReason: "", sessions: [] },
+      });
+    }
+
+    const snapshot = groups.get(parts.key);
+    const type = String(event?.type || "");
+
+    if (type === "closure_changed") {
+      snapshot.beforeDay.closedReason = cleanChangeSummaryText(event?.beforeText, "объект открыт");
+      snapshot.afterDay.closedReason = cleanChangeSummaryText(event?.afterText, "объект открыт");
+      continue;
+    }
+    if (type === "day_removed") {
+      snapshot.beforeDay.closedReason = cleanChangeSummaryText(event?.beforeText, "");
+      continue;
+    }
+    if (type === "day_added") {
+      snapshot.afterDay.closedReason = cleanChangeSummaryText(event?.afterText, "");
+      continue;
+    }
+
+    const beforeSession = parseSiteChangeScheduleSessionText(event?.beforeText, event);
+    const afterSession = parseSiteChangeScheduleSessionText(event?.afterText || event?.description, event);
+
+    if (/_removed$/.test(type) && beforeSession) {
+      snapshot.beforeDay.sessions.push(beforeSession);
+      continue;
+    }
+    if (/_added$/.test(type) && afterSession) {
+      snapshot.afterDay.sessions.push(afterSession);
+      continue;
+    }
+    if (/_updated$/.test(type)) {
+      if (beforeSession) {
+        snapshot.beforeDay.sessions.push(beforeSession);
+      }
+      if (afterSession) {
+        snapshot.afterDay.sessions.push(afterSession);
+      }
+    }
+  }
+
+  return {
+    groups: Array.from(groups.values()).map((group) => ({
+      ...group,
+      beforeDay: normalizeSiteChangeScheduleDaySnapshot(group.beforeDay),
+      afterDay: normalizeSiteChangeScheduleDaySnapshot(group.afterDay),
+    })),
+  };
+}
+
+function buildDemoSiteChangeScheduleContext(entry) {
+  const signature = String(entry?.signature || "");
+  if (signature === "demo-entry-1") {
+    return {
+      groups: [
+        {
+          key: "ice_arena::date::2026-04-26",
+          facilityId: "ice_arena",
+          facilityName: "Ледовая арена",
+          date: "2026-04-26",
+          sourceUrl: DEFAULT_FACILITY_OPTIONS[0]?.sourceUrl || "",
+          template: false,
+          programTitle: "",
+          scope: "session",
+          kind: "dated_schedule",
+          beforeDay: {
+            closedReason: "",
+            sessions: [
+              { start: "12:00", end: "12:45", activity: "Массовое катание", note: "" },
+            ],
+          },
+          afterDay: {
+            closedReason: "",
+            sessions: [
+              { start: "12:00", end: "12:45", activity: "Массовое катание", note: "" },
+              { start: "14:30", end: "15:15", activity: "", note: "" },
+            ],
+          },
+        },
+        {
+          key: "sports_pool::date::2026-04-27",
+          facilityId: "sports_pool",
+          facilityName: "Спортивный бассейн",
+          date: "2026-04-27",
+          sourceUrl: DEFAULT_FACILITY_OPTIONS[1]?.sourceUrl || "",
+          template: false,
+          programTitle: "",
+          scope: "session",
+          kind: "dated_schedule",
+          beforeDay: {
+            closedReason: "",
+            sessions: [
+              { start: "09:15", end: "10:00", activity: "свободно 2 дорожки", note: "" },
+              { start: "10:15", end: "11:00", activity: "аквааэробика", note: "" },
+            ],
+          },
+          afterDay: {
+            closedReason: "",
+            sessions: [
+              { start: "09:15", end: "10:00", activity: "свободно 4 дорожки, без крайних", note: "" },
+              { start: "10:15", end: "11:00", activity: "аквааэробика", note: "" },
+            ],
+          },
+        },
+        {
+          key: "small_pool::date::2026-04-28",
+          facilityId: "small_pool",
+          facilityName: "Малый бассейн",
+          date: "2026-04-28",
+          sourceUrl: DEFAULT_FACILITY_OPTIONS[2]?.sourceUrl || "",
+          template: false,
+          programTitle: "",
+          scope: "session",
+          kind: "dated_schedule",
+          beforeDay: {
+            closedReason: "",
+            sessions: [
+              { start: "17:00", end: "17:45", activity: "детский сеанс", note: "" },
+              { start: "18:00", end: "18:45", activity: "", note: "" },
+            ],
+          },
+          afterDay: {
+            closedReason: "",
+            sessions: [
+              { start: "17:00", end: "17:45", activity: "детский сеанс", note: "" },
+            ],
+          },
+        },
+      ],
+    };
+  }
+
+  if (signature === "demo-entry-2") {
+    return {
+      groups: [
+        {
+          key: "ice_arena::date::2026-04-29",
+          facilityId: "ice_arena",
+          facilityName: "Ледовая арена",
+          date: "2026-04-29",
+          sourceUrl: DEFAULT_FACILITY_OPTIONS[0]?.sourceUrl || "",
+          template: false,
+          programTitle: "",
+          scope: "day",
+          kind: "dated_schedule",
+          beforeDay: {
+            closedReason: "",
+            sessions: [
+              { start: "09:00", end: "09:45", activity: "утренний сеанс", note: "" },
+              { start: "15:00", end: "15:45", activity: "вечерний сеанс", note: "" },
+            ],
+          },
+          afterDay: {
+            closedReason: "Санитарный час до 14:00",
+            sessions: [
+              { start: "15:00", end: "15:45", activity: "вечерний сеанс", note: "" },
+            ],
+          },
+        },
+      ],
+    };
+  }
+
+  return { groups: [] };
+}
+
+function normalizeSiteChangeScheduleContext(context, entry = null) {
+  const groupsRaw = Array.isArray(context?.groups) ? context.groups : [];
+  const groups = groupsRaw
+    .map((group) => ({
+      ...(group && typeof group === "object" ? group : {}),
+      key: String(group?.key || "").trim(),
+      facilityId: String(group?.facilityId || "").trim(),
+      facilityName: String(group?.facilityName || "Объект"),
+      date: String(group?.date || "").trim(),
+      sourceUrl: sanitizeHttpUrl(group?.sourceUrl),
+      template: Boolean(group?.template),
+      programTitle: String(group?.programTitle || "").trim(),
+      scope: String(group?.scope || "").trim(),
+      kind: String(group?.kind || "").trim(),
+      beforeDay: normalizeSiteChangeScheduleDaySnapshot(group?.beforeDay),
+      afterDay: normalizeSiteChangeScheduleDaySnapshot(group?.afterDay),
+    }))
+    .filter((group) => group.key);
+
+  if (groups.length) {
+    return { groups };
+  }
+
+  const demoContext = entry?.source === "demo" ? buildDemoSiteChangeScheduleContext(entry) : { groups: [] };
+  if (Array.isArray(demoContext.groups) && demoContext.groups.length) {
+    return normalizeSiteChangeScheduleContext(demoContext, null);
+  }
+
+  return buildFallbackSiteChangeEntryScheduleContext(entry);
 }
 
 function renderInteractiveChangeComparisonCard(event) {
@@ -5959,6 +6543,7 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
         sourceIssues,
         affectedFacilityCount: Number(comparison.metrics?.affectedFacilityCount || 0),
         affectedDateCount: Number(comparison.metrics?.affectedDateCount || 0),
+        scheduleContext: { groups: [] },
         snapshotHash: String(nextPayload.snapshotHash || ""),
         acknowledgedAt: "",
         signature:
@@ -5996,6 +6581,7 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
       sourceIssues: [],
       affectedFacilityCount: 0,
       affectedDateCount: 0,
+      scheduleContext: { groups: [] },
       snapshotHash: String(nextPayload.snapshotHash || ""),
       acknowledgedAt: "",
       signature: buildSiteChangesSignature(
@@ -6049,6 +6635,7 @@ function registerSiteChanges(previousPayload, nextPayload, options = {}) {
     sourceIssues,
     affectedFacilityCount: Number(comparison.metrics?.affectedFacilityCount || 0),
     affectedDateCount: Number(comparison.metrics?.affectedDateCount || 0),
+    scheduleContext: buildSiteChangeEntryScheduleContext(previousPayload, nextPayload, events),
     snapshotHash: String(nextPayload.snapshotHash || ""),
     acknowledgedAt: "",
     signature,
@@ -7239,6 +7826,7 @@ function normalizeSiteChangeEntry(item) {
     ...(item && typeof item === "object" ? item : {}),
     acknowledgedAt: normalizeOptionalIsoDate(item?.acknowledgedAt),
     events: normalizeSiteChangeEvents(item?.events),
+    scheduleContext: normalizeSiteChangeScheduleContext(item?.scheduleContext, item),
     sourceIssues: Array.isArray(item?.sourceIssues) ? item.sourceIssues.slice(0, 8) : [],
     affectedFacilityCount: Number(item?.affectedFacilityCount || 0),
     affectedDateCount: Number(item?.affectedDateCount || 0),

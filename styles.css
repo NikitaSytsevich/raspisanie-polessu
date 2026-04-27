@@ -455,42 +455,46 @@ body::before {
 .changes-status-chip {
   flex: 1;
   min-width: 0;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(15, 23, 42, 0.42);
-  padding: 8px 10px;
+  min-height: 48px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.56);
+  padding: 9px 13px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .changes-status-chip .material-symbols-outlined {
-  font-size: 19px;
-  color: #93c5fd;
+  font-size: 18px;
+  color: #8fb4ea;
   flex-shrink: 0;
 }
 
 .changes-status-text {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .changes-status-label {
   display: block;
-  font-size: 9px;
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #93c5fd;
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #8fb4ea;
 }
 
 .changes-updated-at {
-  margin: 3px 0 0;
-  font-size: 12px;
+  margin: 0;
+  font-size: 15px;
   line-height: 1.15;
-  font-weight: 800;
+  font-weight: 780;
   letter-spacing: 0.01em;
-  color: #e2e8f0;
+  color: #f8fafc;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1287,7 +1291,7 @@ body::before {
   margin-top: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .changes-stream-link {
@@ -1297,13 +1301,16 @@ body::before {
 }
 
 .changes-stream-card {
+  --changes-stream-accent: rgba(148, 163, 184, 0.5);
   position: relative;
   overflow: hidden;
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(15, 23, 42, 0.58);
-  padding: 12px 12px 13px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.66), rgba(15, 23, 42, 0.78));
+  padding: 15px 15px 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.02),
+    0 10px 22px rgba(2, 6, 23, 0.12);
   transition: transform 160ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
@@ -1313,42 +1320,33 @@ body::before {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
-  background: rgba(148, 163, 184, 0.3);
+  width: 4px;
+  background: var(--changes-stream-accent);
+  opacity: 0.9;
 }
 
 .changes-stream-link:hover .changes-stream-card,
 .changes-stream-link:focus-visible .changes-stream-card {
   transform: translateY(-1px);
-  border-color: rgba(125, 211, 252, 0.38);
-  box-shadow: 0 14px 26px rgba(2, 6, 23, 0.16);
+  border-color: rgba(148, 163, 184, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.02),
+    0 14px 26px rgba(2, 6, 23, 0.16);
 }
 
 .changes-stream-card.is-added {
-  border-color: rgba(52, 211, 153, 0.26);
-  background: rgba(15, 23, 42, 0.62);
+  --changes-stream-accent: rgba(52, 211, 153, 0.9);
+  border-color: rgba(52, 211, 153, 0.16);
 }
 
 .changes-stream-card.is-updated {
-  border-color: rgba(96, 165, 250, 0.26);
-  background: rgba(15, 23, 42, 0.58);
+  --changes-stream-accent: rgba(96, 165, 250, 0.9);
+  border-color: rgba(96, 165, 250, 0.16);
 }
 
 .changes-stream-card.is-removed {
-  border-color: rgba(248, 113, 113, 0.26);
-  background: rgba(15, 23, 42, 0.62);
-}
-
-.changes-stream-card.is-added::before {
-  background: linear-gradient(180deg, rgba(52, 211, 153, 0.95), rgba(5, 150, 105, 0.92));
-}
-
-.changes-stream-card.is-updated::before {
-  background: linear-gradient(180deg, rgba(96, 165, 250, 0.95), rgba(37, 99, 235, 0.92));
-}
-
-.changes-stream-card.is-removed::before {
-  background: linear-gradient(180deg, rgba(248, 113, 113, 0.95), rgba(220, 38, 38, 0.92));
+  --changes-stream-accent: rgba(248, 113, 113, 0.9);
+  border-color: rgba(248, 113, 113, 0.16);
 }
 
 .changes-stream-card-head {
@@ -1361,17 +1359,17 @@ body::before {
 .changes-stream-card-object {
   min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 14px;
 }
 
 .changes-stream-card-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(255, 255, 255, 0.06);
-  color: #dbeafe;
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1379,7 +1377,7 @@ body::before {
 }
 
 .changes-stream-card-icon .material-symbols-outlined {
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .changes-stream-card-copy {
@@ -1388,92 +1386,363 @@ body::before {
 
 .changes-stream-card-copy h3 {
   margin: 0;
-  font-size: 19px;
-  line-height: 1.12;
-  font-weight: 900;
-  color: #f8fafc;
+  font-size: 17px;
+  line-height: 1.15;
+  font-weight: 800;
+  color: #eff6ff;
 }
 
 .changes-stream-card-copy p {
-  margin: 5px 0 0;
-  font-size: 13px;
+  margin: 4px 0 0;
+  font-size: 12px;
   line-height: 1.3;
-  font-weight: 800;
-  color: #93c5fd;
+  font-weight: 700;
+  color: #93a9c8;
 }
 
 .changes-stream-card-summary {
   margin: 14px 0 0;
-  font-size: 17px;
-  line-height: 1.3;
-  font-weight: 800;
-  color: #f8fafc;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 760;
+  color: #f1f5f9;
 }
 
 .changes-stream-card-badge {
   border-radius: 999px;
   padding: 6px 10px;
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.03em;
   white-space: nowrap;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(148, 163, 184, 0.14);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.05);
   color: #cbd5e1;
 }
 
 .changes-stream-card-badge.is-added {
-  border-color: rgba(52, 211, 153, 0.34);
-  background: rgba(5, 150, 105, 0.2);
-  color: #a7f3d0;
+  border-color: rgba(52, 211, 153, 0.22);
+  background: rgba(16, 185, 129, 0.12);
+  color: #8ee0c0;
 }
 
 .changes-stream-card-badge.is-updated {
-  border-color: rgba(96, 165, 250, 0.34);
-  background: rgba(37, 99, 235, 0.18);
-  color: #dbeafe;
+  border-color: rgba(96, 165, 250, 0.22);
+  background: rgba(59, 130, 246, 0.12);
+  color: #b9d7ff;
 }
 
 .changes-stream-card-badge.is-removed {
-  border-color: rgba(248, 113, 113, 0.34);
-  background: rgba(220, 38, 38, 0.2);
-  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.22);
+  background: rgba(239, 68, 68, 0.12);
+  color: #f8c0c0;
 }
 
 .changes-stream-card-body {
-  margin-top: 12px;
+  margin-top: 11px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 8px;
+}
+
+.changes-schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.changes-schedule-state {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.changes-schedule-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.035);
+  padding: 11px 12px;
+}
+
+.changes-schedule-status.is-added,
+.changes-schedule-status.is-updated {
+  border-color: rgba(96, 165, 250, 0.2);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.changes-schedule-status.is-removed {
+  border-color: rgba(52, 211, 153, 0.22);
+  background: rgba(16, 185, 129, 0.09);
+}
+
+.changes-schedule-status-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
+}
+
+.changes-schedule-status.is-added .changes-schedule-status-icon,
+.changes-schedule-status.is-updated .changes-schedule-status-icon {
+  background: rgba(59, 130, 246, 0.16);
+  color: #b9d7ff;
+}
+
+.changes-schedule-status.is-removed .changes-schedule-status-icon {
+  background: rgba(16, 185, 129, 0.16);
+  color: #8ee0c0;
+}
+
+.changes-schedule-status-icon .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.changes-schedule-status-copy {
+  min-width: 0;
+}
+
+.changes-schedule-status-copy strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.25;
+  font-weight: 780;
+  color: #eff6ff;
+}
+
+.changes-schedule-status-copy p {
+  margin: 5px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 680;
+  color: #dbe6f4;
+}
+
+.changes-schedule-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.035);
+  padding: 11px 12px;
+}
+
+.changes-schedule-row.is-added {
+  border-color: rgba(52, 211, 153, 0.22);
+  background: rgba(16, 185, 129, 0.09);
+}
+
+.changes-schedule-row.is-updated {
+  border-color: rgba(96, 165, 250, 0.2);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.changes-schedule-row.is-removed {
+  border-color: rgba(248, 113, 113, 0.18);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.changes-schedule-row-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
+}
+
+.changes-schedule-row.is-added .changes-schedule-row-icon {
+  background: rgba(16, 185, 129, 0.16);
+  color: #8ee0c0;
+}
+
+.changes-schedule-row.is-updated .changes-schedule-row-icon {
+  background: rgba(59, 130, 246, 0.16);
+  color: #b9d7ff;
+}
+
+.changes-schedule-row.is-removed .changes-schedule-row-icon {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f8c0c0;
+}
+
+.changes-schedule-row-icon .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.changes-schedule-row-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.changes-schedule-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.changes-schedule-row-head strong {
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 820;
+  color: #eff6ff;
+}
+
+.changes-schedule-row.is-removed .changes-schedule-row-head strong,
+.changes-schedule-row.is-removed .changes-schedule-row-details {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: rgba(248, 113, 113, 0.75);
+}
+
+.changes-schedule-row-state {
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #8da2c0;
+}
+
+.changes-schedule-row-state.is-added {
+  color: #8ee0c0;
+}
+
+.changes-schedule-row-state.is-updated {
+  color: #b9d7ff;
+}
+
+.changes-schedule-row-state.is-removed {
+  color: #f8c0c0;
+}
+
+.changes-schedule-row-details {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 680;
+  color: #dbe6f4;
+}
+
+.changes-stream-compare {
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+  padding-top: 11px;
+}
+
+.changes-stream-compare:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.changes-stream-compare-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.changes-stream-compare-head h4 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 780;
+  color: #eff6ff;
+}
+
+.changes-stream-compare-head span {
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #8da2c0;
+  white-space: nowrap;
+}
+
+.changes-stream-compare-columns {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.changes-stream-compare-side {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.035);
+  padding: 10px 11px;
+}
+
+.changes-stream-compare-side span {
+  display: block;
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.changes-stream-compare-side p {
+  margin: 7px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 680;
+  color: #dbe6f4;
+}
+
+.changes-stream-compare-side.before span {
+  color: #f2b4b4;
+}
+
+.changes-stream-compare-side.after span {
+  color: #9cddb8;
+}
+
+.changes-stream-card-more {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #93a9c8;
 }
 
 .changes-stream-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(255, 255, 255, 0.04);
-  padding: 12px 13px;
+  border-radius: 15px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(255, 255, 255, 0.035);
+  padding: 11px 12px;
 }
 
 .changes-stream-row-marker {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   margin-top: 5px;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.72);
+  background: rgba(148, 163, 184, 0.56);
   flex-shrink: 0;
 }
 
 .changes-stream-row p {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
-  font-weight: 700;
-  color: #e2e8f0;
+  font-weight: 680;
+  color: #dbe6f4;
 }
 
 .changes-stream-row.is-added .changes-stream-row-marker {
@@ -1689,20 +1958,33 @@ body::before {
 
 @media (max-width: 480px) {
   .changes-stream-card {
-    padding: 13px;
+    padding: 14px;
   }
 
   .changes-stream-card-copy h3 {
-    font-size: 17px;
+    font-size: 16px;
   }
 
   .changes-stream-card-icon {
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
   }
 
   .changes-stream-card-icon .material-symbols-outlined {
-    font-size: 20px;
+    font-size: 18px;
+  }
+
+  .changes-stream-compare-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .changes-schedule-state {
+    grid-template-columns: 1fr;
+  }
+
+  .changes-schedule-row-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .changes-table-wrap {
@@ -4422,18 +4704,18 @@ html.light #changesHeader .changes-back-btn:active {
 }
 
 html.light #changesHeader .changes-status-chip {
-  border-color: rgba(148, 163, 184, 0.36);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07);
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
 }
 
 html.light #changesHeader .changes-status-chip .material-symbols-outlined,
 html.light #changesHeader .changes-status-label {
-  color: #2563eb;
+  color: #4f6b93;
 }
 
 html.light #changesHeader .changes-updated-at {
-  color: #334155;
+  color: #0f172a;
 }
 
 html.light .changes-latest-card,
@@ -4618,14 +4900,14 @@ html.light .changes-overview-preview-badge {
 html.light .changes-history-card,
 html.light .changes-stream-card,
 html.light .changes-stream-row {
-  border-color: rgba(148, 163, 184, 0.24);
-  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.88);
 }
 
 html.light .changes-stream-link:hover .changes-stream-card,
 html.light .changes-stream-link:focus-visible .changes-stream-card {
-  border-color: rgba(37, 99, 235, 0.36);
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.12);
+  border-color: rgba(148, 163, 184, 0.26);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
 }
 
 html.light .changes-stream-card-copy h3,
@@ -4635,42 +4917,150 @@ html.light .changes-history-card-head h3 {
 
 html.light .changes-stream-card-copy p,
 html.light .changes-history-card-head p {
-  color: #2563eb;
+  color: #64748b;
 }
 
 html.light .changes-stream-card-summary,
 html.light .changes-history-card-text,
 html.light .changes-stream-row p {
+  color: #1e293b;
+}
+
+html.light .changes-schedule-status,
+html.light .changes-schedule-row {
+  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(248, 250, 252, 0.92);
+}
+
+html.light .changes-schedule-status-copy p,
+html.light .changes-schedule-row-details {
   color: #334155;
 }
 
+html.light .changes-schedule-status.is-added,
+html.light .changes-schedule-status.is-updated {
+  border-color: rgba(37, 99, 235, 0.18);
+  background: rgba(239, 246, 255, 0.96);
+}
+
+html.light .changes-schedule-status.is-removed {
+  border-color: rgba(22, 163, 74, 0.2);
+  background: rgba(240, 253, 244, 0.96);
+}
+
+html.light .changes-schedule-row.is-added {
+  border-color: rgba(22, 163, 74, 0.2);
+  background: rgba(240, 253, 244, 0.96);
+}
+
+html.light .changes-schedule-row.is-updated {
+  border-color: rgba(37, 99, 235, 0.18);
+  background: rgba(239, 246, 255, 0.96);
+}
+
+html.light .changes-schedule-row.is-removed {
+  border-color: rgba(220, 38, 38, 0.18);
+  background: rgba(254, 242, 242, 0.96);
+}
+
+html.light .changes-schedule-status-icon,
+html.light .changes-schedule-row-icon {
+  background: rgba(148, 163, 184, 0.14);
+  color: #475569;
+}
+
+html.light .changes-schedule-status.is-added .changes-schedule-status-icon,
+html.light .changes-schedule-status.is-updated .changes-schedule-status-icon {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1e40af;
+}
+
+html.light .changes-schedule-status.is-removed .changes-schedule-status-icon {
+  background: rgba(22, 163, 74, 0.12);
+  color: #166534;
+}
+
+html.light .changes-schedule-row.is-added .changes-schedule-row-icon {
+  background: rgba(22, 163, 74, 0.12);
+  color: #166534;
+}
+
+html.light .changes-schedule-row.is-updated .changes-schedule-row-icon {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1e40af;
+}
+
+html.light .changes-schedule-row.is-removed .changes-schedule-row-icon {
+  background: rgba(220, 38, 38, 0.12);
+  color: #991b1b;
+}
+
+html.light .changes-schedule-status-copy strong,
+html.light .changes-schedule-row-head strong {
+  color: #0f172a;
+}
+
+html.light .changes-schedule-row-state {
+  color: #64748b;
+}
+
+html.light .changes-stream-compare {
+  border-top-color: rgba(148, 163, 184, 0.16);
+}
+
+html.light .changes-stream-compare-head h4 {
+  color: #0f172a;
+}
+
+html.light .changes-stream-compare-head span,
+html.light .changes-stream-card-more {
+  color: #64748b;
+}
+
+html.light .changes-stream-compare-side {
+  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(248, 250, 252, 0.92);
+}
+
+html.light .changes-stream-compare-side p {
+  color: #334155;
+}
+
+html.light .changes-stream-compare-side.before span {
+  color: #b91c1c;
+}
+
+html.light .changes-stream-compare-side.after span {
+  color: #166534;
+}
+
 html.light .changes-stream-card-icon {
-  border-color: rgba(37, 99, 235, 0.2);
-  background: rgba(219, 234, 254, 0.92);
-  color: #1d4ed8;
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(241, 245, 249, 0.96);
+  color: #475569;
 }
 
 html.light .changes-stream-card-badge {
-  border-color: rgba(148, 163, 184, 0.3);
-  background: rgba(226, 232, 240, 0.88);
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(248, 250, 252, 0.98);
   color: #475569;
 }
 
 html.light .changes-stream-card-badge.is-added {
-  border-color: rgba(22, 163, 74, 0.34);
-  background: rgba(220, 252, 231, 0.92);
+  border-color: rgba(22, 163, 74, 0.18);
+  background: rgba(240, 253, 244, 0.96);
   color: #166534;
 }
 
 html.light .changes-stream-card-badge.is-updated {
-  border-color: rgba(37, 99, 235, 0.34);
-  background: rgba(219, 234, 254, 0.92);
-  color: #1d4ed8;
+  border-color: rgba(37, 99, 235, 0.18);
+  background: rgba(239, 246, 255, 0.96);
+  color: #1e40af;
 }
 
 html.light .changes-stream-card-badge.is-removed {
-  border-color: rgba(220, 38, 38, 0.34);
-  background: rgba(254, 226, 226, 0.92);
+  border-color: rgba(220, 38, 38, 0.18);
+  background: rgba(254, 242, 242, 0.96);
   color: #991b1b;
 }
 
@@ -6826,15 +7216,16 @@ html.dark .history-data-notice.info {
   }
 
   .changes-status-chip {
-    padding: 7px 8px;
+    min-height: 46px;
+    padding: 8px 10px;
   }
 
   .changes-status-label {
-    font-size: 8px;
+    font-size: 10px;
   }
 
   .changes-updated-at {
-    font-size: 10px;
+    font-size: 13px;
   }
 
   .changes-refresh-btn {
