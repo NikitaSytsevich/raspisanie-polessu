@@ -178,6 +178,7 @@ function init() {
     saveSiteChangesLastCheckedAt();
   }
   migrateLegacyAcknowledgedSiteChanges();
+  seedDemoSiteChangesIfNeeded();
   if (syncStaffShiftsWithMyShifts()) {
     saveMyShifts();
   }
@@ -2707,9 +2708,8 @@ function renderChangesView() {
     }
   }
 
-  const overviewHtml = renderChangesOverviewCard(overviewModel);
-  el.changesLatestCard.hidden = !overviewHtml;
-  el.changesLatestCard.innerHTML = overviewHtml;
+  el.changesLatestCard.hidden = true;
+  el.changesLatestCard.innerHTML = "";
   el.changesUpdatesCard.innerHTML = latest ? renderChangesDetailSections(overviewModel, history) : renderChangesEmptySections();
 }
 
@@ -3356,13 +3356,11 @@ function buildChangesOverviewHeadline(status, focusEntry) {
     case "important":
       return "Затронуты мои смены";
     case "changes":
+    case "reviewed_changes":
       return "Есть изменения";
     case "issue":
-      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "Есть сообщение сайта" : "Проверка неполная";
-    case "reviewed_changes":
-      return "Последнее изменение просмотрено";
     case "reviewed_issue":
-      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "Сообщение сайта просмотрено" : "Последняя проблема просмотрена";
+      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "Есть сообщение сайта" : "Проверка неполная";
     case "stable":
       return "Без новых изменений";
     case "baseline":
@@ -3378,12 +3376,11 @@ function buildChangesOverviewPill(status, focusEntry) {
     case "important":
       return "Влияет";
     case "changes":
+    case "reviewed_changes":
       return "Новое";
     case "issue":
-      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "Сообщение" : "Неполно";
-    case "reviewed_changes":
     case "reviewed_issue":
-      return "Просмотрено";
+      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "Сообщение" : "Неполно";
     case "stable":
       return "Без изменений";
     case "baseline":
@@ -3399,13 +3396,11 @@ function buildChangesOverviewIcon(status, focusEntry) {
     case "important":
       return "event_busy";
     case "changes":
+    case "reviewed_changes":
       return "event";
     case "issue":
-      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "campaign" : "warning";
-    case "reviewed_changes":
-      return "visibility";
     case "reviewed_issue":
-      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "mark_email_read" : "fact_check";
+      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues) ? "campaign" : "warning";
     case "stable":
       return "task_alt";
     case "baseline":
@@ -3423,19 +3418,13 @@ function buildChangesOverviewSummary(status, focusEntry, focusImpact, focusGroup
     case "important":
       return `Затронуто ${focusImpact.total} ${pluralizeRu(focusImpact.total, "ваша смена", "ваши смены", "ваших смен")}. ${leadSummary}`;
     case "changes":
+    case "reviewed_changes":
       return state.myShifts.length
         ? `Ваши смены в этой проверке не затронуты. ${leadSummary}`
         : leadSummary;
     case "issue":
-      return leadIssue?.description || "Часть источников не ответила. Сравнение может быть неполным.";
-    case "reviewed_changes":
-      return focusImpact.total > 0
-        ? `Последнее изменение уже просмотрено. Было затронуто ${focusImpact.total} ${pluralizeRu(focusImpact.total, "ваша смена", "ваши смены", "ваших смен")}.`
-        : `Последнее изменение уже просмотрено. ${leadSummary}`;
     case "reviewed_issue":
-      return hasOnlyNoticeSourceIssues(focusEntry?.sourceIssues)
-        ? "Последнее служебное сообщение уже просмотрено. Новых непросмотренных сообщений сейчас нет."
-        : "Последняя проблема проверки уже просмотрена. Новых непросмотренных событий сейчас нет.";
+      return leadIssue?.description || "Часть источников не ответила. Сравнение может быть неполным.";
     case "stable":
       if (state.myShifts.length) {
         return "Последняя проверка не нашла новых изменений. Ваши смены выглядят актуальными.";
@@ -3493,10 +3482,6 @@ function buildChangesFeatureSummary(model, focusEntry, focusGroups) {
     return `Затронуто ${affected} ${pluralizeRu(affected, "ваша смена", "ваши смены", "ваших смен")}. Ниже ${cardsLabel} с короткой выжимкой.`;
   }
 
-  if (model?.status === "reviewed_changes") {
-    return `Последнее событие уже просмотрено. Ниже ${cardsLabel} с короткой выжимкой.`;
-  }
-
   return `Ниже ${cardsLabel} с сутью последней проверки без лишних деталей.`;
 }
 
@@ -3509,16 +3494,12 @@ function buildMyChangesWidgetSummary(model) {
       text = "Есть изменения, которые затрагивают ваш график.";
       break;
     case "changes":
+    case "reviewed_changes":
       text = "На сайте появились новые изменения.";
       break;
-    case "reviewed_changes":
-      text = "Последнее изменение уже просмотрено.";
-      break;
     case "issue":
-      text = "Часть источников ответила с ошибкой, поэтому проверка могла быть неполной.";
-      break;
     case "reviewed_issue":
-      text = "Последняя проблема проверки уже просмотрена.";
+      text = "Часть источников ответила с ошибкой, поэтому проверка могла быть неполной.";
       break;
     case "stable":
       text = "Сейчас всё совпадает с последней проверкой.";
@@ -3547,9 +3528,8 @@ function buildMyChangesWidgetHeadline(model) {
     case "reviewed_changes":
       return "Есть изменения";
     case "issue":
-      return hasOnlyNoticeSourceIssues(model?.focusEntry?.sourceIssues) ? "Есть сообщение" : "Проверка неполная";
     case "reviewed_issue":
-      return "Проблема просмотрена";
+      return hasOnlyNoticeSourceIssues(model?.focusEntry?.sourceIssues) ? "Есть сообщение" : "Проверка неполная";
     case "stable":
       return "Без изменений";
     case "baseline":
@@ -3620,83 +3600,245 @@ function renderOverviewMetric(metric, className) {
   `;
 }
 
+function renderChangesOverviewPreviewItem(group) {
+  return `
+    <article class="changes-overview-preview-item">
+      <div class="changes-overview-preview-copy">
+        <h3>${escapeHtml(String(group?.shortLabel || "Изменение"))}</h3>
+        <p>${escapeHtml(String(group?.summary || "Детали обновлены."))}</p>
+      </div>
+      ${
+        Number(group?.impactedShiftCount || 0) > 0
+          ? `<span class="changes-overview-preview-badge">${escapeHtml(String(group.impactedShiftCount))}</span>`
+          : ""
+      }
+    </article>
+  `;
+}
+
+function resolveFacilityIconSymbol(facilityId) {
+  switch (String(facilityId || "").trim()) {
+    case "ice_arena":
+      return "ac_unit";
+    case "sports_pool":
+      return "pool";
+    case "small_pool":
+      return "waves";
+    case "rowing_base":
+      return "directions_boat";
+    default:
+      return "place";
+  }
+}
+
+function renderChangesObjectCell(group) {
+  const label = String(group?.facilityName || group?.shortLabel || "Объект");
+  const dateText = group?.date ? formatMonthDayShort(group.date) : group?.programTitle ? "Прогр." : "Сайт";
+  const iconHtml = `
+    <span class="changes-table-object-icon" aria-hidden="true">
+      <span class="material-symbols-outlined">${escapeHtml(resolveFacilityIconSymbol(group?.facilityId))}</span>
+    </span>
+  `;
+
+  const contentHtml = `
+    <span class="changes-table-object" title="${escapeHtml(label)}">
+      ${iconHtml}
+      <span class="changes-table-object-date">${escapeHtml(dateText)}</span>
+    </span>
+  `;
+
+  if (!group?.sourceUrl) {
+    return contentHtml;
+  }
+
+  return `
+    <a class="changes-table-link changes-table-object-link" href="${escapeHtml(group.sourceUrl)}" target="_blank" rel="noopener noreferrer">
+      ${contentHtml}
+    </a>
+  `;
+}
+
+function resolveChangeGroupCardToneClass(group) {
+  const primaryRow = Array.isArray(group?.details) && group.details.length ? group.details[0] : null;
+  return resolveChangeGroupRowToneClass(primaryRow);
+}
+
+function renderChangesStreamRow(row) {
+  return `
+    <div class="changes-stream-row ${escapeHtml(resolveChangeGroupRowToneClass(row))}">
+      <span class="changes-stream-row-marker" aria-hidden="true"></span>
+      <p>${escapeHtml(String(row?.value || "Детали обновлены."))}</p>
+    </div>
+  `;
+}
+
+function renderChangesStreamCard(group) {
+  const toneClass = resolveChangeGroupCardToneClass(group);
+  const allRows = Array.isArray(group?.details) && group.details.length
+    ? group.details
+    : [{ label: "Изменение", value: group?.summary || "Детали обновлены." }];
+  const summaryText = String(group?.summary || "Детали обновлены.").trim();
+  const rows = allRows.filter((row, index) => {
+    const value = String(row?.value || "").trim();
+    if (!value) {
+      return false;
+    }
+    if (allRows.length === 1 && value === summaryText) {
+      return false;
+    }
+    return !(index > 0 && value === String(allRows[index - 1]?.value || "").trim());
+  });
+  const metaHtml = [
+    group?.date ? formatMonthDayWeekShort(group.date) : "",
+    group?.programTitle ? "Программа" : "",
+    group?.template ? "Шаблон" : "",
+  ].filter(Boolean).join(" · ");
+
+  const contentHtml = `
+    <article class="changes-stream-card ${escapeHtml(toneClass)}">
+      <div class="changes-stream-card-head">
+        <div class="changes-stream-card-object">
+          <span class="changes-stream-card-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">${escapeHtml(resolveFacilityIconSymbol(group?.facilityId))}</span>
+          </span>
+          <div class="changes-stream-card-copy">
+            <h3>${escapeHtml(String(group?.facilityName || "Объект"))}</h3>
+            ${metaHtml ? `<p>${escapeHtml(metaHtml)}</p>` : ""}
+          </div>
+        </div>
+        <span class="changes-stream-card-badge ${escapeHtml(toneClass)}">${escapeHtml(String(allRows[0]?.label || "Изменение"))}</span>
+      </div>
+      <p class="changes-stream-card-summary">${escapeHtml(summaryText)}</p>
+      ${
+        rows.length
+          ? `<div class="changes-stream-card-body">${rows.map((row) => renderChangesStreamRow(row)).join("")}</div>`
+          : ""
+      }
+    </article>
+  `;
+
+  if (!group?.sourceUrl) {
+    return contentHtml;
+  }
+
+  return `
+    <a class="changes-stream-link" href="${escapeHtml(group.sourceUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(
+      `${String(group?.facilityName || "Объект")}: открыть источник`
+    )}">
+      ${contentHtml}
+    </a>
+  `;
+}
+
+function renderChangesPrimarySection(model) {
+  const focusEntry = model?.focusEntry || null;
+  const focusGroups = Array.isArray(model?.focusGroups) ? model.focusGroups : [];
+
+  if (!focusEntry) {
+    return `
+      <section class="changes-section">
+        <p class="changes-section-note">Появятся после первой проверки.</p>
+      </section>
+    `;
+  }
+
+  if (focusEntry.baseline) {
+    return `
+      <section class="changes-section">
+        <p class="changes-section-note">Следующая проверка уже покажет разницу.</p>
+      </section>
+    `;
+  }
+
+  if (!focusGroups.length) {
+    return `
+      <section class="changes-section">
+        <p class="changes-section-note">${escapeHtml(model?.summary || "Новых записей нет.")}</p>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="changes-section changes-primary-section">
+      <div class="changes-stream">
+        ${focusGroups.map((group) => renderChangesStreamCard(group)).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderChangesOverviewCard(model) {
-  return "";
+  if (!model) {
+    return "";
+  }
+
+  const focusEntry = model.focusEntry || null;
+  const metrics = buildChangesOverviewMetrics(
+    model.status,
+    focusEntry,
+    model.focusImpact,
+    model.checkedAtIso,
+    Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : []
+  );
+  const badgeHtml = model.pill
+    ? `<span class="changes-state-pill">${escapeHtml(model.pill)}</span>`
+    : "";
+
+  return `
+    <section class="changes-overview-card ${escapeHtml(model.toneClass || "tone-baseline")}">
+      <div class="changes-overview-top">
+        <div>
+          <p class="changes-overview-kicker">${escapeHtml(
+            focusEntry?.baseline ? "Стартовый снимок" : focusEntry ? "Последняя запись" : "Проверка"
+          )}</p>
+          <p class="changes-overview-meta">${escapeHtml(model.checkedAtMeta || "Проверка ещё не запускалась")}</p>
+        </div>
+        ${badgeHtml}
+      </div>
+      <div class="changes-overview-main">
+        <div class="changes-overview-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">${escapeHtml(String(model.icon || "schedule"))}</span>
+        </div>
+        <div class="changes-overview-copy">
+          <h2>${escapeHtml(model.headline || "Проверка")}</h2>
+          <p>${escapeHtml(model.summary || "Подробности недоступны.")}</p>
+        </div>
+      </div>
+      ${
+        metrics.length
+          ? `<div class="changes-overview-metrics">${metrics
+              .map((metric) => renderOverviewMetric(metric, "changes-overview-metric"))
+              .join("")}</div>`
+          : ""
+      }
+    </section>
+  `;
 }
 
 function renderChangesDetailSections(model, history) {
   return [
-    renderFocusEntryDetailsSection(model),
+    renderChangesPrimarySection(model),
     model.focusEntry?.hasSourceIssues ? renderSourceIssueSection(model.focusEntry.sourceIssues, { entry: model.focusEntry }) : "",
     renderChangesHistorySection(history),
-  ].join("");
+  ].filter(Boolean).join("");
 }
 
 function renderMyShiftImpactSection(model) {
-  if (!state.myShifts.length) {
-    return `
-      <section class="changes-section">
-        <div class="changes-list-head">
-          <h2>Мои смены</h2>
-          <p>Добавьте свои смены, и здесь появится персональная оценка влияния каждой проверки.</p>
-        </div>
-      </section>
-    `;
+  if (!state.myShifts.length || model.status === "stable" || !model.focusEntry || model.focusEntry.baseline) {
+    return "";
   }
 
-  if (model.status === "stable") {
-    return `
-      <section class="changes-section">
-        <div class="changes-list-head">
-          <h2>Мои смены</h2>
-          <p>Последняя проверка не нашла новых изменений. Ваши смены выглядят актуальными.</p>
-        </div>
-      </section>
-    `;
-  }
-
-  if (!model.focusEntry || model.focusEntry.baseline) {
-    return `
-      <section class="changes-section">
-        <div class="changes-list-head">
-          <h2>Мои смены</h2>
-          <p>Пока нечего сравнивать с вашими сменами. После следующей проверки здесь появится персональная сводка.</p>
-        </div>
-      </section>
-    `;
-  }
-
-  if (!model.focusEntry.hasChanges) {
-    return `
-      <section class="changes-section">
-        <div class="changes-list-head">
-          <h2>Мои смены</h2>
-          <p>${
-            hasOnlyNoticeSourceIssues(model.focusEntry.sourceIssues)
-              ? "На сайте опубликовано служебное сообщение по объекту. Проверьте детали ниже, если у вас есть смены на этом объекте."
-              : "Сейчас нельзя надёжно оценить влияние на смены, потому что часть источников не ответила."
-          }</p>
-        </div>
-      </section>
-    `;
-  }
-
-  if (!model.focusImpact.total) {
-    return `
-      <section class="changes-section">
-        <div class="changes-list-head">
-          <h2>Мои смены</h2>
-          <p>В этой проверке ваши смены не затронуты.</p>
-        </div>
-      </section>
-    `;
+  if (!model.focusEntry.hasChanges || !model.focusImpact.total) {
+    return "";
   }
 
   return `
     <section class="changes-section">
       <div class="changes-list-head">
         <h2>Мои смены</h2>
-        <p>Показаны ближайшие смены, которые пересекаются с текущим событием локального журнала.</p>
+        <p>${escapeHtml(
+          `${model.focusImpact.total} ${pluralizeRu(model.focusImpact.total, "смена", "смены", "смен")} пересекается с последней записью.`
+        )}</p>
       </div>
       <div class="changes-impact-list">
         ${model.focusImpact.items.map((item) => renderShiftImpactCard(item)).join("")}
@@ -3805,101 +3947,68 @@ function pickImpactTone(events) {
 function renderFocusEntryDetailsSection(model) {
   const focusEntry = model?.focusEntry || null;
   const focusGroups = Array.isArray(model?.focusGroups) ? model.focusGroups : [];
-  const acknowledgeButton = focusEntry && !focusEntry.baseline && !isSiteChangeEntryAcknowledged(focusEntry)
-    ? renderChangesAcknowledgeButton(focusEntry, "Просмотрено")
-    : "";
   const metaLabel = focusEntry?.baseline
     ? "Стартовый снимок"
-    : focusEntry
-      ? isSiteChangeEntryAcknowledged(focusEntry)
-        ? "Последняя запись"
-        : "Текущее событие"
+      : focusEntry
+        ? isSiteChangeEntryAcknowledged(focusEntry)
+          ? "Последняя запись"
+          : "Текущее событие"
       : "Проверка";
   const badgeHtml = model?.pill
     ? `<span class="changes-state-pill">${escapeHtml(model.pill)}</span>`
     : "";
   const summaryText = buildChangesFeatureSummary(model, focusEntry, focusGroups);
+  const sectionTitle = focusEntry?.baseline
+    ? "Стартовый снимок"
+    : focusGroups.length
+      ? "Что изменилось"
+      : model?.headline || "Последняя проверка";
 
   if (!focusEntry) {
     return `
-      <section class="changes-section changes-section-feature ${escapeHtml(model?.toneClass || "tone-baseline")}">
-        <div class="changes-feature-head">
-          <div class="changes-feature-copy">
-            <div class="changes-feature-meta">
-              <span class="changes-feature-kicker">${escapeHtml(metaLabel)}</span>
-              <span class="changes-feature-time">${escapeHtml(model?.checkedAtMeta || "Проверка ещё не запускалась")}</span>
-            </div>
-            <div class="changes-feature-title-row">
-              <h2>${escapeHtml(model?.headline || "Пока пусто")}</h2>
-              ${badgeHtml}
-            </div>
-            <p class="changes-feature-summary">${escapeHtml(summaryText)}</p>
+      <section class="changes-section">
+        <div class="changes-section-head">
+          <div class="changes-section-copy">
+            <p class="changes-section-kicker">${escapeHtml(metaLabel)}</p>
+            <h2>${escapeHtml(model?.headline || "Пока пусто")}</h2>
+            <p class="changes-section-note">${escapeHtml(model?.checkedAtMeta || "Проверка ещё не запускалась")}</p>
+            <p class="changes-section-note">${escapeHtml(summaryText)}</p>
           </div>
+          ${badgeHtml}
         </div>
       </section>
     `;
   }
 
-  if (focusEntry.baseline) {
+  if (focusEntry.baseline || !focusGroups.length) {
     return `
-      <section class="changes-section changes-section-feature ${escapeHtml(model?.toneClass || "tone-baseline")}">
-        <div class="changes-feature-head">
-          <div class="changes-feature-copy">
-            <div class="changes-feature-meta">
-              <span class="changes-feature-kicker">${escapeHtml(metaLabel)}</span>
-              <span class="changes-feature-time">${escapeHtml(model?.checkedAtMeta || "")}</span>
-            </div>
-            <div class="changes-feature-title-row">
-              <h2>${escapeHtml(model?.headline || "Первый снимок готов")}</h2>
-              ${badgeHtml}
-            </div>
-            <p class="changes-feature-summary">${escapeHtml(summaryText)}</p>
+      <section class="changes-section">
+        <div class="changes-section-head">
+          <div class="changes-section-copy">
+            <p class="changes-section-kicker">${escapeHtml(metaLabel)}</p>
+            <h2>${escapeHtml(sectionTitle)}</h2>
+            <p class="changes-section-note">${escapeHtml(model?.checkedAtMeta || "")}</p>
+            <p class="changes-section-note">${escapeHtml(summaryText)}</p>
           </div>
+          ${badgeHtml}
         </div>
-      </section>
-    `;
-  }
-
-  if (!focusGroups.length) {
-    return `
-      <section class="changes-section changes-section-feature ${escapeHtml(model?.toneClass || "tone-baseline")}">
-        <div class="changes-feature-head">
-          <div class="changes-feature-copy">
-            <div class="changes-feature-meta">
-              <span class="changes-feature-kicker">${escapeHtml(metaLabel)}</span>
-              <span class="changes-feature-time">${escapeHtml(model?.checkedAtMeta || "")}</span>
-            </div>
-            <div class="changes-feature-title-row">
-              <h2>${escapeHtml(model?.headline || "Проверка обновлена")}</h2>
-              ${badgeHtml}
-            </div>
-            <p class="changes-feature-summary">${escapeHtml(summaryText)}</p>
-          </div>
-        </div>
-        ${acknowledgeButton}
       </section>
     `;
   }
 
   return `
-    <section class="changes-section changes-section-feature ${escapeHtml(model?.toneClass || "tone-baseline")}">
-      <div class="changes-feature-head">
-        <div class="changes-feature-copy">
-          <div class="changes-feature-meta">
-            <span class="changes-feature-kicker">${escapeHtml(metaLabel)}</span>
-            <span class="changes-feature-time">${escapeHtml(model?.checkedAtMeta || "")}</span>
-          </div>
-          <div class="changes-feature-title-row">
-            <h2>${escapeHtml(model?.headline || "Изменения")}</h2>
-            ${badgeHtml}
-          </div>
-          <p class="changes-feature-summary">${escapeHtml(summaryText)}</p>
+    <section class="changes-section">
+      <div class="changes-section-head">
+        <div class="changes-section-copy">
+          <p class="changes-section-kicker">${escapeHtml(metaLabel)}</p>
+          <h2>${escapeHtml(sectionTitle)}</h2>
+          <p class="changes-section-note">${escapeHtml(model?.checkedAtMeta || "")}</p>
         </div>
+        ${badgeHtml}
       </div>
       <div class="changes-list changes-list-compact">
         ${focusGroups.map((group) => renderChangeGroupCard(group)).join("")}
       </div>
-      ${acknowledgeButton}
     </section>
   `;
 }
@@ -3976,24 +4085,37 @@ function resolveChangeGroupRowToneClass(row) {
 }
 
 function renderSourceIssueSection(sourceIssues, options = {}) {
-  const entry = options?.entry || null;
-  const reviewed = Boolean(entry && isSiteChangeEntryAcknowledged(entry));
   const hasOnlyNotices = Array.isArray(sourceIssues) && sourceIssues.length
     ? sourceIssues.every((issue) => String(issue?.kind || "").toLowerCase() === "notice")
     : false;
   const sectionText = hasOnlyNotices
     ? "На сайтах опубликованы служебные сообщения. Отдельные объекты могут быть временно недоступны."
-    : reviewed
-      ? "Последняя просмотренная проверка была неполной: часть источников ответила с ошибкой."
-      : "Часть сайтов ответила с ошибкой. Из-за этого сравнение может быть неполным.";
+    : "Часть сайтов ответила с ошибкой. Сравнение может быть неполным.";
   return `
     <section class="changes-section">
       <div class="changes-list-head">
-        <h2>Проблемы проверки</h2>
+        <h2>${hasOnlyNotices ? "Сообщения" : "Проблемы источников"}</h2>
         <p>${escapeHtml(sectionText)}</p>
       </div>
-      <div class="changes-events">
-        ${sourceIssues.map((issue) => renderSourceIssueCard(issue)).join("")}
+      <div class="changes-table-wrap">
+        <table class="changes-table">
+          <thead>
+            <tr>
+              <th>Источник</th>
+              <th>Статус</th>
+              <th>Детали</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sourceIssues.map((issue) => `
+              <tr>
+                <td>${escapeHtml(String(issue?.facilityName || "Источник"))}</td>
+                <td>${escapeHtml(String(issue?.title || issue?.fetchState || "Ошибка"))}</td>
+                <td>${escapeHtml(String(issue?.description || "Источник временно недоступен."))}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
       </div>
     </section>
   `;
@@ -4024,8 +4146,8 @@ function renderChangesHistorySection(history) {
     return `
       <section class="changes-section">
         <div class="changes-list-head">
-          <h2>История проверок</h2>
-          <p>Записи появятся после первой успешной проверки.</p>
+          <h2>История</h2>
+          <p>Записи появятся после первой проверки.</p>
         </div>
       </section>
     `;
@@ -4034,11 +4156,22 @@ function renderChangesHistorySection(history) {
   return `
     <section class="changes-section">
       <div class="changes-list-head">
-        <h2>История проверок</h2>
-        <p>Лента хранится локально в этом браузере. Просмотренные записи остаются в истории.</p>
+        <h2>История</h2>
+        <p>${escapeHtml(`${history.length} ${pluralizeRu(history.length, "запись", "записи", "записей")}`)}</p>
       </div>
-      <div class="changes-list">
-        ${history.slice(0, SITE_CHANGES_HISTORY_PREVIEW_LIMIT).map((entry) => renderSiteChangeHistoryCard(entry)).join("")}
+      <div class="changes-history-list">
+        ${history.slice(0, SITE_CHANGES_HISTORY_PREVIEW_LIMIT).map((entry) => `
+          <article class="changes-history-card">
+            <div class="changes-history-card-head">
+              <div>
+                <h3>${escapeHtml(buildHistoryEntryTitle(entry))}</h3>
+                <p>${escapeHtml(formatChangesDateTime(entry.checkedAt))}</p>
+              </div>
+              ${renderHistoryEntryStatus(entry)}
+            </div>
+            <p class="changes-history-card-text">${escapeHtml(buildHistoryEntryLine(entry, buildEntryMyShiftImpact(entry), buildEntryChangeGroups(entry)))}</p>
+          </article>
+        `).join("")}
       </div>
     </section>
   `;
@@ -4047,8 +4180,6 @@ function renderChangesHistorySection(history) {
 function renderSiteChangeHistoryCard(entry) {
   const impact = buildEntryMyShiftImpact(entry);
   const groups = buildEntryChangeGroups(entry);
-  const previewGroups = groups.slice(0, 2);
-  const previewIssues = Array.isArray(entry?.sourceIssues) ? entry.sourceIssues.slice(0, 2) : [];
   const chips = [];
 
   if (entry.baseline) {
@@ -4062,26 +4193,12 @@ function renderSiteChangeHistoryCard(entry) {
   if (impact.total > 0) {
     chips.push(`<span class="changes-feed-chip warn">Смены: ${escapeHtml(String(impact.total))}</span>`);
   }
-  if (previewIssues.length) {
-    chips.push(`<span class="changes-feed-chip warn">Проблемы: ${escapeHtml(String(previewIssues.length))}</span>`);
+  if (Array.isArray(entry?.sourceIssues) && entry.sourceIssues.length) {
+    chips.push(`<span class="changes-feed-chip warn">Проблемы: ${escapeHtml(String(entry.sourceIssues.length))}</span>`);
   }
   if (entry.hasChanges && groups[0]?.template) {
     chips.push('<span class="changes-feed-chip info">Есть шаблонные изменения</span>');
   }
-
-  const previewHtml = previewGroups.length
-    ? `
-      <div class="changes-events">
-        ${previewGroups.map((group) => renderHistoryPreviewGroup(group)).join("")}
-      </div>
-    `
-    : previewIssues.length
-      ? `
-        <div class="changes-events">
-          ${previewIssues.map((issue) => renderSourceIssueCard(issue)).join("")}
-        </div>
-      `
-      : "";
 
   const acknowledgeButton = !entry.baseline && !isSiteChangeEntryAcknowledged(entry)
     ? `
@@ -4105,7 +4222,6 @@ function renderSiteChangeHistoryCard(entry) {
       </div>
       <p class="changes-feed-line">${escapeHtml(buildHistoryEntryLine(entry, impact, groups))}</p>
       <div class="changes-feed-chips">${chips.join("")}</div>
-      ${previewHtml}
       ${acknowledgeButton}
     </article>
   `;
@@ -5470,6 +5586,18 @@ function formatMonthDayShort(isoDate) {
     day: "2-digit",
     month: "short",
   }).format(date);
+}
+
+function formatMonthDayWeekShort(isoDate) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  return capitalize(
+    new Intl.DateTimeFormat("ru-RU", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    }).format(date)
+  );
 }
 
 function formatMyDayHeading(isoDate) {
@@ -6889,6 +7017,185 @@ function migrateLegacyAcknowledgedSiteChanges() {
 
   state.siteChangesAcknowledgedSignature = "";
   saveSiteChangesAcknowledgedSignature();
+}
+
+function shouldSeedDemoSiteChanges(history) {
+  if (!LOCAL_SITE_CHANGE_DEMO_HOSTS.has(window.location.hostname)) {
+    return false;
+  }
+
+  const entries = Array.isArray(history) ? history : [];
+  return !entries.some((entry) => entry?.source === "demo");
+}
+
+function buildDemoSiteChangesHistory() {
+  const now = Date.now();
+  const baselineEntry = {
+    id: `demo-baseline-${now}`,
+    checkedAt: new Date(now - 1000 * 60 * 90).toISOString(),
+    generatedAt: new Date(now - 1000 * 60 * 95).toISOString(),
+    source: "demo",
+    forced: false,
+    baseline: true,
+    entryType: "baseline",
+    hasChanges: false,
+    hasSourceIssues: false,
+    summary: { total: 0, added: 0, removed: 0, updated: 0 },
+    events: [],
+    sourceIssues: [],
+    affectedFacilityCount: 0,
+    affectedDateCount: 0,
+    snapshotHash: "demo-baseline",
+    acknowledgedAt: "",
+    signature: "demo-baseline",
+  };
+
+  const entryOneEvents = [
+    {
+      type: "session_added",
+      scope: "session",
+      severity: "positive",
+      facilityId: "ice_arena",
+      facilityName: "Ледовая арена",
+      sourceUrl: DEFAULT_FACILITY_OPTIONS[0]?.sourceUrl || "",
+      date: "2026-04-26",
+      start: "14:30",
+      end: "15:15",
+      title: "Добавлен сеанс",
+      description: "Добавлен новый сеанс.",
+      beforeText: "",
+      afterText: "14:30 — 15:15",
+    },
+    {
+      type: "session_updated",
+      scope: "session",
+      severity: "info",
+      facilityId: "sports_pool",
+      facilityName: "Спортивный бассейн",
+      sourceUrl: DEFAULT_FACILITY_OPTIONS[1]?.sourceUrl || "",
+      date: "2026-04-27",
+      start: "09:15",
+      end: "10:00",
+      title: "Обновлён сеанс",
+      description: "Изменены дорожки и описание.",
+      beforeText: "09:15 — 10:00 · свободно 2 дорожки",
+      afterText: "09:15 — 10:00 · свободно 4 дорожки, без крайних",
+    },
+    {
+      type: "session_removed",
+      scope: "session",
+      severity: "warning",
+      facilityId: "small_pool",
+      facilityName: "Малый бассейн",
+      sourceUrl: DEFAULT_FACILITY_OPTIONS[2]?.sourceUrl || "",
+      date: "2026-04-28",
+      start: "18:00",
+      end: "18:45",
+      title: "Убран сеанс",
+      description: "Сеанс снят с публикации.",
+      beforeText: "18:00 — 18:45",
+      afterText: "",
+    },
+  ];
+
+  const entryTwoEvents = [
+    {
+      type: "program_updated",
+      scope: "program",
+      severity: "info",
+      facilityId: "rowing_base",
+      facilityName: "Гребная база",
+      sourceUrl: DEFAULT_FACILITY_OPTIONS[3]?.sourceUrl || "",
+      date: "",
+      programTitle: "Тренажёрный зал",
+      title: "Обновлена программа",
+      description: "Обновлено расписание дополнительной программы.",
+      beforeText: "Пн/Ср/Пт 17:00 — 21:00",
+      afterText: "Пн/Ср/Пт 16:00 — 21:00",
+    },
+    {
+      type: "closure_changed",
+      scope: "day",
+      severity: "warning",
+      facilityId: "ice_arena",
+      facilityName: "Ледовая арена",
+      sourceUrl: DEFAULT_FACILITY_OPTIONS[0]?.sourceUrl || "",
+      date: "2026-04-29",
+      title: "Изменён статус дня",
+      description: "Санитарный час до 14:00.",
+      beforeText: "Открыто весь день",
+      afterText: "Санитарный час до 14:00",
+    },
+  ];
+
+  const sourceIssues = [
+    {
+      facilityId: "sports_pool",
+      facilityName: "Спортивный бассейн",
+      title: "timeout",
+      fetchState: "timeout",
+      description: "Страница объекта ответила слишком поздно.",
+    },
+  ];
+
+  return [
+    {
+      id: `demo-entry-${now}`,
+      checkedAt: new Date(now - 1000 * 60 * 2).toISOString(),
+      generatedAt: new Date(now - 1000 * 60 * 3).toISOString(),
+      source: "demo",
+      forced: false,
+      baseline: false,
+      entryType: "schedule_diff",
+      hasChanges: true,
+      hasSourceIssues: false,
+      summary: { total: 3, added: 1, removed: 1, updated: 1 },
+      events: entryOneEvents,
+      sourceIssues: [],
+      affectedFacilityCount: 3,
+      affectedDateCount: 3,
+      snapshotHash: "demo-entry-1",
+      acknowledgedAt: "",
+      signature: "demo-entry-1",
+    },
+    {
+      id: `demo-entry-${now + 1}`,
+      checkedAt: new Date(now - 1000 * 60 * 18).toISOString(),
+      generatedAt: new Date(now - 1000 * 60 * 19).toISOString(),
+      source: "demo",
+      forced: false,
+      baseline: false,
+      entryType: "schedule_with_source_issues",
+      hasChanges: true,
+      hasSourceIssues: true,
+      summary: { total: 2, added: 0, removed: 0, updated: 2 },
+      events: entryTwoEvents,
+      sourceIssues,
+      affectedFacilityCount: 2,
+      affectedDateCount: 1,
+      snapshotHash: "demo-entry-2",
+      acknowledgedAt: "",
+      signature: "demo-entry-2",
+    },
+    baselineEntry,
+  ];
+}
+
+function seedDemoSiteChangesIfNeeded() {
+  if (!shouldSeedDemoSiteChanges(state.siteChangesHistory)) {
+    return;
+  }
+
+  const demoEntries = buildDemoSiteChangesHistory();
+  const realEntries = (Array.isArray(state.siteChangesHistory) ? state.siteChangesHistory : [])
+    .filter((entry) => entry && entry.source !== "demo");
+
+  state.siteChangesHistory = [...demoEntries, ...realEntries]
+    .slice(0, SITE_CHANGES_HISTORY_LIMIT)
+    .map(normalizeSiteChangeEntry);
+  state.siteChangesLastCheckedAt = String(state.siteChangesHistory[0]?.checkedAt || "");
+  saveSiteChangesHistory();
+  saveSiteChangesLastCheckedAt();
 }
 
 function loadSiteChangesHistory() {
