@@ -71,6 +71,7 @@ const SITE_CHANGES_HISTORY_PREVIEW_LIMIT = 8;
 const SHIFT_EDGE_OVERLAP_MINUTES = 20;
 const SHIFT_EDGE_OVERLAP_MAX_MINUTES = 30;
 const SHIFT_EDGE_OVERLAP_MAX_RATIO = 0.5;
+const RU_MONTH_SHORT_GEN = ["янв", "фев", "марта", "апр", "мая", "июня", "июля", "авг", "сен", "окт", "ноя", "дек"];
 const siteChangesUtils = window.SiteChangesUtils || null;
 const LOCAL_SITE_CHANGE_DEMO_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
@@ -1748,8 +1749,6 @@ function renderMySchedule() {
     .join("");
   renderMyChangesSummary();
 }
-
-const RU_MONTH_SHORT_GEN = ["янв", "фев", "марта", "апр", "мая", "июня", "июля", "авг", "сен", "окт", "ноя", "дек"];
 
 function renderMyDayHero(focusDate, timelineItems, rangeMode) {
   const hero = el.myDayHero;
