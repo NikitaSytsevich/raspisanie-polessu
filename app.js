@@ -388,7 +388,11 @@ function navigateTo(view) {
   if (view === "schedule") view = "my_schedule";
   if (view === state.view) return;
   const direction = view === "my_schedule" ? "back" : "forward";
-  history.pushState({ view }, "", "");
+  try {
+    history.pushState({ view }, "", location.href);
+  } catch (_) {
+    // iOS Safari PWA can throw on history manipulation
+  }
   setView(view, { animate: direction });
 }
 
@@ -455,8 +459,12 @@ function setView(view, options = {}) {
 }
 
 function setupHistoryNavigation() {
-  if (!history.state || !history.state.view) {
-    history.replaceState({ view: state.view }, "", "");
+  try {
+    if (!history.state || !history.state.view) {
+      history.replaceState({ view: state.view }, "", location.href);
+    }
+  } catch (_) {
+    // iOS Safari PWA can throw on history manipulation
   }
   window.addEventListener("popstate", (event) => {
     const view = event.state?.view || "my_schedule";
