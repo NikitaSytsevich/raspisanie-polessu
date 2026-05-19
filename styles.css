@@ -7749,17 +7749,12 @@ html.dark .history-data-notice.info {
   gap: 10px;
 }
 
-.ms-view .my-timeline-day.is-spotlight ~ .my-timeline-day .my-timeline-day-head,
-.ms-view .my-timeline-day:not(.is-spotlight) .my-timeline-day-head {
+.ms-view .my-timeline-day .my-timeline-day-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
   padding: 4px 4px 0;
-}
-
-.ms-view .my-timeline-day.is-spotlight .my-timeline-day-head {
-  display: none;
 }
 
 .ms-view .my-timeline-day-kicker {
@@ -7806,18 +7801,17 @@ html.dark .history-data-notice.info {
 
 .ms-changes-pill {
   width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 16px;
+  display: block;
+  padding: 16px 18px;
+  border-radius: 18px;
   background: var(--bg-elevated);
   border: 1px solid var(--hairline);
   color: var(--text);
   cursor: pointer;
   text-align: left;
-  transition: all 200ms ease;
+  transition: background 200ms ease, border-color 200ms ease, transform 120ms ease;
   font-family: var(--font-sans);
+  box-shadow: none;
 }
 
 .ms-changes-pill:hover {
@@ -7825,88 +7819,101 @@ html.dark .history-data-notice.info {
   background: var(--bg-raised);
 }
 
-.ms-changes-pill:active { transform: scale(0.99); }
+.ms-changes-pill:active { transform: scale(0.995); }
 
 .ms-changes-pill #myChangesSummaryContent {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: block;
+  width: 100%;
 }
 
+/* Flatten the inner widget — single card layer */
 .ms-changes-pill .my-changes-widget {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 14px;
+  display: block;
   width: 100%;
   padding: 0;
   background: transparent;
   border: none;
-}
-
-.ms-changes-pill .my-changes-widget::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-soft);
-  align-self: center;
-}
-
-.ms-changes-pill .my-changes-widget.tone-stable::before {
-  background: var(--success);
-  box-shadow: 0 0 0 4px rgba(122, 158, 126, 0.18);
-}
-
-.ms-changes-pill .my-changes-widget.tone-no-data::before {
-  background: var(--text-subtle);
-  box-shadow: 0 0 0 4px rgba(107, 102, 95, 0.18);
-}
-
-.ms-changes-pill .my-changes-widget.tone-issue::before {
-  background: var(--danger);
-  box-shadow: 0 0 0 4px rgba(201, 112, 100, 0.22);
+  box-shadow: none;
+  border-radius: 0;
 }
 
 .ms-changes-pill .my-changes-widget-top {
-  display: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.ms-changes-pill .my-changes-widget-top::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  flex-shrink: 0;
+}
+
+.ms-changes-pill .my-changes-widget.tone-stable .my-changes-widget-top::before {
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(122, 158, 126, 0.18);
+}
+
+.ms-changes-pill .my-changes-widget.tone-no-data .my-changes-widget-top::before {
+  background: var(--text-subtle);
+  box-shadow: 0 0 0 3px rgba(107, 102, 95, 0.18);
+}
+
+.ms-changes-pill .my-changes-widget.tone-issue .my-changes-widget-top::before {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px rgba(201, 112, 100, 0.22);
+}
+
+.ms-changes-pill .my-changes-kicker {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0;
 }
 
 .ms-changes-pill .my-changes-widget-copy {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  display: block;
+  margin: 0;
 }
 
 .ms-changes-pill .my-changes-widget-copy h3 {
-  font-family: var(--font-sans);
-  font-size: 14px;
+  font-family: var(--font-serif);
+  font-size: 19px;
   font-weight: 500;
   color: var(--text);
-  margin: 0;
-  line-height: 1.3;
+  margin: 0 0 4px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
 }
 
 .ms-changes-pill .my-changes-widget-summary {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-muted);
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .ms-changes-pill .my-changes-widget-footer {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  text-align: right;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
 }
 
 .ms-changes-pill .my-changes-widget-time {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-subtle);
   margin: 0;
   white-space: nowrap;
@@ -7915,22 +7922,63 @@ html.dark .history-data-notice.info {
 .ms-changes-pill .my-changes-widget-action {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  font-size: 11px;
+  gap: 4px;
+  font-size: 12px;
   color: var(--accent);
   font-weight: 500;
 }
 
-.ms-changes-pill .my-changes-widget-action span:first-child {
-  display: none;
-}
-
 .ms-changes-pill .my-changes-widget-action .material-symbols-outlined {
-  font-size: 18px;
-  color: var(--text-subtle);
+  font-size: 16px;
+  color: var(--accent);
 }
 
 /* ---------- Override existing shift / day cards inside ms-view ---------- */
+
+.ms-view .my-timeline-day {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.ms-view .my-timeline-day.is-spotlight,
+.ms-view .my-timeline-day.is-today,
+.ms-view .my-timeline-day.is-weekend {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.ms-view .my-timeline-day-head {
+  padding: 0 4px 10px;
+}
+
+.ms-view .my-timeline-day-kicker {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 0;
+  text-transform: none;
+  margin: 0;
+}
+
+.ms-view .my-timeline-day-title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 18px;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  margin: 2px 0 0;
+}
+
+.ms-view .my-timeline-day-summary {
+  font-size: 12px;
+  color: var(--text-muted);
+}
 
 .ms-view .my-shift-card {
   border-radius: 16px;
@@ -8398,6 +8446,7 @@ html.dark .history-data-notice.info {
 
 .cv-view .changes-list-head p {
   font-size: 13px;
+  font-weight: 400;
   color: var(--text-muted);
   margin: 4px 0 0;
   line-height: 1.5;
@@ -8576,6 +8625,203 @@ html.dark .history-data-notice.info {
 /* Generic any other changes-* card inside cv-view */
 .cv-view [class*="changes-"][class$="card"] {
   background: var(--bg-elevated);
+  border-color: var(--hairline);
+}
+
+/* Section heads */
+.cv-view .changes-section-head {
+  margin: 0;
+}
+
+.cv-view .changes-section-kicker {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0;
+}
+
+.cv-view .changes-section-copy h2 {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin: 4px 0 0;
+  line-height: 1.2;
+}
+
+.cv-view .changes-section-note {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin: 8px 0 0;
+}
+
+/* Table inside cv-view — restyle to clean dark list */
+.cv-view .changes-table-wrap {
+  margin-top: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--hairline);
+  background: var(--bg-elevated);
+  overflow-x: auto;
+  box-shadow: none;
+}
+
+.cv-view .changes-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+}
+
+.cv-view .changes-table th,
+.cv-view .changes-table td {
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.cv-view .changes-table thead th {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  background: transparent;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.cv-view .changes-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.cv-view .changes-table td {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.cv-view .changes-table td:first-child {
+  color: var(--text);
+  font-weight: 500;
+  width: auto;
+}
+
+.cv-view .changes-table-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.cv-view .changes-table-link:hover { text-decoration: underline; }
+
+.cv-view .changes-table-object-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.cv-view .changes-table-object-date {
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
+/* History list cards */
+.cv-view .changes-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.cv-view .changes-history-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: none;
+}
+
+.cv-view .changes-history-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cv-view .changes-history-card-head h3 {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: -0.005em;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.cv-view .changes-history-card-head p {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-subtle);
+  margin: 4px 0 0;
+}
+
+.cv-view .changes-history-card-text {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin: 8px 0 0;
+}
+
+/* "Новое"/state pills inside history cards */
+.cv-view .changes-state-pill {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cv-view .changes-state-pill.tone-stable {
+  background: rgba(122, 158, 126, 0.12);
+  color: var(--success);
+  border-color: rgba(122, 158, 126, 0.32);
+}
+
+.cv-view .changes-state-pill.tone-issue {
+  background: rgba(201, 112, 100, 0.12);
+  color: var(--danger);
+  border-color: rgba(201, 112, 100, 0.32);
+}
+
+.cv-view .changes-state-pill.tone-warning {
+  background: rgba(201, 169, 110, 0.12);
+  color: var(--warning);
+  border-color: rgba(201, 169, 110, 0.32);
+}
+
+.cv-view .changes-state-pill.tone-baseline,
+.cv-view .changes-state-pill.tone-info {
+  background: var(--bg-raised);
+  color: var(--text-muted);
   border-color: var(--hairline);
 }
 

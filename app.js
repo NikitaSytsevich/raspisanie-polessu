@@ -71,7 +71,6 @@ const SITE_CHANGES_HISTORY_PREVIEW_LIMIT = 8;
 const SHIFT_EDGE_OVERLAP_MINUTES = 20;
 const SHIFT_EDGE_OVERLAP_MAX_MINUTES = 30;
 const SHIFT_EDGE_OVERLAP_MAX_RATIO = 0.5;
-const RU_MONTH_SHORT_GEN = ["янв", "фев", "марта", "апр", "мая", "июня", "июля", "авг", "сен", "окт", "ноя", "дек"];
 const siteChangesUtils = window.SiteChangesUtils || null;
 const LOCAL_SITE_CHANGE_DEMO_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
@@ -132,7 +131,6 @@ const el = {
   settingsMonitorCard: document.getElementById("settingsMonitorCard"),
   settingsSourceIssues: document.getElementById("settingsSourceIssues"),
   myDaySpotlightHead: document.getElementById("myDaySpotlightHead"),
-  myDayHero: document.getElementById("myDayHero"),
   myScheduleRangeButton: document.getElementById("myScheduleRangeButton"),
   myScheduleRangeIcon: document.getElementById("myScheduleRangeIcon"),
   myScheduleRangeLabel: document.getElementById("myScheduleRangeLabel"),
@@ -1732,8 +1730,6 @@ function renderMySchedule() {
     }
   }
 
-  renderMyDayHero(focusDate, groupedByDate.get(focusDate) || [], rangeMode);
-
   if (!state.myShifts.length && !hasWeeklyDayOffConfigured()) {
     el.myScheduleTimeline.innerHTML = renderMyScheduleEmptyState();
     renderMyChangesSummary();
@@ -1748,138 +1744,6 @@ function renderMySchedule() {
     )
     .join("");
   renderMyChangesSummary();
-}
-
-function renderMyDayHero(focusDate, timelineItems, rangeMode) {
-  const hero = el.myDayHero;
-  if (!hero) {
-    return;
-  }
-
-  if (rangeMode !== MY_SCHEDULE_RANGE.DAY || !/^\d{4}-\d{2}-\d{2}$/.test(String(focusDate || ""))) {
-    hero.hidden = true;
-    hero.innerHTML = "";
-    return;
-  }
-
-  const workingItems = (timelineItems || []).filter((item) => item.kind === MY_SHIFT_KIND.WORK);
-  const hasDayOff = !workingItems.length && isWeeklyDayOffDate(focusDate);
-  const isFree = !workingItems.length && !hasDayOff;
-
-  if (isFree && !state.myShifts.length && !hasWeeklyDayOffConfigured()) {
-    hero.hidden = true;
-    hero.innerHTML = "";
-    return;
-  }
-
-  hero.hidden = false;
-
-  const [, monthStr, dayStr] = focusDate.split("-");
-  const dayNum = Number(dayStr);
-  const monthShort = RU_MONTH_SHORT_GEN[Number(monthStr) - 1] || "";
-  const weekdayLong = formatRuWeekday(focusDate, "long");
-  const isToday = focusDate === todayIso();
-  const tag = formatDayTag(focusDate);
-  const labelMain = tag !== "Дата" ? tag : capitalize(weekdayLong);
-  const labelSub = tag !== "Дата" ? weekdayLong : `${dayNum} ${monthShort}`;
-
-  let bodyHtml;
-  if (workingItems.length) {
-    const totalMinutes = workingItems.reduce((sum, item) => sum + getShiftDurationMinutes(item.shift), 0);
-    const totalHours = (totalMinutes / 60);
-    const totalHoursLabel = Number.isInteger(totalHours) ? String(totalHours) : totalHours.toFixed(1).replace(".", ",");
-
-    const sorted = workingItems
-      .map((item) => ({
-        start: toMinutes(String(item.shift?.start || "00:00")),
-        end: toMinutes(String(item.shift?.end || "00:00")),
-      }))
-      .filter((seg) => Number.isFinite(seg.start) && Number.isFinite(seg.end) && seg.end > seg.start)
-      .sort((a, b) => a.start - b.start);
-
-    let longestGap = 0;
-    for (let i = 1; i < sorted.length; i++) {
-      const gap = sorted[i].start - sorted[i - 1].end;
-      if (gap > longestGap) longestGap = gap;
-    }
-    const gapLabel = longestGap > 0
-      ? `${Math.floor(longestGap / 60)}:${String(longestGap % 60).padStart(2, "0")}`
-      : "—";
-
-    const dayStart = sorted.length ? sorted[0].start : null;
-    const dayEnd = sorted.length ? sorted[sorted.length - 1].end : null;
-
-    let progressHtml = "";
-    if (isToday && dayStart !== null && dayEnd !== null && dayEnd > dayStart) {
-      const now = nowInMinutes();
-      const totalSpan = dayEnd - dayStart;
-      const elapsed = Math.max(0, Math.min(totalSpan, now - dayStart));
-      const pct = (elapsed / totalSpan) * 100;
-      let nowText;
-      if (now < dayStart) {
-        const untilMin = dayStart - now;
-        nowText = `до начала ${Math.floor(untilMin / 60)}ч ${untilMin % 60}м`;
-      } else if (now > dayEnd) {
-        nowText = "день завершён";
-      } else {
-        const remain = dayEnd - now;
-        const hh = String(Math.floor(now / 60)).padStart(2, "0");
-        const mm = String(now % 60).padStart(2, "0");
-        nowText = `сейчас ${hh}:${mm} · до конца ${Math.floor(remain / 60)}:${String(remain % 60).padStart(2, "0")}`;
-      }
-      progressHtml = `
-        <div class="ms-hero-progress">
-          <div class="bar"><div class="fill" style="width: ${pct.toFixed(1)}%"></div></div>
-          <div class="meta">
-            <span>${minutesToTime(dayStart)}</span>
-            <span class="now">${escapeHtml(nowText)}</span>
-            <span>${minutesToTime(dayEnd)}</span>
-          </div>
-        </div>
-      `;
-    }
-
-    const shiftsLabel = pluralizeRu(workingItems.length, "смена", "смены", "смен");
-
-    bodyHtml = `
-      <div class="ms-hero-top">
-        <div class="ms-hero-label">${escapeHtml(labelMain.toUpperCase())} <span class="sub">· ${escapeHtml(labelSub)}</span></div>
-      </div>
-      <div class="ms-hero-day">${dayNum}<span class="month">${escapeHtml(monthShort)}</span></div>
-      <div class="ms-hero-stats">
-        <div class="ms-hero-stat">
-          <div class="val">${escapeHtml(totalHoursLabel)}<span class="unit">ч</span></div>
-          <div class="lbl">Работа</div>
-        </div>
-        <div class="ms-hero-stat">
-          <div class="val">${workingItems.length}</div>
-          <div class="lbl">${escapeHtml(shiftsLabel)}</div>
-        </div>
-        <div class="ms-hero-stat">
-          <div class="val${longestGap > 0 ? "" : " dim"}">${escapeHtml(gapLabel)}</div>
-          <div class="lbl">Окно</div>
-        </div>
-      </div>
-      ${progressHtml}
-    `;
-  } else {
-    const stateText = hasDayOff ? "Выходной день" : "Свободный день";
-    bodyHtml = `
-      <div class="ms-hero-top">
-        <div class="ms-hero-label">${escapeHtml(labelMain.toUpperCase())} <span class="sub">· ${escapeHtml(labelSub)}</span></div>
-      </div>
-      <div class="ms-hero-day">${dayNum}<span class="month">${escapeHtml(monthShort)}</span></div>
-      <div class="ms-hero-empty">${escapeHtml(stateText)}</div>
-    `;
-  }
-
-  hero.innerHTML = bodyHtml;
-}
-
-function formatRuWeekday(isoDate, length = "long") {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-  return new Intl.DateTimeFormat("ru-RU", { weekday: length }).format(date);
 }
 
 function getMyScheduleDatesToRender(focusDate, groupedByDate, rangeMode) {
