@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Расписание — 3 варианта главного экрана</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,500&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,200,0,0&display=block"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --studio-bg: #0f0d0c;
+      --bg: #181513;
+      --bg-elevated: #23201d;
+      --bg-raised: #2c2824;
+      --hairline: rgba(245, 241, 235, 0.07);
+      --border: rgba(217, 119, 87, 0.12);
+      --text: #f5f1eb;
+      --text-muted: #a8a098;
+      --text-subtle: #6b665f;
+      --accent: #d97757;
+      --accent-hover: #c96442;
+      --accent-soft: rgba(217, 119, 87, 0.14);
+      --accent-glow: rgba(217, 119, 87, 0.32);
+      --success: #7a9e7e;
+      --warning: #c9a96e;
+      --danger: #c97064;
+      --font-serif: "Newsreader", Georgia, serif;
+      --font-sans: "Inter", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: var(--studio-bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+      font-size: 20px;
+      line-height: 1;
+      vertical-align: middle;
+    }
+
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 48px 32px 96px;
+    }
+
+    .studio-head {
+      margin-bottom: 40px;
+    }
+
+    .studio-head h1 {
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: 30px;
+      letter-spacing: -0.015em;
+      margin-bottom: 8px;
+    }
+
+    .studio-head p {
+      color: var(--text-muted);
+      font-size: 14px;
+      max-width: 640px;
+      line-height: 1.6;
+    }
+
+    .phones {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 390px));
+      gap: 32px;
+      justify-content: center;
+    }
+
+    @media (max-width: 1280px) {
+      .phones { grid-template-columns: repeat(2, minmax(0, 390px)); }
+    }
+    @media (max-width: 820px) {
+      .phones { grid-template-columns: minmax(0, 390px); }
+      .page { padding: 24px 12px 64px; }
+    }
+
+    .variant-label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 0 6px;
+    }
+
+    .variant-label .num {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 14px;
+      color: var(--accent);
+    }
+
+    .variant-label .name {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .variant-label .tag {
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+    }
+
+    .phone {
+      background: var(--bg);
+      border-radius: 36px;
+      border: 1px solid var(--hairline);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 820px;
+      box-shadow: 0 24px 64px -32px rgba(0, 0, 0, 0.8);
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px 6px;
+      font-size: 13px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .status-bar .icons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+    }
+
+    .status-bar .icons .material-symbols-outlined { font-size: 15px; }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+
+    .icon-btn:hover {
+      background: var(--bg-elevated);
+      color: var(--text);
+      border-color: var(--hairline);
+    }
+
+    .icon-btn .material-symbols-outlined { font-size: 22px; }
+
+    /* ========================================
+       VARIANT A — Calendar blocks (Apple-like)
+       ======================================== */
+
+    .va-header {
+      padding: 18px 24px 20px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--hairline);
+    }
+
+    .va-header .day {
+      font-family: var(--font-serif);
+      font-size: 34px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      color: var(--text);
+    }
+
+    .va-header .day .num {
+      color: var(--accent);
+    }
+
+    .va-header .day-meta {
+      font-size: 12px;
+      color: var(--text-subtle);
+      margin-top: 6px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .va-header .head-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .va-weekstrip {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      padding: 14px 16px;
+      gap: 4px;
+      border-bottom: 1px solid var(--hairline);
+    }
+
+    .va-weekstrip .cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 160ms ease;
+    }
+
+    .va-weekstrip .cell:hover { background: var(--bg-elevated); }
+
+    .va-weekstrip .cell .wd {
+      font-size: 10px;
+      color: var(--text-subtle);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .va-weekstrip .cell .num {
+      font-family: var(--font-serif);
+      font-size: 16px;
+      color: var(--text-muted);
+    }
+
+    .va-weekstrip .cell .dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--text-subtle);
+      margin-top: 2px;
+    }
+
+    .va-weekstrip .cell.has-shift .dot { background: var(--accent); }
+    .va-weekstrip .cell.has-shift .num { color: var(--text); }
+
+    .va-weekstrip .cell.active {
+      background: var(--accent-soft);
+    }
+
+    .va-weekstrip .cell.active .wd { color: var(--accent); }
+    .va-weekstrip .cell.active .num { color: var(--text); font-weight: 600; }
+
+    .va-grid {
+      flex: 1;
+      padding: 16px 0 24px;
+      position: relative;
+    }
+
+    .va-grid .row {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      min-height: 36px;
+      position: relative;
+    }
+
+    .va-grid .time-label {
+      font-size: 11px;
+      color: var(--text-subtle);
+      text-align: right;
+      padding-right: 12px;
+      padding-top: 0;
+      transform: translateY(-6px);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .va-grid .slot {
+      border-top: 1px solid var(--hairline);
+      position: relative;
+    }
+
+    .va-grid .now-line {
+      position: absolute;
+      left: 56px;
+      right: 16px;
+      height: 1px;
+      background: var(--accent);
+      z-index: 3;
+    }
+
+    .va-grid .now-line::before {
+      content: '';
+      position: absolute;
+      left: -4px;
+      top: -3px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .va-grid .now-line .now-label {
+      position: absolute;
+      left: -52px;
+      top: -7px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .va-event {
+      position: absolute;
+      left: 60px;
+      right: 16px;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      z-index: 2;
+      cursor: pointer;
+      transition: transform 200ms ease, box-shadow 200ms ease;
+    }
+
+    .va-event:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px -12px rgba(0,0,0,0.6);
+    }
+
+    .va-event .title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .va-event .meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .va-event.secondary {
+      background: var(--bg-elevated);
+      border-left-color: #8aa9c9;
+    }
+
+    /* ========================================
+       VARIANT B — Editorial / Anthropic blog
+       ======================================== */
+
+    .vb-cover {
+      padding: 32px 28px 28px;
+      border-bottom: 1px solid var(--hairline);
+    }
+
+    .vb-cover .kicker {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 500;
+      margin-bottom: 12px;
+    }
+
+    .vb-cover h1 {
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: 44px;
+      line-height: 1.05;
+      letter-spacing: -0.025em;
+      color: var(--text);
+    }
+
+    .vb-cover h1 em {
+      font-style: italic;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .vb-cover .lede {
+      font-family: var(--font-serif);
+      font-size: 17px;
+      line-height: 1.5;
+      color: var(--text-muted);
+      margin-top: 14px;
+      font-weight: 400;
+    }
+
+    .vb-cover .byline {
+      margin-top: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-top: 14px;
+      border-top: 1px solid var(--hairline);
+      font-size: 12px;
+      color: var(--text-subtle);
+      letter-spacing: 0.04em;
+    }
+
+    .vb-cover .byline .pulse {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    .vb-body {
+      padding: 24px 28px;
+      flex: 1;
+    }
+
+    .vb-section-label {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .vb-section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--hairline);
+    }
+
+    .vb-shift {
+      padding: 18px 0;
+      border-bottom: 1px solid var(--hairline);
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 18px;
+      cursor: pointer;
+    }
+
+    .vb-shift:last-child { border-bottom: none; }
+
+    .vb-shift .time {
+      font-family: var(--font-serif);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .vb-shift .time .from {
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      line-height: 1;
+      display: block;
+    }
+
+    .vb-shift .time .to {
+      font-size: 13px;
+      color: var(--text-subtle);
+      margin-top: 4px;
+      display: block;
+    }
+
+    .vb-shift .place {
+      font-family: var(--font-serif);
+      font-size: 19px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+
+    .vb-shift .desc {
+      font-family: var(--font-serif);
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin-top: 6px;
+    }
+
+    .vb-shift.now .time .from { color: var(--accent); }
+    .vb-shift.now {
+      position: relative;
+    }
+    .vb-shift.now::before {
+      content: '';
+      position: absolute;
+      left: -28px;
+      top: 28px;
+      width: 14px;
+      height: 1px;
+      background: var(--accent);
+    }
+    .vb-shift.now .now-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-sans);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-top: 8px;
+      font-weight: 600;
+    }
+
+    .vb-shift.now .now-pill::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    .vb-footer {
+      padding: 18px 28px 24px;
+      border-top: 1px solid var(--hairline);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .vb-link {
+      background: transparent;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 15px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      align-self: flex-start;
+    }
+
+    .vb-link::after {
+      content: '→';
+      font-style: normal;
+    }
+
+    .vb-changes-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+      cursor: pointer;
+    }
+
+    .vb-changes-row .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    .vb-changes-row .text {
+      flex: 1;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .vb-changes-row .text strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    /* ========================================
+       VARIANT C — Hero day-card with progress
+       ======================================== */
+
+    .vc-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 24px;
+    }
+
+    .vc-header .brand {
+      flex: 1;
+      font-family: var(--font-serif);
+      font-size: 17px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+    }
+
+    .vc-hero {
+      margin: 8px 20px 24px;
+      padding: 24px;
+      border-radius: 24px;
+      background:
+        radial-gradient(120% 80% at 100% 0%, rgba(217, 119, 87, 0.22), transparent 60%),
+        linear-gradient(180deg, var(--bg-elevated), var(--bg-raised));
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .vc-hero::before {
+      content: '';
+      position: absolute;
+      top: -40px;
+      right: -40px;
+      width: 180px;
+      height: 180px;
+      background: radial-gradient(circle, var(--accent-glow), transparent 70%);
+      filter: blur(20px);
+      pointer-events: none;
+    }
+
+    .vc-hero .top {
+      position: relative;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+
+    .vc-hero .label {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .vc-hero .label .sub {
+      color: var(--text-muted);
+      margin-left: 6px;
+      font-weight: 400;
+      letter-spacing: 0.08em;
+    }
+
+    .vc-hero .updated {
+      font-size: 11px;
+      color: var(--text-subtle);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .vc-hero .day-num {
+      font-family: var(--font-serif);
+      font-size: 64px;
+      font-weight: 500;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      color: var(--text);
+      position: relative;
+    }
+
+    .vc-hero .day-num .month {
+      font-size: 22px;
+      color: var(--text-muted);
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      margin-left: 4px;
+      vertical-align: 18px;
+    }
+
+    .vc-hero .day-name {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 24px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      font-weight: 400;
+    }
+
+    .vc-hero .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--hairline);
+      position: relative;
+    }
+
+    .vc-hero .stat .val {
+      font-family: var(--font-serif);
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .vc-hero .stat .val .unit {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-left: 2px;
+    }
+
+    .vc-hero .stat .lbl {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+      margin-top: 3px;
+    }
+
+    .vc-progress {
+      margin-top: 18px;
+      position: relative;
+    }
+
+    .vc-progress .bar {
+      height: 4px;
+      background: var(--bg);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .vc-progress .fill {
+      width: 38%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #f4a988);
+      border-radius: 4px;
+      position: relative;
+    }
+
+    .vc-progress .fill::after {
+      content: '';
+      position: absolute;
+      right: -3px;
+      top: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      transform: translateY(-50%);
+      box-shadow: 0 0 0 4px var(--accent-glow);
+    }
+
+    .vc-progress .meta {
+      margin-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-subtle);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .vc-shifts {
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .vc-shifts .section-h {
+      font-family: var(--font-serif);
+      font-size: 14px;
+      font-style: italic;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      padding-left: 4px;
+    }
+
+    .vc-shift {
+      background: var(--bg-elevated);
+      border-radius: 16px;
+      border: 1px solid var(--hairline);
+      padding: 14px 16px;
+      display: grid;
+      grid-template-columns: 6px 1fr auto;
+      gap: 14px;
+      align-items: center;
+      cursor: pointer;
+      transition: all 200ms ease;
+    }
+
+    .vc-shift:hover { border-color: var(--border); }
+
+    .vc-shift .stripe {
+      width: 4px;
+      height: 100%;
+      min-height: 36px;
+      background: var(--text-subtle);
+      border-radius: 4px;
+    }
+
+    .vc-shift.active .stripe {
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .vc-shift .info .place {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .vc-shift .info .meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .vc-shift .time {
+      text-align: right;
+      font-family: var(--font-serif);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .vc-shift .time .range {
+      font-size: 13px;
+      color: var(--text);
+      letter-spacing: -0.005em;
+    }
+
+    .vc-shift .time .dur {
+      font-size: 11px;
+      color: var(--text-subtle);
+      margin-top: 2px;
+    }
+
+    .vc-shift.active .time .range { color: var(--accent); }
+
+    .vc-bottom {
+      margin-top: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .vc-pill {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--hairline);
+      cursor: pointer;
+      transition: all 200ms ease;
+    }
+
+    .vc-pill:hover {
+      border-color: var(--border);
+      background: var(--bg-raised);
+    }
+
+    .vc-pill .leading {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .vc-pill .text { flex: 1; }
+    .vc-pill .text .t { font-size: 13px; color: var(--text); font-weight: 500; }
+    .vc-pill .text .s { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .vc-pill .chev { color: var(--text-subtle); }
+
+    .vc-pill.muted .leading {
+      background: var(--bg-raised);
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="studio-head">
+      <h1>Главный экран — три направления</h1>
+      <p>
+        Один и тот же день, три способа показать его. Палитра у всех общая (warm dark + claude coral),
+        отличается композиция и иерархия. Выбери одно — или скажи что взять откуда.
+      </p>
+    </div>
+
+    <div class="phones">
+
+      <!-- ============================================================ -->
+      <!-- VARIANT A — Calendar blocks                                  -->
+      <!-- ============================================================ -->
+      <div>
+        <div class="variant-label">
+          <span><span class="num">a</span> &nbsp; <span class="name">Календарь-блоки</span></span>
+          <span class="tag">Apple Cal · реальные пропорции</span>
+        </div>
+        <div class="phone">
+          <div class="status-bar">
+            <span>9:41</span>
+            <span class="icons">
+              <span class="material-symbols-outlined">signal_cellular_alt</span>
+              <span class="material-symbols-outlined">wifi</span>
+              <span class="material-symbols-outlined">battery_full</span>
+            </span>
+          </div>
+
+          <header class="va-header">
+            <div>
+              <div class="day">Май <span class="num">19</span></div>
+              <div class="day-meta">Вторник · Сегодня</div>
+            </div>
+            <div class="head-actions">
+              <button class="icon-btn"><span class="material-symbols-outlined">today</span></button>
+              <button class="icon-btn"><span class="material-symbols-outlined">refresh</span></button>
+            </div>
+          </header>
+
+          <div class="va-weekstrip">
+            <div class="cell"><span class="wd">Пн</span><span class="num">18</span><span class="dot"></span></div>
+            <div class="cell active has-shift"><span class="wd">Вт</span><span class="num">19</span><span class="dot"></span></div>
+            <div class="cell has-shift"><span class="wd">Ср</span><span class="num">20</span><span class="dot"></span></div>
+            <div class="cell"><span class="wd">Чт</span><span class="num">21</span><span class="dot"></span></div>
+            <div class="cell has-shift"><span class="wd">Пт</span><span class="num">22</span><span class="dot"></span></div>
+            <div class="cell"><span class="wd">Сб</span><span class="num">23</span><span class="dot"></span></div>
+            <div class="cell"><span class="wd">Вс</span><span class="num">24</span><span class="dot"></span></div>
+          </div>
+
+          <div class="va-grid">
+            <div class="row"><div class="time-label">08:00</div><div class="slot"></div></div>
+            <div class="row"><div class="time-label">09:00</div><div class="slot"></div></div>
+            <div class="row"><div class="time-label">10:00</div><div class="slot"></div></div>
+            <div class="row"><div class="time-label">11:00</div><div class="slot"></div></div>
+            <div class="row"><div class="time-label">12:00</div><div class="slot"></div></div>
+            <div class="row"><div class="time-label">13:00</div><div class="slot"></div></div>
+            <div class="row"><div class="time-label">14:00</div><div class="slot"></div></div>
+            <div class="row"><div class="time-label">15:00</div><div class="slot"></div></div>
+            <div class="row"><div class="time-label">16:00</div><div class="slot"></div></div>
+            <div class="row"><div class="time-label">17:00</div><div class="slot"></div></div>
+            <div class="row"><div class="time-label">18:00</div><div class="slot"></div></div>
+            <div class="row"><div class="time-label">19:00</div><div class="slot"></div></div>
+
+            <div class="va-event" style="top: 52px; height: 140px;">
+              <div class="title">Ледовая арена</div>
+              <div class="meta">09:00 — 13:00 · Иванов, Петров</div>
+            </div>
+
+            <div class="va-event" style="top: 250px; height: 140px;">
+              <div class="title">Малый бассейн</div>
+              <div class="meta">14:30 — 18:30 · Сидорова</div>
+            </div>
+
+            <div class="now-line" style="top: 142px;">
+              <span class="now-label">10:24</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- VARIANT B — Editorial / Anthropic blog                       -->
+      <!-- ============================================================ -->
+      <div>
+        <div class="variant-label">
+          <span><span class="num">b</span> &nbsp; <span class="name">Editorial</span></span>
+          <span class="tag">Anthropic blog · текст в первую очередь</span>
+        </div>
+        <div class="phone">
+          <div class="status-bar">
+            <span>9:41</span>
+            <span class="icons">
+              <span class="material-symbols-outlined">signal_cellular_alt</span>
+              <span class="material-symbols-outlined">wifi</span>
+              <span class="material-symbols-outlined">battery_full</span>
+            </span>
+          </div>
+
+          <section class="vb-cover">
+            <div class="kicker">Вторник · 19 мая 2026</div>
+            <h1>Сегодня <em>две смены</em> и пара коротких окон.</h1>
+            <p class="lede">Утро на льду, после полудня — малый бассейн. Восемь часов работы, обед в 13:00.</p>
+            <div class="byline">
+              <span class="pulse"></span>
+              ОБНОВЛЕНО 2 МИНУТЫ НАЗАД
+            </div>
+          </section>
+
+          <section class="vb-body">
+            <div class="vb-section-label">Расписание</div>
+
+            <div class="vb-shift now">
+              <div class="time">
+                <span class="from">09:00</span>
+                <span class="to">до 13:00</span>
+              </div>
+              <div>
+                <div class="place">Ледовая арена</div>
+                <p class="desc">С Ивановым и Петровым. Перерыв 20 минут между группами.</p>
+                <span class="now-pill">Сейчас идёт</span>
+              </div>
+            </div>
+
+            <div class="vb-shift">
+              <div class="time">
+                <span class="from">14:30</span>
+                <span class="to">до 18:30</span>
+              </div>
+              <div>
+                <div class="place">Малый бассейн</div>
+                <p class="desc">С Сидоровой Е. Н. Четыре часа без перерыва.</p>
+              </div>
+            </div>
+          </section>
+
+          <footer class="vb-footer">
+            <button class="vb-link">Открыть весь график</button>
+
+            <div class="vb-changes-row">
+              <span class="dot"></span>
+              <span class="text"><strong>2 новых изменения</strong> на сайте — ледовая арена</span>
+              <span class="material-symbols-outlined" style="color: var(--text-subtle); font-size: 18px;">chevron_right</span>
+            </div>
+          </footer>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- VARIANT C — Hero day-card with progress                      -->
+      <!-- ============================================================ -->
+      <div>
+        <div class="variant-label">
+          <span><span class="num">c</span> &nbsp; <span class="name">Hero day-card</span></span>
+          <span class="tag">прогресс дня · карточка</span>
+        </div>
+        <div class="phone">
+          <div class="status-bar">
+            <span>9:41</span>
+            <span class="icons">
+              <span class="material-symbols-outlined">signal_cellular_alt</span>
+              <span class="material-symbols-outlined">wifi</span>
+              <span class="material-symbols-outlined">battery_full</span>
+            </span>
+          </div>
+
+          <header class="vc-header">
+            <div class="brand">Расписание</div>
+            <button class="icon-btn"><span class="material-symbols-outlined">refresh</span></button>
+            <button class="icon-btn"><span class="material-symbols-outlined">tune</span></button>
+          </header>
+
+          <div class="vc-hero">
+            <div class="top">
+              <div class="label">Сегодня <span class="sub">· вторник</span></div>
+              <div class="updated">
+                <span class="material-symbols-outlined" style="font-size: 13px;">schedule</span>
+                2 мин назад
+              </div>
+            </div>
+
+            <div class="day-num">19<span class="month">мая</span></div>
+
+            <div class="stats">
+              <div class="stat">
+                <div class="val">8<span class="unit">ч</span></div>
+                <div class="lbl">Работа</div>
+              </div>
+              <div class="stat">
+                <div class="val">2</div>
+                <div class="lbl">Смены</div>
+              </div>
+              <div class="stat">
+                <div class="val">1:30<span class="unit"></span></div>
+                <div class="lbl">Окно</div>
+              </div>
+            </div>
+
+            <div class="vc-progress">
+              <div class="bar"><div class="fill"></div></div>
+              <div class="meta">
+                <span>09:00</span>
+                <span style="color: var(--accent); font-weight: 600;">Сейчас 10:24 · до конца 2:36</span>
+                <span>18:30</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="vc-shifts">
+            <div class="section-h">Смены</div>
+
+            <div class="vc-shift active">
+              <div class="stripe"></div>
+              <div class="info">
+                <div class="place">Ледовая арена</div>
+                <div class="meta">Иванов · Петров · перерыв 20 мин</div>
+              </div>
+              <div class="time">
+                <div class="range">09:00–13:00</div>
+                <div class="dur">4 ч</div>
+              </div>
+            </div>
+
+            <div class="vc-shift">
+              <div class="stripe"></div>
+              <div class="info">
+                <div class="place">Малый бассейн</div>
+                <div class="meta">Сидорова Е. Н.</div>
+              </div>
+              <div class="time">
+                <div class="range">14:30–18:30</div>
+                <div class="dur">4 ч</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="vc-bottom">
+            <div class="vc-pill">
+              <span class="leading"><span class="material-symbols-outlined" style="font-size: 18px;">campaign</span></span>
+              <div class="text">
+                <div class="t">2 новых изменения на сайте</div>
+                <div class="s">Ледовая арена · только что</div>
+              </div>
+              <span class="material-symbols-outlined chev">chevron_right</span>
+            </div>
+
+            <div class="vc-pill muted">
+              <span class="leading"><span class="material-symbols-outlined" style="font-size: 18px;">calendar_month</span></span>
+              <div class="text">
+                <div class="t">Весь график</div>
+                <div class="s">Смены до 2 июня</div>
+              </div>
+              <span class="material-symbols-outlined chev">chevron_right</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

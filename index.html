@@ -5,17 +5,19 @@
     <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta id="themeColorMeta" name="theme-color" content="#0a0a0a" />
+    <meta id="themeColorMeta" name="theme-color" content="#181513" />
     <link rel="icon" type="image/svg+xml" href="assets/app-icon-right-v2.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon-v2.png" />
     <title>Расписание</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,500&family=Inter:wght@400;500;600;700&family=Lexend:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link
-      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,200,0,0&display=block"
       rel="stylesheet"
     />
     <script>
@@ -24,15 +26,16 @@
         theme: {
           extend: {
             colors: {
-              primary: "#3b82f6",
-              "dark-base": "#000000",
-              "dark-card": "#1c1c1e",
-              "dark-card-lighter": "#2c2c2e",
-              "background-light": "#ffffff",
-              "header-tint": "#f8fafc",
+              primary: "#d97757",
+              "dark-base": "#181513",
+              "dark-card": "#23201d",
+              "dark-card-lighter": "#2c2824",
+              "background-light": "#f5f1eb",
+              "header-tint": "#23201d",
             },
             fontFamily: {
-              display: ["Lexend", "sans-serif"],
+              display: ["Newsreader", "Georgia", "serif"],
+              sans: ["Inter", "system-ui", "sans-serif"],
             },
           },
         },
@@ -42,131 +45,95 @@
   </head>
   <body class="bg-dark-base min-h-screen antialiased pb-24">
 
-    <div id="settingsView" hidden class="settings-view">
-      <header id="settingsHeader" class="settings-header">
-        <div class="settings-header-top">
-          <button id="backFromSettingsButton" class="settings-back-btn" type="button" title="Назад к графику">
+    <div id="fetchBanner" class="fetch-banner" hidden></div>
+
+    <div id="settingsView" hidden class="sv-view">
+      <header id="settingsHeader" class="sv-header">
+        <div class="sv-header-row">
+          <button id="backFromSettingsButton" class="ms-icon-btn" type="button" title="Назад">
             <span class="material-symbols-outlined">arrow_back</span>
           </button>
-        </div>
-        <div class="settings-header-copy">
-          <p class="settings-page-kicker">Моё пространство</p>
-          <h1>Настройки</h1>
-          <p class="settings-page-subtitle">Тема приложения и работа с JSON-файлом графика.</p>
+          <div class="sv-header-copy">
+            <h1>Настройки</h1>
+            <p>Тема и резервная копия</p>
+          </div>
         </div>
       </header>
 
-      <main id="settingsMain" class="settings-main">
-        <section class="settings-panel settings-panel-compact">
-          <div class="settings-panel-head settings-panel-head-compact">
-            <div>
-              <p>Внешний вид</p>
-              <h2>Тема приложения</h2>
-            </div>
-            <span class="settings-panel-note">Сразу, без перезагрузки</span>
-          </div>
-          <div id="themeSelector" class="settings-theme-grid">
-            <button type="button" data-theme="light" class="settings-theme-card">
-              <div class="settings-theme-preview theme-preview-light">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-              <div class="settings-theme-copy">
-                <strong>Светлая</strong>
-                <small>Ясный дневной режим</small>
-              </div>
-              <span class="settings-theme-check material-symbols-outlined">done</span>
+      <main id="settingsMain" class="sv-main">
+        <section class="sv-section">
+          <div class="sv-section-label">Тема</div>
+          <div id="themeSelector" class="sv-list">
+            <button type="button" data-theme="light" class="sv-row sv-row-theme">
+              <span class="sv-radio"></span>
+              <span class="sv-row-label">Светлая</span>
+              <span class="sv-row-meta">Ясный дневной режим</span>
             </button>
-
-            <button type="button" data-theme="dark" class="settings-theme-card">
-              <div class="settings-theme-preview theme-preview-dark">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-              <div class="settings-theme-copy">
-                <strong>Тёмная</strong>
-                <small>Для вечера и слабого света</small>
-              </div>
-              <span class="settings-theme-check material-symbols-outlined">done</span>
+            <button type="button" data-theme="dark" class="sv-row sv-row-theme">
+              <span class="sv-radio"></span>
+              <span class="sv-row-label">Тёмная</span>
+              <span class="sv-row-meta">Тёплый тёмный</span>
             </button>
-
-            <button type="button" data-theme="system" class="settings-theme-card">
-              <div class="settings-theme-preview theme-preview-system">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-              <div class="settings-theme-copy">
-                <strong>Системная</strong>
-                <small>Следует за устройством</small>
-              </div>
-              <span class="settings-theme-check material-symbols-outlined">done</span>
+            <button type="button" data-theme="system" class="sv-row sv-row-theme">
+              <span class="sv-radio"></span>
+              <span class="sv-row-label">Системная</span>
+              <span class="sv-row-meta">Следует за устройством</span>
             </button>
           </div>
         </section>
 
-        <section class="settings-panel settings-panel-compact settings-panel-json">
-          <div class="settings-panel-head settings-panel-head-compact settings-panel-head-inline">
-            <p>JSON-график</p>
-            <span class="settings-panel-note">Импорт и экспорт</span>
-          </div>
-          <div class="settings-actions-grid settings-actions-grid-compact settings-json-actions">
-            <button id="exportMyShiftsButton" type="button" class="settings-action-tile settings-action-tile-compact settings-action-export">
-              <span class="material-symbols-outlined">download</span>
-              <span class="settings-action-copy">
-                <strong>Скачать JSON</strong>
-                <small>Резервная копия текущего графика</small>
-              </span>
+        <section class="sv-section">
+          <div class="sv-section-label">Данные</div>
+          <div class="sv-list">
+            <button id="exportMyShiftsButton" type="button" class="sv-row">
+              <span class="material-symbols-outlined sv-row-icon">download</span>
+              <span class="sv-row-label">Скачать JSON</span>
+              <span class="sv-row-meta">Резервная копия графика</span>
+              <span class="material-symbols-outlined sv-row-chev">chevron_right</span>
             </button>
-            <button id="importMyShiftsButton" type="button" class="settings-action-tile settings-action-tile-compact settings-action-import">
-              <span class="material-symbols-outlined">upload</span>
-              <span class="settings-action-copy">
-                <strong>Загрузить JSON</strong>
-                <small>Обновить график из готового файла</small>
-              </span>
+            <button id="importMyShiftsButton" type="button" class="sv-row">
+              <span class="material-symbols-outlined sv-row-icon">upload</span>
+              <span class="sv-row-label">Загрузить JSON</span>
+              <span class="sv-row-meta">Обновить график из файла</span>
+              <span class="material-symbols-outlined sv-row-chev">chevron_right</span>
+            </button>
+            <button id="myDeleteHistoryButton" type="button" class="sv-row sv-row-danger">
+              <span class="material-symbols-outlined sv-row-icon">delete</span>
+              <span class="sv-row-label">Удалить историю</span>
+              <span class="sv-row-meta">Очистить сохранённый график</span>
+              <span class="material-symbols-outlined sv-row-chev">chevron_right</span>
             </button>
           </div>
-          <button id="myDeleteHistoryButton" type="button" class="settings-delete-button">
-            <span class="material-symbols-outlined">delete</span>
-            <span class="settings-delete-copy">
-              <strong>Удалить историю</strong>
-              <small>Очистить сохранённый график на этом устройстве</small>
-            </span>
-          </button>
           <input id="importMyShiftsInput" type="file" accept=".json,application/json" hidden />
-          <p id="myShiftsDataNotice" hidden class="history-data-notice"></p>
+          <p id="myShiftsDataNotice" hidden class="sv-notice"></p>
         </section>
       </main>
     </div>
 
-    <div id="myScheduleView" hidden class="bg-dark-base min-h-screen">
-      <header id="myScheduleHeader" class="sticky top-0 z-50 ios-blur px-5 pt-14 pb-5 border-b border-white/10">
-        <div class="my-schedule-topbar">
-          <div class="my-schedule-brand">
-            <img class="my-schedule-brand-logo" src="assets/app-icon-right-v2.svg" alt="Логотип Расписание" />
+    <div id="myScheduleView" hidden class="ms-view">
+      <header id="myScheduleHeader" class="ms-header">
+        <div class="ms-header-row">
+          <div class="ms-brand">
+            <span class="ms-brand-name">Расписание</span>
+            <span id="myScheduleUpdatedAt" class="ms-brand-updated">Загрузка…</span>
           </div>
-          <div class="my-schedule-status-chip">
-            <span class="material-symbols-outlined">schedule</span>
-            <div class="my-schedule-status-text">
-              <span class="my-schedule-status-label">Последнее обновление</span>
-              <p id="myScheduleUpdatedAt" class="my-schedule-updated-at">Загрузка...</p>
-            </div>
-          </div>
-          <button id="myScheduleRefreshButton" class="my-schedule-refresh-btn" type="button" title="Обновить данные сайта">
+          <button id="myScheduleRefreshButton" class="ms-icon-btn" type="button" title="Обновить">
             <span id="myScheduleRefreshIcon" class="material-symbols-outlined">refresh</span>
-            <span class="my-schedule-refresh-label">Обновить</span>
+          </button>
+          <button id="openSettingsButton" class="ms-icon-btn" type="button" title="Настройки" aria-label="Настройки">
+            <span class="material-symbols-outlined">tune</span>
           </button>
         </div>
       </header>
 
-      <main id="myScheduleMain" class="px-5 pt-5 pb-24">
-        <section class="my-graph-placeholder my-day-spotlight">
-          <div id="myDaySpotlightHead" class="my-day-spotlight-head">
-            <h3 id="myTimelineTitle">Выбранный день</h3>
-            <div id="myDayInlineActions" class="my-day-inline-actions" hidden>
-              <button id="myScheduleRangeButton" type="button" class="my-day-control-btn">
+      <main id="myScheduleMain" class="ms-main">
+        <section id="myDayHero" class="ms-hero" hidden></section>
+
+        <section class="ms-day-section">
+          <div id="myDaySpotlightHead" class="ms-day-section-head">
+            <h3 id="myTimelineTitle" class="ms-day-section-title">Сегодня</h3>
+            <div id="myDayInlineActions" class="ms-day-inline-actions" hidden>
+              <button id="myScheduleRangeButton" type="button" class="ms-range-btn">
                 <span id="myScheduleRangeIcon" class="material-symbols-outlined">open_in_full</span>
                 <span id="myScheduleRangeLabel">Весь график</span>
               </button>
@@ -175,47 +142,52 @@
           <div id="myScheduleTimeline"></div>
         </section>
 
-        <button id="myChangesSummaryCard" type="button" class="my-changes-summary-card" aria-label="Открыть проверку расписания">
+        <button id="myChangesSummaryCard" type="button" class="ms-changes-pill" aria-label="Открыть проверку расписания">
           <div id="myChangesSummaryContent"></div>
         </button>
-
-        <section class="my-settings-launch-wrap">
-          <button id="openSettingsButton" type="button" class="my-settings-launch-btn" aria-label="Открыть настройки" title="Настройки">
-            <span class="material-symbols-outlined">settings</span>
-            <span class="my-settings-launch-copy">
-              <strong>Настройки приложения</strong>
-              <small>Тема приложения и JSON-график</small>
-            </span>
-            <span class="material-symbols-outlined">arrow_forward</span>
-          </button>
-        </section>
       </main>
     </div>
 
-    <div id="changesView" hidden class="bg-dark-base min-h-screen">
-      <header id="changesHeader" class="sticky top-0 z-50 ios-blur px-5 pt-14 pb-5 border-b border-white/10">
-        <div class="changes-topbar">
-          <button id="backFromChangesButton" class="changes-back-btn" type="button" title="Назад к моему графику">
+    <div id="changesView" hidden class="cv-view">
+      <header id="changesHeader" class="cv-header">
+        <div class="cv-header-row">
+          <button id="backFromChangesButton" class="ms-icon-btn" type="button" title="Назад">
             <span class="material-symbols-outlined">arrow_back</span>
           </button>
-          <div class="changes-status-chip">
-            <span class="material-symbols-outlined">schedule</span>
-            <div class="changes-status-text">
-              <span class="changes-status-label">Проверка</span>
-              <p id="changesUpdatedAt" class="changes-updated-at">Загрузка...</p>
-            </div>
+          <div class="cv-header-copy">
+            <h1>Изменения</h1>
+            <p id="changesUpdatedAt" class="cv-header-sub">Загрузка…</p>
           </div>
-          <button id="changesRefreshButton" class="changes-refresh-btn" type="button" title="Проверить изменения">
+          <button id="changesRefreshButton" class="ms-icon-btn" type="button" title="Проверить">
             <span id="changesRefreshIcon" class="material-symbols-outlined">refresh</span>
-            <span>Проверить</span>
           </button>
         </div>
       </header>
 
-      <main id="changesMain" class="px-5 pt-5 pb-24">
-        <section id="changesLatestCard" class="changes-latest-card"></section>
-        <section id="changesUpdatesCard" class="changes-list-card"></section>
+      <main id="changesMain" class="cv-main">
+        <section id="changesLatestCard" hidden></section>
+        <section id="changesUpdatesCard" class="cv-updates"></section>
       </main>
+    </div>
+
+    <div id="appSheet" class="app-sheet" hidden aria-modal="true" role="dialog">
+      <div class="app-sheet-backdrop"></div>
+      <div class="app-sheet-panel">
+        <div class="app-sheet-handle"></div>
+        <div class="app-sheet-content">
+          <h3 class="app-sheet-title" id="appSheetTitle"></h3>
+          <div class="app-sheet-body" id="appSheetBody"></div>
+        </div>
+        <div class="app-sheet-actions">
+          <button type="button" class="app-sheet-cancel" id="appSheetCancel">Отмена</button>
+          <button type="button" class="app-sheet-confirm" id="appSheetConfirm">Подтвердить</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="appSnackbar" class="app-snackbar" hidden role="status" aria-live="polite">
+      <span id="appSnackbarText" class="app-snackbar-text"></span>
+      <button type="button" id="appSnackbarAction" class="app-snackbar-action">Отменить</button>
     </div>
 
     <script src="shared/site_changes.js" defer></script>

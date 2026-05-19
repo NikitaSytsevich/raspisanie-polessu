@@ -96,6 +96,10 @@ const state = {
     changes: null,
   },
   myScheduleNoticeTimer: null,
+  viewScroll: {},
+  lastFetchAt: null,
+  lastFetchError: null,
+  online: typeof navigator !== "undefined" ? navigator.onLine : true,
 };
 
 const el = {
@@ -127,6 +131,7 @@ const el = {
   settingsMonitorCard: document.getElementById("settingsMonitorCard"),
   settingsSourceIssues: document.getElementById("settingsSourceIssues"),
   myDaySpotlightHead: document.getElementById("myDaySpotlightHead"),
+  myDayHero: document.getElementById("myDayHero"),
   myScheduleRangeButton: document.getElementById("myScheduleRangeButton"),
   myScheduleRangeIcon: document.getElementById("myScheduleRangeIcon"),
   myScheduleRangeLabel: document.getElementById("myScheduleRangeLabel"),
@@ -168,7 +173,19 @@ const el = {
   myChangesSummaryContent: document.getElementById("myChangesSummaryContent"),
   changesLatestCard: document.getElementById("changesLatestCard"),
   changesUpdatesCard: document.getElementById("changesUpdatesCard"),
+  fetchBanner: document.getElementById("fetchBanner"),
+  appSheet: document.getElementById("appSheet"),
+  appSheetTitle: document.getElementById("appSheetTitle"),
+  appSheetBody: document.getElementById("appSheetBody"),
+  appSheetCancel: document.getElementById("appSheetCancel"),
+  appSheetConfirm: document.getElementById("appSheetConfirm"),
+  appSnackbar: document.getElementById("appSnackbar"),
+  appSnackbarText: document.getElementById("appSnackbarText"),
+  appSnackbarAction: document.getElementById("appSnackbarAction"),
 };
+
+const sheetState = { active: null };
+const snackbarState = { active: null, timer: null };
 
 init();
 
@@ -188,6 +205,12 @@ function init() {
   bindEvents();
   hydrateMyScheduleUI();
   setView(state.view);
+  setupHistoryNavigation();
+  setupSwipeBackGesture();
+  setupConnectivityListeners();
+  setupPullToRefresh();
+  bindSheetEvents();
+  bindSnackbarEvents();
   loadFromLocalCache();
   setupUpdatedAtTicker();
   fetchSchedule(false, { source: "init" });
@@ -199,7 +222,7 @@ function bindEvents() {
     el.settingsRefreshButton.addEventListener("click", () => fetchSchedule(true, { source: "settings" }));
   }
   if (el.openSettingsChangesButton) {
-    el.openSettingsChangesButton.addEventListener("click", () => setView("changes"));
+    el.openSettingsChangesButton.addEventListener("click", () => navigateTo("changes"));
   }
   if (el.openSettingsEditorButton) {
     el.openSettingsEditorButton.addEventListener("click", () => {
@@ -222,13 +245,13 @@ function bindEvents() {
   }
 
   if (el.openSettingsButton) {
-    el.openSettingsButton.addEventListener("click", () => setView("settings"));
+    el.openSettingsButton.addEventListener("click", () => navigateTo("settings"));
   }
   if (el.backFromSettingsButton) {
-    el.backFromSettingsButton.addEventListener("click", () => setView("my_schedule"));
+    el.backFromSettingsButton.addEventListener("click", () => history.back());
   }
   if (el.backFromChangesButton) {
-    el.backFromChangesButton.addEventListener("click", () => setView("my_schedule"));
+    el.backFromChangesButton.addEventListener("click", () => history.back());
   }
   if (el.backFromMyEditorButton) {
     el.backFromMyEditorButton.addEventListener("click", () => setView("my_schedule"));
@@ -286,7 +309,7 @@ function bindEvents() {
   }
 
   if (el.myChangesSummaryCard) {
-    el.myChangesSummaryCard.addEventListener("click", () => setView("changes"));
+    el.myChangesSummaryCard.addEventListener("click", () => navigateTo("changes"));
   }
 
   if (el.myEditorShiftList) {
@@ -361,10 +384,24 @@ function bindEvents() {
 
 }
 
-function setView(view) {
+function navigateTo(view) {
+  if (view === "schedule") view = "my_schedule";
+  if (view === state.view) return;
+  const direction = view === "my_schedule" ? "back" : "forward";
+  history.pushState({ view }, "", "");
+  setView(view, { animate: direction });
+}
+
+function setView(view, options = {}) {
   if (view === "schedule") {
     view = "my_schedule";
   }
+
+  const previousView = state.view;
+  if (previousView && previousView !== view) {
+    state.viewScroll[previousView] = window.scrollY;
+  }
+
   state.view = view;
 
   const showSettings = view === "settings";
@@ -396,7 +433,364 @@ function setView(view) {
     renderSettingsView();
   }
 
-  window.scrollTo({ top: 0, behavior: "auto" });
+  if (options.animate) {
+    const activeEl = showMySchedule
+      ? el.myScheduleView
+      : showChanges
+        ? el.changesView
+        : showSettings
+          ? el.settingsView
+          : null;
+    if (activeEl) {
+      const cls = options.animate === "back" ? "view-enter-back" : "view-enter-forward";
+      activeEl.classList.remove("view-enter-back", "view-enter-forward");
+      void activeEl.offsetWidth;
+      activeEl.classList.add(cls);
+      window.setTimeout(() => activeEl.classList.remove(cls), 280);
+    }
+  }
+
+  const restoreY = options.restoreScroll === false ? 0 : (state.viewScroll[view] || 0);
+  window.scrollTo({ top: restoreY, behavior: "auto" });
+}
+
+function setupHistoryNavigation() {
+  if (!history.state || !history.state.view) {
+    history.replaceState({ view: state.view }, "", "");
+  }
+  window.addEventListener("popstate", (event) => {
+    const view = event.state?.view || "my_schedule";
+    if (view === state.view) return;
+    const direction = view === "my_schedule" ? "back" : "forward";
+    setView(view, { animate: direction });
+  });
+}
+
+function openSheet(options) {
+  const sheet = el.appSheet;
+  if (!sheet) return;
+
+  closeSheet({ skipAnimation: true });
+
+  const {
+    title = "",
+    bodyHtml = "",
+    bodyText = "",
+    primaryLabel = "Подтвердить",
+    secondaryLabel = "Отмена",
+    danger = false,
+    onConfirm = null,
+    onCancel = null,
+  } = options || {};
+
+  el.appSheetTitle.textContent = title;
+  if (bodyHtml) {
+    el.appSheetBody.innerHTML = bodyHtml;
+  } else {
+    el.appSheetBody.textContent = bodyText;
+  }
+  el.appSheetConfirm.textContent = primaryLabel;
+  el.appSheetCancel.textContent = secondaryLabel;
+  sheet.classList.toggle("is-danger", Boolean(danger));
+  sheet.classList.remove("is-closing");
+  sheet.hidden = false;
+
+  sheetState.active = { onConfirm, onCancel };
+}
+
+function closeSheet({ skipAnimation = false } = {}) {
+  const sheet = el.appSheet;
+  if (!sheet) return;
+  if (sheet.hidden) return;
+  if (skipAnimation) {
+    sheet.hidden = true;
+    sheet.classList.remove("is-closing", "is-danger");
+    sheetState.active = null;
+    return;
+  }
+  sheet.classList.add("is-closing");
+  window.setTimeout(() => {
+    sheet.hidden = true;
+    sheet.classList.remove("is-closing", "is-danger");
+    sheetState.active = null;
+  }, 210);
+}
+
+function bindSheetEvents() {
+  if (!el.appSheet) return;
+  el.appSheetConfirm?.addEventListener("click", () => {
+    const fn = sheetState.active?.onConfirm;
+    closeSheet();
+    if (typeof fn === "function") fn();
+  });
+  el.appSheetCancel?.addEventListener("click", () => {
+    const fn = sheetState.active?.onCancel;
+    closeSheet();
+    if (typeof fn === "function") fn();
+  });
+  el.appSheet.querySelector(".app-sheet-backdrop")?.addEventListener("click", () => {
+    const fn = sheetState.active?.onCancel;
+    closeSheet();
+    if (typeof fn === "function") fn();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (el.appSheet.hidden) return;
+    const fn = sheetState.active?.onCancel;
+    closeSheet();
+    if (typeof fn === "function") fn();
+  });
+}
+
+function showSnackbar({ message, actionLabel = "Отменить", action = null, durationMs = 30000 } = {}) {
+  const bar = el.appSnackbar;
+  if (!bar) return;
+
+  hideSnackbar({ skipAnimation: true });
+
+  el.appSnackbarText.textContent = message;
+  if (actionLabel && typeof action === "function") {
+    el.appSnackbarAction.hidden = false;
+    el.appSnackbarAction.textContent = actionLabel;
+  } else {
+    el.appSnackbarAction.hidden = true;
+  }
+
+  bar.classList.remove("is-closing");
+  bar.hidden = false;
+
+  snackbarState.active = { action };
+  if (snackbarState.timer) window.clearTimeout(snackbarState.timer);
+  snackbarState.timer = window.setTimeout(() => hideSnackbar(), durationMs);
+}
+
+function hideSnackbar({ skipAnimation = false } = {}) {
+  const bar = el.appSnackbar;
+  if (!bar || bar.hidden) return;
+  if (snackbarState.timer) {
+    window.clearTimeout(snackbarState.timer);
+    snackbarState.timer = null;
+  }
+  if (skipAnimation) {
+    bar.hidden = true;
+    bar.classList.remove("is-closing");
+    snackbarState.active = null;
+    return;
+  }
+  bar.classList.add("is-closing");
+  window.setTimeout(() => {
+    bar.hidden = true;
+    bar.classList.remove("is-closing");
+    snackbarState.active = null;
+  }, 210);
+}
+
+function bindSnackbarEvents() {
+  if (!el.appSnackbarAction) return;
+  el.appSnackbarAction.addEventListener("click", () => {
+    const fn = snackbarState.active?.action;
+    hideSnackbar();
+    if (typeof fn === "function") fn();
+  });
+}
+
+function humanizeFetchError(error) {
+  if (!error) return "Не удалось обновить.";
+  if (!navigator.onLine) return "Нет соединения с интернетом.";
+  const msg = String(error.message || error);
+  if (/HTTP 5\d\d/.test(msg)) return "Сервер недоступен.";
+  if (/HTTP 4\d\d/.test(msg)) return "Сайт вернул ошибку.";
+  if (/Failed to fetch|NetworkError/i.test(msg)) return "Не удалось связаться с сайтом.";
+  return "Не удалось обновить.";
+}
+
+function renderFetchBanner() {
+  const banner = el.fetchBanner;
+  if (!banner) return;
+
+  const offline = !state.online;
+  const hasError = Boolean(state.lastFetchError);
+  const hasData = Boolean(state.data);
+
+  if (!offline && !hasError) {
+    banner.hidden = true;
+    banner.innerHTML = "";
+    banner.className = "fetch-banner";
+    return;
+  }
+
+  if (!hasData) {
+    // Empty cache + error → existing showErrorEmpty handles it. Hide banner.
+    banner.hidden = true;
+    banner.innerHTML = "";
+    banner.className = "fetch-banner";
+    return;
+  }
+
+  let tone, icon, mainText, metaText;
+  if (offline) {
+    tone = "tone-offline";
+    icon = "cloud_off";
+    mainText = "Нет соединения";
+    metaText = formatStaleDataMeta();
+  } else {
+    tone = "tone-warning";
+    icon = "sync_problem";
+    mainText = state.lastFetchError || "Не удалось обновить.";
+    metaText = formatStaleDataMeta();
+  }
+
+  banner.hidden = false;
+  banner.className = `fetch-banner ${tone}`;
+  banner.innerHTML = `
+    <span class="material-symbols-outlined fb-icon">${icon}</span>
+    <span class="fb-text"><strong>${escapeHtml(mainText)}</strong><span class="meta">${escapeHtml(metaText)}</span></span>
+    ${offline ? "" : `<button type="button" class="fb-retry" data-retry-fetch>Повторить</button>`}
+  `;
+}
+
+function formatStaleDataMeta() {
+  const generated = state.data?.generatedAt;
+  if (!generated) return "";
+  const date = new Date(generated);
+  if (Number.isNaN(date.getTime())) return "";
+  const time = date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return `данные от ${time}`;
+}
+
+function setupConnectivityListeners() {
+  if (typeof window === "undefined") return;
+  window.addEventListener("online", () => {
+    state.online = true;
+    renderFetchBanner();
+    if (state.lastFetchError) {
+      fetchSchedule(true, { source: "online_retry" });
+    }
+  });
+  window.addEventListener("offline", () => {
+    state.online = false;
+    renderFetchBanner();
+  });
+  if (el.fetchBanner) {
+    el.fetchBanner.addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-retry-fetch]");
+      if (!btn) return;
+      fetchSchedule(true, { source: "banner_retry" });
+    });
+  }
+}
+
+function setupPullToRefresh() {
+  if (typeof document === "undefined") return;
+
+  const TRIGGER = 70;
+  const MAX_PULL = 110;
+  let startY = null;
+  let dragging = false;
+  let pulled = 0;
+  let indicator = null;
+
+  function ensureIndicator() {
+    if (indicator) return indicator;
+    indicator = document.createElement("div");
+    indicator.className = "ptr-indicator";
+    indicator.innerHTML = `<span class="material-symbols-outlined">refresh</span>`;
+    document.body.appendChild(indicator);
+    return indicator;
+  }
+
+  document.addEventListener("touchstart", (event) => {
+    if (state.view !== "my_schedule") return;
+    if (window.scrollY > 4) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    startY = touch.clientY;
+    dragging = true;
+    pulled = 0;
+  }, { passive: true });
+
+  document.addEventListener("touchmove", (event) => {
+    if (!dragging) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    const dy = touch.clientY - startY;
+    if (dy <= 0) {
+      pulled = 0;
+      if (indicator) {
+        indicator.classList.remove("is-visible");
+        indicator.style.transform = "";
+      }
+      return;
+    }
+    pulled = Math.min(dy, MAX_PULL);
+    const ind = ensureIndicator();
+    ind.classList.add("is-visible");
+    const progress = Math.min(1, pulled / TRIGGER);
+    ind.style.transform = `translateX(-50%) translateY(${-60 + pulled * 0.7}px) rotate(${progress * 360}deg)`;
+  }, { passive: true });
+
+  document.addEventListener("touchend", () => {
+    if (!dragging) return;
+    dragging = false;
+    const triggered = pulled >= TRIGGER;
+    pulled = 0;
+    if (!indicator) return;
+    if (triggered) {
+      indicator.style.transform = "translateX(-50%) translateY(12px)";
+      indicator.classList.add("is-active");
+      fetchSchedule(true, { source: "my_schedule" }).finally(() => {
+        if (!indicator) return;
+        indicator.classList.remove("is-active");
+        indicator.classList.remove("is-visible");
+        indicator.style.transform = "";
+      });
+    } else {
+      indicator.classList.remove("is-visible");
+      indicator.style.transform = "";
+    }
+  }, { passive: true });
+}
+
+function setupSwipeBackGesture() {
+  const SWIPE_EDGE = 28;
+  const SWIPE_THRESHOLD = 70;
+  let startX = null;
+  let startY = null;
+  let tracking = false;
+
+  document.addEventListener("touchstart", (event) => {
+    if (state.view === "my_schedule") return;
+    const touch = event.touches[0];
+    if (!touch || touch.clientX > SWIPE_EDGE) return;
+    startX = touch.clientX;
+    startY = touch.clientY;
+    tracking = true;
+  }, { passive: true });
+
+  document.addEventListener("touchmove", (event) => {
+    if (!tracking) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    const dx = touch.clientX - startX;
+    const dy = Math.abs(touch.clientY - startY);
+    if (dy > 50 || dx < 0) {
+      tracking = false;
+    }
+  }, { passive: true });
+
+  document.addEventListener("touchend", (event) => {
+    if (!tracking) return;
+    const touch = event.changedTouches[0];
+    if (touch) {
+      const dx = touch.clientX - startX;
+      if (dx >= SWIPE_THRESHOLD) {
+        history.back();
+      }
+    }
+    tracking = false;
+    startX = null;
+    startY = null;
+  }, { passive: true });
 }
 
 function loadFromLocalCache() {
@@ -478,6 +872,10 @@ async function fetchSchedule(force, options = {}) {
       })
     );
 
+    state.lastFetchAt = new Date().toISOString();
+    state.lastFetchError = null;
+    renderFetchBanner();
+
     if (isMyScheduleRefresh) {
       showRefreshResult("success", {
         button: el.myScheduleRefreshButton,
@@ -491,6 +889,10 @@ async function fetchSchedule(force, options = {}) {
       });
     }
   } catch (error) {
+    state.lastFetchAt = new Date().toISOString();
+    state.lastFetchError = humanizeFetchError(error);
+    renderFetchBanner();
+
     if (isMyScheduleRefresh) {
       showRefreshResult("error", {
         button: el.myScheduleRefreshButton,
@@ -1316,12 +1718,12 @@ function renderMySchedule() {
   if (el.myTimelineTitle) {
     if (rangeMode === MY_SCHEDULE_RANGE.FULL) {
       el.myTimelineTitle.textContent = "Весь график";
-    } else if (focusDate === todayIso()) {
-      el.myTimelineTitle.textContent = "Сегодня";
     } else {
-      el.myTimelineTitle.textContent = "Выбранный день";
+      el.myTimelineTitle.textContent = "Смены";
     }
   }
+
+  renderMyDayHero(focusDate, groupedByDate.get(focusDate) || [], rangeMode);
 
   if (!state.myShifts.length && !hasWeeklyDayOffConfigured()) {
     el.myScheduleTimeline.innerHTML = renderMyScheduleEmptyState();
@@ -1337,6 +1739,140 @@ function renderMySchedule() {
     )
     .join("");
   renderMyChangesSummary();
+}
+
+const RU_MONTH_SHORT_GEN = ["янв", "фев", "марта", "апр", "мая", "июня", "июля", "авг", "сен", "окт", "ноя", "дек"];
+
+function renderMyDayHero(focusDate, timelineItems, rangeMode) {
+  const hero = el.myDayHero;
+  if (!hero) {
+    return;
+  }
+
+  if (rangeMode !== MY_SCHEDULE_RANGE.DAY || !/^\d{4}-\d{2}-\d{2}$/.test(String(focusDate || ""))) {
+    hero.hidden = true;
+    hero.innerHTML = "";
+    return;
+  }
+
+  const workingItems = (timelineItems || []).filter((item) => item.kind === MY_SHIFT_KIND.WORK);
+  const hasDayOff = !workingItems.length && isWeeklyDayOffDate(focusDate);
+  const isFree = !workingItems.length && !hasDayOff;
+
+  if (isFree && !state.myShifts.length && !hasWeeklyDayOffConfigured()) {
+    hero.hidden = true;
+    hero.innerHTML = "";
+    return;
+  }
+
+  hero.hidden = false;
+
+  const [, monthStr, dayStr] = focusDate.split("-");
+  const dayNum = Number(dayStr);
+  const monthShort = RU_MONTH_SHORT_GEN[Number(monthStr) - 1] || "";
+  const weekdayLong = formatRuWeekday(focusDate, "long");
+  const isToday = focusDate === todayIso();
+  const tag = formatDayTag(focusDate);
+  const labelMain = tag !== "Дата" ? tag : capitalize(weekdayLong);
+  const labelSub = tag !== "Дата" ? weekdayLong : `${dayNum} ${monthShort}`;
+
+  let bodyHtml;
+  if (workingItems.length) {
+    const totalMinutes = workingItems.reduce((sum, item) => sum + getShiftDurationMinutes(item.shift), 0);
+    const totalHours = (totalMinutes / 60);
+    const totalHoursLabel = Number.isInteger(totalHours) ? String(totalHours) : totalHours.toFixed(1).replace(".", ",");
+
+    const sorted = workingItems
+      .map((item) => ({
+        start: toMinutes(String(item.shift?.start || "00:00")),
+        end: toMinutes(String(item.shift?.end || "00:00")),
+      }))
+      .filter((seg) => Number.isFinite(seg.start) && Number.isFinite(seg.end) && seg.end > seg.start)
+      .sort((a, b) => a.start - b.start);
+
+    let longestGap = 0;
+    for (let i = 1; i < sorted.length; i++) {
+      const gap = sorted[i].start - sorted[i - 1].end;
+      if (gap > longestGap) longestGap = gap;
+    }
+    const gapLabel = longestGap > 0
+      ? `${Math.floor(longestGap / 60)}:${String(longestGap % 60).padStart(2, "0")}`
+      : "—";
+
+    const dayStart = sorted.length ? sorted[0].start : null;
+    const dayEnd = sorted.length ? sorted[sorted.length - 1].end : null;
+
+    let progressHtml = "";
+    if (isToday && dayStart !== null && dayEnd !== null && dayEnd > dayStart) {
+      const now = nowInMinutes();
+      const totalSpan = dayEnd - dayStart;
+      const elapsed = Math.max(0, Math.min(totalSpan, now - dayStart));
+      const pct = (elapsed / totalSpan) * 100;
+      let nowText;
+      if (now < dayStart) {
+        const untilMin = dayStart - now;
+        nowText = `до начала ${Math.floor(untilMin / 60)}ч ${untilMin % 60}м`;
+      } else if (now > dayEnd) {
+        nowText = "день завершён";
+      } else {
+        const remain = dayEnd - now;
+        const hh = String(Math.floor(now / 60)).padStart(2, "0");
+        const mm = String(now % 60).padStart(2, "0");
+        nowText = `сейчас ${hh}:${mm} · до конца ${Math.floor(remain / 60)}:${String(remain % 60).padStart(2, "0")}`;
+      }
+      progressHtml = `
+        <div class="ms-hero-progress">
+          <div class="bar"><div class="fill" style="width: ${pct.toFixed(1)}%"></div></div>
+          <div class="meta">
+            <span>${minutesToTime(dayStart)}</span>
+            <span class="now">${escapeHtml(nowText)}</span>
+            <span>${minutesToTime(dayEnd)}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    const shiftsLabel = pluralizeRu(workingItems.length, "смена", "смены", "смен");
+
+    bodyHtml = `
+      <div class="ms-hero-top">
+        <div class="ms-hero-label">${escapeHtml(labelMain.toUpperCase())} <span class="sub">· ${escapeHtml(labelSub)}</span></div>
+      </div>
+      <div class="ms-hero-day">${dayNum}<span class="month">${escapeHtml(monthShort)}</span></div>
+      <div class="ms-hero-stats">
+        <div class="ms-hero-stat">
+          <div class="val">${escapeHtml(totalHoursLabel)}<span class="unit">ч</span></div>
+          <div class="lbl">Работа</div>
+        </div>
+        <div class="ms-hero-stat">
+          <div class="val">${workingItems.length}</div>
+          <div class="lbl">${escapeHtml(shiftsLabel)}</div>
+        </div>
+        <div class="ms-hero-stat">
+          <div class="val${longestGap > 0 ? "" : " dim"}">${escapeHtml(gapLabel)}</div>
+          <div class="lbl">Окно</div>
+        </div>
+      </div>
+      ${progressHtml}
+    `;
+  } else {
+    const stateText = hasDayOff ? "Выходной день" : "Свободный день";
+    bodyHtml = `
+      <div class="ms-hero-top">
+        <div class="ms-hero-label">${escapeHtml(labelMain.toUpperCase())} <span class="sub">· ${escapeHtml(labelSub)}</span></div>
+      </div>
+      <div class="ms-hero-day">${dayNum}<span class="month">${escapeHtml(monthShort)}</span></div>
+      <div class="ms-hero-empty">${escapeHtml(stateText)}</div>
+    `;
+  }
+
+  hero.innerHTML = bodyHtml;
+}
+
+function formatRuWeekday(isoDate, length = "long") {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  return new Intl.DateTimeFormat("ru-RU", { weekday: length }).format(date);
 }
 
 function getMyScheduleDatesToRender(focusDate, groupedByDate, rangeMode) {
@@ -5063,27 +5599,60 @@ function handleDeleteMyShiftsHistory() {
     return;
   }
 
-  const confirmMessage = hasWeeklyDayOffConfigured()
-    ? "Удалить всю историю смен и выбранный еженедельный выходной? Это действие нельзя отменить."
-    : "Удалить всю историю смен? Это действие нельзя отменить.";
-  const confirmed = window.confirm(confirmMessage);
-  if (!confirmed) {
-    return;
+  const previewParts = [`${state.myShifts.length} ${pluralizeRu(state.myShifts.length, "смена", "смены", "смен")}`];
+  if (hasWeeklyDayOffConfigured()) {
+    previewParts.push(`выходной — ${getWeeklyDayOffLabel(state.weeklyDayOffWeekday).toLowerCase()}`);
+  }
+  if (state.staffShifts.length) {
+    previewParts.push(`данные ${state.staffShifts.length} ${pluralizeRu(state.staffShifts.length, "коллеги", "коллег", "коллег")}`);
   }
 
-  state.myShifts = [];
-  state.staffShifts = [];
-  state.weeklyDayOffWeekday = null;
-  saveMyShifts();
-  state.myEditingShiftId = null;
-  state.myScheduleFocusDate = todayIso();
-  state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
-  resetMyShiftForm({ preserveDate: state.myScheduleFocusDate });
-  renderMySchedule();
-  renderMyScheduleEditor();
-  renderChangesView();
-  renderSettingsView();
-  setMyShiftsDataNotice("История удалена. На главном экране можно загрузить новый JSON.", "success");
+  const snapshot = {
+    myShifts: state.myShifts,
+    staffShifts: state.staffShifts,
+    weeklyDayOffWeekday: state.weeklyDayOffWeekday,
+  };
+
+  openSheet({
+    title: "Удалить весь график?",
+    bodyHtml: `
+      <p>Это действие нельзя отменить. Будет удалено:</p>
+      <div class="preview-list">
+        ${previewParts.map((p) => `<div class="preview-row"><span class="lbl">${escapeHtml(p)}</span></div>`).join("")}
+      </div>
+    `,
+    primaryLabel: "Удалить",
+    danger: true,
+    onConfirm: () => {
+      state.myShifts = [];
+      state.staffShifts = [];
+      state.weeklyDayOffWeekday = null;
+      saveMyShifts();
+      state.myEditingShiftId = null;
+      state.myScheduleFocusDate = todayIso();
+      state.myScheduleRangeMode = MY_SCHEDULE_RANGE.DAY;
+      resetMyShiftForm({ preserveDate: state.myScheduleFocusDate });
+      renderMySchedule();
+      renderMyScheduleEditor();
+      renderChangesView();
+      renderSettingsView();
+
+      showSnackbar({
+        message: "График удалён",
+        actionLabel: "Отменить",
+        action: () => {
+          state.myShifts = snapshot.myShifts;
+          state.staffShifts = snapshot.staffShifts;
+          state.weeklyDayOffWeekday = snapshot.weeklyDayOffWeekday;
+          saveMyShifts();
+          renderMySchedule();
+          renderMyScheduleEditor();
+          renderChangesView();
+          renderSettingsView();
+        },
+      });
+    },
+  });
 }
 
 function handleResetSiteChanges() {
@@ -5094,21 +5663,24 @@ function handleResetSiteChanges() {
     return;
   }
 
-  const confirmed = window.confirm("Очистить локальный журнал изменений и историю проверок на этом устройстве?");
-  if (!confirmed) {
-    return;
-  }
-
-  state.siteChangesHistory = [];
-  state.siteChangesLastCheckedAt = "";
-  state.siteChangesAcknowledgedSignature = "";
-  saveSiteChangesHistory();
-  saveSiteChangesLastCheckedAt();
-  saveSiteChangesAcknowledgedSignature();
-  renderChangesView();
-  renderMyChangesSummary();
-  renderSettingsView();
-  setMyShiftsDataNotice("Локальный журнал изменений очищен.", "success");
+  openSheet({
+    title: "Очистить журнал?",
+    bodyText: "Локальный журнал изменений и история проверок будут удалены с этого устройства.",
+    primaryLabel: "Очистить",
+    danger: true,
+    onConfirm: () => {
+      state.siteChangesHistory = [];
+      state.siteChangesLastCheckedAt = "";
+      state.siteChangesAcknowledgedSignature = "";
+      saveSiteChangesHistory();
+      saveSiteChangesLastCheckedAt();
+      saveSiteChangesAcknowledgedSignature();
+      renderChangesView();
+      renderMyChangesSummary();
+      renderSettingsView();
+      setMyShiftsDataNotice("Локальный журнал изменений очищен.", "success");
+    },
+  });
 }
 
 function handleMyScheduleTimelineClick(event) {
@@ -6236,7 +6808,7 @@ function setMyShiftsDataNotice(message, type = "info") {
 
   el.myShiftsDataNotice.hidden = false;
   el.myShiftsDataNotice.textContent = message;
-  el.myShiftsDataNotice.className = `history-data-notice ${type}`;
+  el.myShiftsDataNotice.className = `sv-notice is-${type}`;
 }
 
 function exportMyShiftsHistory() {
@@ -6281,32 +6853,48 @@ async function handleMyShiftsImport(event) {
     return;
   }
 
+  let parsed;
+  let records;
+  let normalized;
+  let importedWeeklyDayOffWeekday;
   try {
     const raw = await file.text();
-    const parsed = JSON.parse(raw);
-    const records = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.shifts) ? parsed.shifts : null;
-
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new Error("Файл не похож на JSON графика.");
+    }
+    records = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.shifts) ? parsed.shifts : null;
     if (!records) {
-      throw new Error("Неверный формат файла.");
+      throw new Error("В файле нет списка смен — возможно, это файл из другого приложения.");
     }
-
-    const normalized = normalizeShiftRecords(records);
-    const importedWeeklyDayOffWeekday = extractWeeklyDayOffWeekdayFromPayload(parsed, records);
+    normalized = normalizeShiftRecords(records);
+    importedWeeklyDayOffWeekday = extractWeeklyDayOffWeekdayFromPayload(parsed, records);
     if (!normalized.length && records.length && importedWeeklyDayOffWeekday === null) {
-      throw new Error("Не удалось найти корректные записи смен.");
+      throw new Error("Ни одна запись из файла не похожа на смену.");
     }
+  } catch (error) {
+    setMyShiftsDataNotice(
+      error instanceof Error ? error.message : "Не удалось прочитать файл.",
+      "error"
+    );
+    input.value = "";
+    return;
+  }
 
-    if (hasSavedScheduleHistory()) {
-      const confirmed = window.confirm("Заменить текущий график загруженным JSON?");
-      if (!confirmed) {
-        setMyShiftsDataNotice("Загрузка отменена.", "info");
-        input.value = "";
-        return;
-      }
-    }
+  const importedSiteChanges = normalizeImportedSiteChangesPayload(parsed?.siteChanges);
+  const importedStaffShifts = normalizeStaffShiftRecords(parsed?.staffShifts || parsed?.staff || parsed?.roster || []);
 
-    const importedSiteChanges = normalizeImportedSiteChangesPayload(parsed?.siteChanges);
-    const importedStaffShifts = normalizeStaffShiftRecords(parsed?.staffShifts || parsed?.staff || parsed?.roster || []);
+  const apply = () => {
+    const snapshot = {
+      myShifts: state.myShifts,
+      weeklyDayOffWeekday: state.weeklyDayOffWeekday,
+      staffShifts: state.staffShifts,
+      siteChangesHistory: state.siteChangesHistory,
+      siteChangesLastCheckedAt: state.siteChangesLastCheckedAt,
+      siteChangesAcknowledgedSignature: state.siteChangesAcknowledgedSignature,
+      hadHistory: hasSavedScheduleHistory(),
+    };
 
     state.myShifts = normalized;
     state.weeklyDayOffWeekday = importedWeeklyDayOffWeekday;
@@ -6336,21 +6924,62 @@ async function handleMyShiftsImport(event) {
     renderMyScheduleEditor();
     renderChangesView();
     renderSettingsView();
-    const staffMeta = state.staffShifts.length
-      ? ` Данных по коллегам: ${state.staffShifts.length}.`
-      : "";
-    const dayOffMeta = state.weeklyDayOffWeekday === null
-      ? ""
-      : ` Выходной: ${getWeeklyDayOffLabel(state.weeklyDayOffWeekday).toLowerCase()}.`;
-    setMyShiftsDataNotice(`Загружено смен: ${state.myShifts.length}.${staffMeta}${dayOffMeta}`, "success");
-  } catch (error) {
-    setMyShiftsDataNotice(
-      error instanceof Error ? `Ошибка импорта: ${error.message}` : "Ошибка импорта истории.",
-      "error"
-    );
-  } finally {
+
+    showSnackbar({
+      message: snapshot.hadHistory ? "График заменён" : `Загружено: ${state.myShifts.length} ${pluralizeRu(state.myShifts.length, "смена", "смены", "смен")}`,
+      actionLabel: snapshot.hadHistory ? "Отменить" : null,
+      action: snapshot.hadHistory ? () => {
+        state.myShifts = snapshot.myShifts;
+        state.weeklyDayOffWeekday = snapshot.weeklyDayOffWeekday;
+        state.staffShifts = snapshot.staffShifts;
+        state.siteChangesHistory = snapshot.siteChangesHistory;
+        state.siteChangesLastCheckedAt = snapshot.siteChangesLastCheckedAt;
+        state.siteChangesAcknowledgedSignature = snapshot.siteChangesAcknowledgedSignature;
+        saveMyShifts();
+        saveSiteChangesHistory();
+        saveSiteChangesLastCheckedAt();
+        saveSiteChangesAcknowledgedSignature();
+        renderMySchedule();
+        renderMyScheduleEditor();
+        renderChangesView();
+        renderSettingsView();
+      } : null,
+    });
+  };
+
+  if (!hasSavedScheduleHistory()) {
+    apply();
     input.value = "";
+    return;
   }
+
+  const previewRows = [
+    { lbl: "Смены", val: String(normalized.length) },
+  ];
+  if (importedStaffShifts.length) {
+    previewRows.push({ lbl: "Коллеги", val: String(importedStaffShifts.length) });
+  }
+  if (importedWeeklyDayOffWeekday !== null && importedWeeklyDayOffWeekday !== undefined) {
+    previewRows.push({ lbl: "Выходной", val: getWeeklyDayOffLabel(importedWeeklyDayOffWeekday).toLowerCase() });
+  }
+
+  openSheet({
+    title: "Заменить текущий график?",
+    bodyHtml: `
+      <p>Текущие данные будут заменены содержимым файла.</p>
+      <div class="preview-list">
+        ${previewRows.map((r) => `<div class="preview-row"><span class="lbl">${escapeHtml(r.lbl)}</span><span class="val">${escapeHtml(r.val)}</span></div>`).join("")}
+      </div>
+    `,
+    primaryLabel: "Заменить",
+    onConfirm: () => {
+      apply();
+      input.value = "";
+    },
+    onCancel: () => {
+      input.value = "";
+    },
+  });
 }
 
 function hydrateSettingsUI() {
@@ -6419,7 +7048,7 @@ function applyThemeColor(resolvedTheme) {
     return;
   }
 
-  metaTheme.setAttribute("content", resolvedTheme === "dark" ? "#0a0a0a" : "#edf2f8");
+  metaTheme.setAttribute("content", resolvedTheme === "dark" ? "#181513" : "#f5f1eb");
 }
 
 function pulseRefreshButton(button = null) {

@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Расписание — Dark Anthropic preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,200,0,0&display=block"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --studio-bg: #0f0d0c;
+      --bg: #181513;
+      --bg-elevated: #23201d;
+      --bg-raised: #2c2824;
+      --border: rgba(217, 119, 87, 0.10);
+      --border-strong: rgba(245, 241, 235, 0.10);
+      --hairline: rgba(245, 241, 235, 0.06);
+      --text: #f5f1eb;
+      --text-muted: #a8a098;
+      --text-subtle: #6b665f;
+      --accent: #d97757;
+      --accent-hover: #c96442;
+      --accent-soft: rgba(217, 119, 87, 0.14);
+      --success: #7a9e7e;
+      --warning: #c9a96e;
+      --danger: #c97064;
+
+      --font-serif: "Newsreader", "Source Serif 4", Georgia, serif;
+      --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      background: var(--studio-bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+      font-size: 20px;
+      line-height: 1;
+      vertical-align: middle;
+    }
+
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 48px 32px 96px;
+    }
+
+    .studio-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    .studio-header h1 {
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: 28px;
+      letter-spacing: -0.01em;
+    }
+
+    .studio-header .meta {
+      color: var(--text-subtle);
+      font-size: 13px;
+    }
+
+    .studio-subhead {
+      color: var(--text-muted);
+      font-size: 14px;
+      max-width: 640px;
+      margin-bottom: 32px;
+      line-height: 1.6;
+    }
+
+    .tokens {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 40px;
+    }
+
+    .token {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    }
+
+    .token .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1px solid var(--hairline);
+    }
+
+    .phones {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 380px));
+      gap: 32px;
+      justify-content: center;
+    }
+
+    @media (max-width: 1200px) {
+      .phones { grid-template-columns: repeat(2, minmax(0, 380px)); }
+    }
+
+    @media (max-width: 800px) {
+      .phones { grid-template-columns: minmax(0, 380px); }
+      .page { padding: 32px 16px 64px; }
+    }
+
+    .phone-label {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+      margin-bottom: 10px;
+      padding-left: 6px;
+    }
+
+    .phone {
+      background: var(--bg);
+      border-radius: 32px;
+      border: 1px solid var(--hairline);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 760px;
+      box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.6);
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .status-bar .icons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+    }
+
+    .status-bar .icons .material-symbols-outlined {
+      font-size: 15px;
+    }
+
+    .app-header {
+      padding: 18px 24px 16px;
+      border-bottom: 1px solid var(--hairline);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .app-header.with-back .icon-btn:first-child {
+      margin-right: 4px;
+    }
+
+    .app-header .brand {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .app-header .brand .name {
+      font-family: var(--font-serif);
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      color: var(--text);
+    }
+
+    .app-header .brand .sub {
+      font-size: 12px;
+      color: var(--text-subtle);
+      margin-top: 2px;
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+    }
+
+    .icon-btn:hover {
+      background: var(--bg-elevated);
+      color: var(--text);
+      border-color: var(--hairline);
+    }
+
+    .icon-btn .material-symbols-outlined { font-size: 22px; }
+
+    .main {
+      flex: 1;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .day-head h1 {
+      font-family: var(--font-serif);
+      font-size: 30px;
+      font-weight: 500;
+      letter-spacing: -0.015em;
+      color: var(--text);
+      line-height: 1.1;
+    }
+
+    .day-head .date {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .shift {
+      background: var(--bg-elevated);
+      border: 1px solid var(--hairline);
+      border-radius: 16px;
+      padding: 16px 18px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+
+    .shift:hover { border-color: var(--border); }
+
+    .shift .time {
+      font-family: var(--font-serif);
+      font-size: 17px;
+      font-weight: 500;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+      line-height: 1.3;
+      white-space: nowrap;
+    }
+
+    .shift .time .sep {
+      color: var(--text-subtle);
+      margin: 0 2px;
+      font-weight: 400;
+    }
+
+    .shift .body .place {
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .shift .body .meta {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+
+    .shift .body .tags {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      font-size: 11px;
+      letter-spacing: 0.02em;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--bg-raised);
+      color: var(--text-muted);
+      border: 1px solid var(--hairline);
+    }
+
+    .tag.accent {
+      background: var(--accent-soft);
+      color: #f4c5b1;
+      border-color: rgba(217, 119, 87, 0.25);
+    }
+
+    .text-link {
+      align-self: flex-start;
+      background: transparent;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 500;
+      padding: 8px 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .text-link:hover { color: var(--accent-hover); }
+
+    .text-link .material-symbols-outlined { font-size: 18px; }
+
+    .summary-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--hairline);
+      border-radius: 16px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+
+    .summary-card:hover {
+      border-color: var(--border);
+      background: var(--bg-raised);
+    }
+
+    .summary-card .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    .summary-card .copy { flex: 1; min-width: 0; }
+
+    .summary-card .copy .label {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+      margin-bottom: 4px;
+    }
+
+    .summary-card .copy .title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .summary-card .copy .sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .summary-card .chev { color: var(--text-subtle); }
+
+    .settings-row {
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px solid var(--hairline);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: color 160ms ease;
+    }
+
+    .settings-row:hover { color: var(--text); }
+    .settings-row .label { flex: 1; font-size: 14px; }
+
+    .section-title {
+      font-family: var(--font-serif);
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+
+    .section-title.muted { color: var(--text-muted); }
+
+    .changes-list { display: flex; flex-direction: column; }
+
+    .change-item {
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      align-items: start;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--hairline);
+    }
+
+    .change-item:last-child { border-bottom: none; }
+
+    .change-item .marker {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-top: 6px;
+      background: var(--text-subtle);
+    }
+
+    .change-item.fresh .marker {
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    .change-item .meta {
+      font-size: 12px;
+      color: var(--text-subtle);
+      white-space: nowrap;
+      padding-top: 3px;
+    }
+
+    .change-item .title {
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .change-item .sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 3px;
+      line-height: 1.5;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--hairline);
+      margin: 24px 0;
+    }
+
+    .settings-section { display: flex; flex-direction: column; }
+
+    .settings-section-label {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+      margin-bottom: 12px;
+    }
+
+    .settings-row-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--hairline);
+      cursor: pointer;
+    }
+
+    .settings-row-item:last-child { border-bottom: none; }
+
+    .settings-row-item .label {
+      flex: 1;
+      font-size: 15px;
+      color: var(--text);
+    }
+
+    .settings-row-item .value {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .settings-row-item .radio {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1.5px solid var(--text-subtle);
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .settings-row-item.active .radio { border-color: var(--accent); }
+
+    .settings-row-item.active .radio::after {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .settings-row-item.danger .label { color: var(--danger); }
+    .settings-row-item .chev { color: var(--text-subtle); }
+
+    .note {
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--hairline);
+      border-radius: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .note code {
+      color: var(--accent);
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="studio-header">
+      <h1>Расписание — Dark Anthropic</h1>
+      <span class="meta">preview.html · только визуал, без логики</span>
+    </div>
+    <p class="studio-subhead">
+      Тёплый тёмный фон (#181513), коралловый акцент (#d97757), серифные заголовки Newsreader, UI на Inter.
+      Три экрана как они будут выглядеть на телефоне. Открой в браузере, оцени дыхание и пропорции.
+    </p>
+
+    <div class="tokens">
+      <span class="token"><span class="swatch" style="background:#181513"></span>bg #181513</span>
+      <span class="token"><span class="swatch" style="background:#23201d"></span>elevated #23201d</span>
+      <span class="token"><span class="swatch" style="background:#2c2824"></span>raised #2c2824</span>
+      <span class="token"><span class="swatch" style="background:#d97757"></span>accent #d97757</span>
+      <span class="token"><span class="swatch" style="background:#f5f1eb"></span>text #f5f1eb</span>
+      <span class="token"><span class="swatch" style="background:#a8a098"></span>muted #a8a098</span>
+      <span class="token"><span class="swatch" style="background:#7a9e7e"></span>success #7a9e7e</span>
+      <span class="token"><span class="swatch" style="background:#c97064"></span>danger #c97064</span>
+    </div>
+
+    <div class="phones">
+
+      <!-- MY SCHEDULE -->
+      <div>
+        <div class="phone-label">Главный · Мой график</div>
+        <div class="phone">
+          <div class="status-bar">
+            <span>9:41</span>
+            <span class="icons">
+              <span class="material-symbols-outlined">signal_cellular_alt</span>
+              <span class="material-symbols-outlined">wifi</span>
+              <span class="material-symbols-outlined">battery_full</span>
+            </span>
+          </div>
+
+          <header class="app-header">
+            <div class="brand">
+              <div class="name">Расписание</div>
+              <div class="sub">Обновлено 2 минуты назад</div>
+            </div>
+            <button class="icon-btn" title="Обновить">
+              <span class="material-symbols-outlined">refresh</span>
+            </button>
+          </header>
+
+          <main class="main">
+            <div class="day-head">
+              <h1>Вторник</h1>
+              <div class="date">19 мая · сегодня</div>
+            </div>
+
+            <div class="timeline">
+              <div class="shift">
+                <div class="time">09:00<span class="sep">—</span>13:00</div>
+                <div class="body">
+                  <div class="place">Ледовая арена</div>
+                  <div class="meta">Иванов А.А., Петров В.П. · 4 ч</div>
+                  <div class="tags">
+                    <span class="tag accent">сейчас идёт</span>
+                    <span class="tag">перерыв 20 мин</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="shift">
+                <div class="time">14:30<span class="sep">—</span>18:30</div>
+                <div class="body">
+                  <div class="place">Малый бассейн</div>
+                  <div class="meta">Сидорова Е.Н. · 4 ч</div>
+                </div>
+              </div>
+            </div>
+
+            <button class="text-link">
+              Весь график
+              <span class="material-symbols-outlined">arrow_forward</span>
+            </button>
+
+            <div class="summary-card" role="button">
+              <div class="dot"></div>
+              <div class="copy">
+                <div class="label">Проверка изменений</div>
+                <div class="title">2 новых изменения на сайте</div>
+                <div class="sub">Ледовая арена · только что</div>
+              </div>
+              <span class="material-symbols-outlined chev">chevron_right</span>
+            </div>
+
+            <div class="settings-row" role="button">
+              <span class="material-symbols-outlined">tune</span>
+              <span class="label">Настройки</span>
+              <span class="material-symbols-outlined chev">chevron_right</span>
+            </div>
+          </main>
+        </div>
+      </div>
+
+      <!-- CHANGES -->
+      <div>
+        <div class="phone-label">Изменения</div>
+        <div class="phone">
+          <div class="status-bar">
+            <span>9:41</span>
+            <span class="icons">
+              <span class="material-symbols-outlined">signal_cellular_alt</span>
+              <span class="material-symbols-outlined">wifi</span>
+              <span class="material-symbols-outlined">battery_full</span>
+            </span>
+          </div>
+
+          <header class="app-header with-back">
+            <button class="icon-btn" title="Назад">
+              <span class="material-symbols-outlined">arrow_back</span>
+            </button>
+            <div class="brand">
+              <div class="name">Изменения</div>
+              <div class="sub">Проверено 5 минут назад</div>
+            </div>
+            <button class="icon-btn" title="Проверить">
+              <span class="material-symbols-outlined">refresh</span>
+            </button>
+          </header>
+
+          <main class="main">
+            <section>
+              <h2 class="section-title">Сейчас</h2>
+              <div class="changes-list">
+                <div class="change-item fresh">
+                  <div class="marker"></div>
+                  <div>
+                    <div class="title">Ледовая арена</div>
+                    <div class="sub">2 новые смены на этой неделе</div>
+                  </div>
+                  <div class="meta">только что</div>
+                </div>
+                <div class="change-item fresh">
+                  <div class="marker"></div>
+                  <div>
+                    <div class="title">Малый бассейн</div>
+                    <div class="sub">Изменено расписание на четверг</div>
+                  </div>
+                  <div class="meta">12 мин</div>
+                </div>
+              </div>
+            </section>
+
+            <div class="divider"></div>
+
+            <section>
+              <h2 class="section-title muted">История</h2>
+              <div class="changes-list">
+                <div class="change-item">
+                  <div class="marker"></div>
+                  <div>
+                    <div class="title">Большой бассейн</div>
+                    <div class="sub">Новая смена на воскресенье</div>
+                  </div>
+                  <div class="meta">вчера</div>
+                </div>
+                <div class="change-item">
+                  <div class="marker"></div>
+                  <div>
+                    <div class="title">Гребная база</div>
+                    <div class="sub">Обновлены тренеры</div>
+                  </div>
+                  <div class="meta">пн</div>
+                </div>
+                <div class="change-item">
+                  <div class="marker"></div>
+                  <div>
+                    <div class="title">Ледовая арена</div>
+                    <div class="sub">Изменён график на майские</div>
+                  </div>
+                  <div class="meta">5 мая</div>
+                </div>
+              </div>
+            </section>
+          </main>
+        </div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div>
+        <div class="phone-label">Настройки</div>
+        <div class="phone">
+          <div class="status-bar">
+            <span>9:41</span>
+            <span class="icons">
+              <span class="material-symbols-outlined">signal_cellular_alt</span>
+              <span class="material-symbols-outlined">wifi</span>
+              <span class="material-symbols-outlined">battery_full</span>
+            </span>
+          </div>
+
+          <header class="app-header with-back">
+            <button class="icon-btn" title="Назад">
+              <span class="material-symbols-outlined">arrow_back</span>
+            </button>
+            <div class="brand">
+              <div class="name">Настройки</div>
+              <div class="sub">Тема и резервная копия</div>
+            </div>
+          </header>
+
+          <main class="main">
+            <section class="settings-section">
+              <div class="settings-section-label">Тема</div>
+              <div class="settings-row-item">
+                <div class="radio"></div>
+                <div class="label">Светлая</div>
+              </div>
+              <div class="settings-row-item active">
+                <div class="radio"></div>
+                <div class="label">Тёмная</div>
+              </div>
+              <div class="settings-row-item">
+                <div class="radio"></div>
+                <div class="label">Системная</div>
+                <div class="value">сейчас тёмная</div>
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <div class="settings-section-label">Данные</div>
+              <div class="settings-row-item">
+                <span class="material-symbols-outlined" style="color: var(--text-muted)">download</span>
+                <div class="label">Скачать JSON</div>
+                <span class="material-symbols-outlined chev">chevron_right</span>
+              </div>
+              <div class="settings-row-item">
+                <span class="material-symbols-outlined" style="color: var(--text-muted)">upload</span>
+                <div class="label">Загрузить JSON</div>
+                <span class="material-symbols-outlined chev">chevron_right</span>
+              </div>
+              <div class="settings-row-item danger">
+                <span class="material-symbols-outlined" style="color: var(--danger)">delete</span>
+                <div class="label">Удалить историю</div>
+                <span class="material-symbols-outlined chev">chevron_right</span>
+              </div>
+            </section>
+
+            <div class="note">
+              Удаление и загрузка JSON будут просить подтверждение в всплывающем окне
+              (вместо нативного <code>window.confirm</code>),
+              с предпросмотром: «В файле 24 смены, 5 коллег, выходной — вс».
+            </div>
+          </main>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="note" style="max-width: 720px; margin: 48px auto 0;">
+      <strong style="color: var(--text); font-weight: 600;">Что не видно в статике, но будет в продакшене:</strong><br><br>
+      · Свайп назад от левого края на «Изменения» и «Настройки»<br>
+      · Анимация перехода между экранами (slide + fade, 200мс)<br>
+      · Сохранение скролла при возврате на главный<br>
+      · Hardware back через <code>history.pushState</code><br>
+      · Pull-to-refresh на главном<br>
+      · Тонкий баннер ошибки «Не удалось обновить, показано от 14:02» когда есть кеш<br>
+      · Snackbar «Отменить» на 30 сек после импорта JSON
+    </div>
+
+  </div>
+</body>
+</html>
